@@ -1,0 +1,41 @@
+schemaType: Bundle
+schemaVersion: 1.0.1
+name: applications/phoenix-postgres-app-main
+description: "A CNAB bundle to manage the Postgres App"
+registry: "harbor-phoenix.atlan.dev"
+
+mixins:
+  - exec
+  - docker
+
+install:
+  - docker:
+      description: "Spin up the Postgres App container on port 8000"
+      run:
+        image: "harbor-phoenix.atlan.dev/applications/phoenix-postgres-app:main-latest"
+        name: "postgres-app"
+        ports:
+          - host: 8000
+            container: 8000
+        env:
+          OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:8000/telemetry"
+          OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
+          OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: "true"
+          OTEL_PYTHON_EXCLUDED_URLS: "/telemetry/.*,/system/.*"
+          TEMPORAL_HOST: "host.docker.internal"
+          TEMPORAL_PORT: 7233
+
+upgrade:
+  - exec:
+      description: "Upgrade the Postgres App"
+      command: /bin/bash
+      arguments:
+        - '-c'
+        - 'echo "No upgrade required"'
+
+uninstall:
+  - docker:
+      description: "Remove postgres-app"
+      remove:
+        container: postgres-app
+        force: true
