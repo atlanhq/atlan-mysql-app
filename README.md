@@ -27,14 +27,14 @@ This application has two components:
 https://github.com/user-attachments/assets/0ce63557-7c62-4491-96b9-1134a1ceadd6
 
 ## Features
-1. Extract metadata from a Postgres database, transform and push to an object store
-2. Supports Adhoc SQL queries on Postgres
+1. Extract metadata from a MySQL database, transform and push to an object store
+2. Supports Adhoc SQL queries on MySQL
 3. OTel integration for metrics, traces and logs
-4. _(In development)Supports mining query history from Postgres_
-5. _(In development)Supports metadata(including tag) sync between Atlan and Postgres_
-6. _(In development)Supports data profiling on Postgres_
-7. _(In development)Supports data quality checks on Postgres_
-8. _(In development)Supports data lineage on Postgres_
+4. _(In development)Supports mining query history from MySQL_
+5. _(In development)Supports metadata(including tag) sync between Atlan and MySQL_
+6. _(In development)Supports data profiling on MySQL_
+7. _(In development)Supports data quality checks on MySQL_
+8. _(In development)Supports data lineage on MySQL_
 
 
 ## Extending this application to other SQL sources
