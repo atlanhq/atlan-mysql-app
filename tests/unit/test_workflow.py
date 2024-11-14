@@ -18,7 +18,7 @@ from temporalio.worker.workflow_sandbox import (
 @workflow.defn
 class MockSQLWorkflow(SQLWorkflow):
     @workflow.run
-    async def _run(self, workflow_args: Dict[str, Any]):
+    async def run(self, workflow_args: Dict[str, Any]):
         workflow_id = workflow_args["workflow_id"]
         retry_policy = RetryPolicy(
             maximum_attempts=6,
@@ -125,7 +125,7 @@ async def test_extraction_workflow():
             ),
         ):
             result: Any = await env.client.execute_workflow(  # pyright: ignore[reportUnknownMemberType]
-                MockSQLWorkflow._run,  # type: ignore
+                MockSQLWorkflow.run,  # type: ignore
                 workflow_config,
                 id="test_workflow",
                 task_queue="test_queue",
