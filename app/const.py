@@ -97,7 +97,7 @@ SELECT
     CASE
         WHEN EXTRA LIKE '%auto_increment%' THEN 'YES'
         ELSE 'NO'
-    END AS is_autoincrement 
+    END AS is_autoincrement
 FROM
     INFORMATION_SCHEMA.COLUMNS t
 WHERE
