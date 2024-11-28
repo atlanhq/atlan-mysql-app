@@ -10,17 +10,17 @@ from application_sdk.workflows.resources.temporal_resource import (
     TemporalResource,
 )
 from application_sdk.workflows.sql.controllers.auth import SQLWorkflowAuthController
+from application_sdk.workflows.sql.resources.sql_resource import SQLResourceConfig
 from application_sdk.workflows.sql.workflows.workflow import SQLWorkflow
 from application_sdk.workflows.workers.worker import WorkflowWorker
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
 from app.workflow import (
+    MysqlResource,
     MysqlWorkflowBuilder,
     MysqlWorkflowMetadata,
     MysqlWorkflowPreflight,
-    MysqlSQLResourceConfig,
-    MysqlResource
 )
 
 logger = logging.getLogger(__name__)
@@ -49,7 +49,7 @@ app = FastAPI(title="MySQL App", lifespan=lifespan)
 APPLICATION_NAME = "mysql-connector"
 
 if __name__ == "__main__":
-    sql_resource = MysqlResource(MysqlSQLResourceConfig())
+    sql_resource = MysqlResource(SQLResourceConfig())
     temporal_resource = TemporalResource(
         TemporalConfig(
             application_name=APPLICATION_NAME,
