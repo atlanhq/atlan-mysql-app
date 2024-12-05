@@ -62,16 +62,16 @@ async def test_extraction_workflow():
     }
 
     mock_fetch_databases = MagicMock()
-    mock_fetch_databases.return_value = {"typename": "database", "chunk_count": 1}
+    mock_fetch_databases.return_value = [{"typename": "database", "chunk_count": 1}]
 
     mock_fetch_schemas = MagicMock()
-    mock_fetch_schemas.return_value = {"typename": "schema", "chunk_count": 1}
+    mock_fetch_schemas.return_value = [{"typename": "schema", "chunk_count": 1}]
 
     mock_fetch_tables = MagicMock()
-    mock_fetch_tables.return_value = {"typename": "table", "chunk_count": 1}
+    mock_fetch_tables.return_value = [{"typename": "table", "chunk_count": 1}]
 
     mock_fetch_columns = MagicMock()
-    mock_fetch_columns.return_value = {"typename": "column", "chunk_count": 1}
+    mock_fetch_columns.return_value = [{"typename": "column", "chunk_count": 1}]
 
     mock_transform_data = MagicMock()
     mock_transform_data.return_value = 1
