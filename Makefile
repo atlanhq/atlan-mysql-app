@@ -42,7 +42,9 @@ install:
 
 # Run the application
 run-app:
-	OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:8000/telemetry" \
+	HOST=$${APP_HOST:-localhost} \
+ 	PORT=$${APP_PORT:-8000} \
+ 	OTEL_EXPORTER_OTLP_ENDPOINT="http://$${HOST}:$${PORT}/telemetry" \
 	OTEL_EXPORTER_OTLP_PROTOCOL="http/protobuf" \
 	OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true \
 	OTEL_PYTHON_EXCLUDED_URLS="/telemetry/.*,/system/.*" \
