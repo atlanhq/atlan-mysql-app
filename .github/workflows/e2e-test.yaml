@@ -92,6 +92,7 @@ jobs:
           http://0.0.0.0:8000/workflows/v1/start)
 
         # Extract workflow_id and run_id
+        echo $RESPONSE
         WORKFLOW_ID=$(echo $RESPONSE | jq -r '.data.workflow_id')
         RUN_ID=$(echo $RESPONSE | jq -r '.data.run_id')
 
