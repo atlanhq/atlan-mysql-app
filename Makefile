@@ -4,12 +4,24 @@ APP_NAME := phoenix-mysql-app
 # Phony targets
 .PHONY: install start-deps run
 
+# Attempt to include .env file if it exists
+-include .env
+
+# Default values (will be used if .env doesn't exist or variables are not set)
+APP_HTTP_HOST ?= 0.0.0.0
+APP_HTTP_PORT ?= 8000
+APP_DASHBOARD_HTTP_HOST ?= 0.0.0.0
+APP_DASHBOARD_HTTP_PORT ?= 8050
+DAPR_APP_PORT ?= 3000
+DAPR_HTTP_PORT ?= 3500
+DAPR_GRPC_PORT ?= 50001
+
 # Run Temporal locally
 start-temporal-dev:
 	temporal server start-dev --db-filename /tmp/temporal.db
 
 start-dapr:
-	dapr run --app-id app --app-port 3000 --dapr-http-port 3500 --dapr-grpc-port 50001 --dapr-http-max-request-size 1024 --resources-path .venv/src/application-sdk/components
+	dapr run --app-id app --app-port $(DAPR_APP_PORT) --dapr-http-port $(DAPR_HTTP_PORT) --dapr-grpc-port $(DAPR_GRPC_PORT) --dapr-http-max-request-size 1024 --resources-path .venv/src/application-sdk/components
 
 start-deps:
 	@echo "Starting all services in detached mode..."
@@ -42,9 +54,9 @@ install:
 
 # Run the application
 run-app:
-	HOST=$${APP_HOST:-localhost} \
- 	PORT=$${APP_PORT:-8000} \
- 	OTEL_EXPORTER_OTLP_ENDPOINT="http://$${HOST}:$${PORT}/telemetry" \
+	HOST=$(APP_HTTP_HOST) \
+ 	PORT=$(APP_HTTP_PORT) \
+ 	OTEL_EXPORTER_OTLP_ENDPOINT="http://$(APP_HTTP_HOST):$(APP_HTTP_PORT)/telemetry" \
 	OTEL_EXPORTER_OTLP_PROTOCOL="http/protobuf" \
 	OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true \
 	OTEL_PYTHON_EXCLUDED_URLS="/telemetry/.*,/system/.*" \
