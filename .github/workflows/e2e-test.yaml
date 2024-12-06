@@ -102,7 +102,7 @@ jobs:
     # Check Temporal workflows status
     - name: Check workflow status
       run: |
-        sleep 60  # Give the workflow time to complete
+        sleep 100  # Give the workflow time to complete
         export PATH="$HOME/.temporalio/bin:$PATH"
 
         # Get workflow details and extract status and duration
