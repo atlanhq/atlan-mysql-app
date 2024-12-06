@@ -69,11 +69,11 @@ jobs:
           -H "Content-Type: application/json" \
           -d '{
             "credentials": {
-              "host": "${{ secrets.POSTGRES_DB_HOST }}",
+              "host": "${{ secrets.MYSQL_DB_HOST }}",
               "port": 5432,
-              "user": "postgres",
-              "password": "${{ secrets.POSTGRES_DB_PASSWORD }}",
-              "database": "assets_100k"
+              "user": "atlan",
+              "password": "${{ secrets.MYSQL_DB_PASSWORD }}",
+              "database": "atlan"
             },
             "connection": {
               "connection": "development"
@@ -136,7 +136,7 @@ jobs:
         esac
 
         # Create metrics file if it doesn't exist
-        echo "## 📦 Postgres App Test Metrics" > metrics.md
+        echo "## 📦 MySQL App Test Metrics" > metrics.md
         echo "| Database Size | Status | Duration |" >> metrics.md
         echo "|--------------|--------|-----------|" >> metrics.md
         echo "| 100k (assets_100k) | $DISPLAY_STATUS | $DURATION |" >> metrics.md
