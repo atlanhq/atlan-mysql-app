@@ -19,7 +19,7 @@ WHERE schema_name NOT IN ('information_schema', 'performance_schema','mysql','sy
 ### Extraction Queries
 
 DATABASE_EXTRACTION_SQL = """
-SELECT SCHEMA_NAME AS datname
+SELECT SCHEMA_NAME AS database_name
 FROM INFORMATION_SCHEMA.SCHEMATA
 WHERE schema_name NOT IN ('information_schema', 'performance_schema','mysql','sys');
 """
