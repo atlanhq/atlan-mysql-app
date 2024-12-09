@@ -70,7 +70,7 @@ jobs:
           -d '{
             "credentials": {
               "host": "${{ secrets.MYSQL_DB_HOST }}",
-              "port": 5432,
+              "port": 3306,
               "user": "atlan",
               "password": "${{ secrets.MYSQL_DB_PASSWORD }}",
               "database": "atlan"
