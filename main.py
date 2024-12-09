@@ -15,6 +15,7 @@ from application_sdk.workflows.resources.temporal_resource import (
 from application_sdk.workflows.sql.controllers.auth import SQLWorkflowAuthController
 from application_sdk.workflows.sql.resources.sql_resource import SQLResourceConfig
 from application_sdk.workflows.sql.workflows.workflow import SQLWorkflow
+from application_sdk.workflows.transformers.atlas import AtlasTransformer
 from application_sdk.workflows.workers.worker import WorkflowWorker
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
@@ -47,7 +48,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-APPLICATION_NAME = "mysql-connector"
+APPLICATION_NAME = "mysql"
 
 if __name__ == "__main__":
     sql_resource = MysqlResource(SQLResourceConfig())
@@ -58,10 +59,18 @@ if __name__ == "__main__":
     )
     asyncio.run(temporal_resource.load())
 
+    tenant_id = os.getenv("TENANT_ID", "development")
+
+    transformer = AtlasTransformer(
+        connector_name=APPLICATION_NAME,
+        tenant_id=tenant_id,
+    )
+
     mysql_workflow: SQLWorkflow = (
         MysqlWorkflowBuilder()
         .set_sql_resource(sql_resource=sql_resource)
         .set_temporal_resource(temporal_resource=temporal_resource)
+        .set_transformer(transformer)
         .build()
     )
 

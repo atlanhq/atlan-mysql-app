@@ -13,7 +13,6 @@ from application_sdk.workflows.sql.resources.sql_resource import (
     SQLResourceConfig,
 )
 from application_sdk.workflows.sql.workflows.workflow import SQLWorkflow
-from application_sdk.workflows.transformers.atlas import AtlasTransformer
 
 from app.const import (
     COLUMN_EXTRACTION_SQL,
@@ -55,10 +54,6 @@ class MysqlWorkflow(SQLWorkflow):
 
 class MysqlWorkflowBuilder(SQLWorkflowBuilder):
     def __init__(self, application_name: str = APPLICATION_NAME):
-        self.set_transformer(
-            AtlasTransformer(connector_name=application_name, connector_type="mysql")
-        )
-
         super().__init__()
 
     def build(self, workflow: SQLWorkflow | None = None) -> SQLWorkflow:
