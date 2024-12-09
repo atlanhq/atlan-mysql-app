@@ -137,9 +137,9 @@ jobs:
 
         # Create metrics file if it doesn't exist
         echo "## 📦 MySQL App Test Metrics" > metrics.md
-        echo "| Database Size | Status | Duration |" >> metrics.md
+        echo "| Database | Status | Duration |" >> metrics.md
         echo "|--------------|--------|-----------|" >> metrics.md
-        echo "| 100k (assets_100k) | $DISPLAY_STATUS | $DURATION |" >> metrics.md
+        echo "| atlan | $DISPLAY_STATUS | $DURATION |" >> metrics.md
 
         exit $EXIT_CODE
 
