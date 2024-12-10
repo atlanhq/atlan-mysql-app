@@ -1,4 +1,5 @@
 import logging
+import os
 from urllib.parse import quote_plus
 
 from application_sdk.workflows.sql.builders.builder import SQLWorkflowBuilder
@@ -27,6 +28,7 @@ from app.const import (
 logger = logging.getLogger(__name__)
 
 APPLICATION_NAME = "mysql"
+TENANT_ID = os.getenv("ATLAN_TENANT_ID", "development")
 
 
 class MysqlResource(SQLResource):
@@ -56,7 +58,11 @@ class MysqlWorkflow(SQLWorkflow):
 class MysqlWorkflowBuilder(SQLWorkflowBuilder):
     def __init__(self, application_name: str = APPLICATION_NAME):
         self.set_transformer(
-            AtlasTransformer(connector_name=application_name, connector_type="mysql")
+            AtlasTransformer(
+                connector_name=application_name,
+                connector_type="mysql",
+                tenant_id=TENANT_ID,
+            )
         )
 
         super().__init__()

@@ -16,8 +16,9 @@ from application_sdk.workflows.sql.controllers.auth import SQLWorkflowAuthContro
 from application_sdk.workflows.sql.resources.sql_resource import SQLResourceConfig
 from application_sdk.workflows.sql.workflows.workflow import SQLWorkflow
 from application_sdk.workflows.workers.worker import WorkflowWorker
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 from app.workflow import (
     MysqlResource,
@@ -28,6 +29,8 @@ from app.workflow import (
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+templates = Jinja2Templates(directory="frontend/templates")
 
 
 @asynccontextmanager
@@ -81,9 +84,20 @@ if __name__ == "__main__":
             lifespan=lifespan,
         ),
     )
-    fastapi_app.app.mount(
-        "/", StaticFiles(directory="frontend", html=True), name="static"
-    )
+
+    @fastapi_app.app.get("/")
+    async def read_root(request: Request):
+        return templates.TemplateResponse(
+            "index.html",
+            {
+                "request": request,  # Required by Jinja
+                "app_dashboard_host": APP_DASHBOARD_HOST,
+                "app_dashboard_port": APP_DASHBOARD_PORT,
+                # Add any other environment variables you want to pass
+            },
+        )
+
+    fastapi_app.app.mount("/", StaticFiles(directory="frontend/static"), name="static")
 
     # Starting FastAPI application
     asyncio.run(fastapi_app.start())
