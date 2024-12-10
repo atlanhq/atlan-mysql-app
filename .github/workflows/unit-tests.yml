@@ -36,7 +36,6 @@ jobs:
       - name: Run Tests with Coverage
         run: |
           git config --global url."https://${{ secrets.ORG_PAT_GITHUB }}@github.com/".insteadOf "git@github.com:"
-          poetry lock --no-update
           poetry install -vv
           poetry run coverage run -m pytest tests/unit
           poetry run coverage xml
