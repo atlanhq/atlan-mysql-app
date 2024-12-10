@@ -106,7 +106,9 @@ if __name__ == "__main__":
             },
         )
 
-    fastapi_app.app.mount("/", StaticFiles(directory="frontend/static"), name="static")
+    fastapi_app.app.mount(
+        "/", StaticFiles(directory="frontend/static", html=True), name="static"
+    )
 
     # Starting FastAPI application
     asyncio.run(fastapi_app.start())
