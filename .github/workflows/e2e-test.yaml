@@ -13,11 +13,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+
       # Install Dapr
       - name: Install Dapr CLI
         run: |
           wget -q https://raw.githubusercontent.com/dapr/cli/master/install/install.sh -O - | /bin/bash
           dapr init --slim
+
       # Install Temporal
       - name: Install Temporal CLI and Start Server
         run: |
@@ -25,13 +27,16 @@ jobs:
           export PATH="$HOME/.temporalio/bin:$PATH"
           temporal server start-dev --db-filename /tmp/temporal.db &
           sleep 10  # Give some time for Temporal to start
+
       - name: Set up Python 3.11
         uses: actions/setup-python@v1
         with:
           python-version: "3.11"
+
       - name: Install poetry
         run: |
           pip install poetry
+
       - name: Install Dependencies
         run: |
           git config --global url."https://${{ secrets.ORG_PAT_GITHUB }}@github.com/".insteadOf "git@github.com:"
@@ -40,16 +45,19 @@ jobs:
           # Install the dependencies
           poetry install -vv
           poetry update application-sdk --dry-run
+
       # Start dapr and temporal services
       - name: Start Platform Services
         run: |
           make start-deps
           sleep 10  # Give services time to start up
+
       # Start the application
       - name: Start the application
         run: |
           make run-app &
           sleep 10  # Give the app time to start
+
       # Make API call and capture workflow/run IDs
       - name: Start the workflow
         id: workflow_info
@@ -85,6 +93,7 @@ jobs:
           # Set outputs for next step
           echo "workflow_id=$WORKFLOW_ID" >> $GITHUB_OUTPUT
           echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+
       # Check Temporal workflows status
       - name: Check workflow status
         run: |
@@ -123,12 +132,14 @@ jobs:
           echo "|--------------|--------|-----------|" >> metrics.md
           echo "| 100k (assets_100k) | $DISPLAY_STATUS | $DURATION |" >> metrics.md
           exit $EXIT_CODE
+
       - name: Comment workflow status on Pull Request
         if: ${{ github.event_name == 'pull_request' }}
         uses: mshick/add-pr-comment@v2
         with:
           message-id: "workflow_status"
           message-path: metrics.md
+
       # Stop all services
       - name: Stop all services
         continue-on-error: true
