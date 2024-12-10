@@ -31,6 +31,9 @@ WORKDIR /app
 # Install Python dependencies
 COPY ./pyproject.toml ./poetry.lock ./
 
+# Update the lock file
+RUN poetry lock --no-update
+
 # the cache directory makes rebuilding a docker image if pyproject.toml changes near instant
 RUN --mount=type=cache,target=$POETRY_CACHE_DIR poetry install --no-root --without dev,test --no-interaction --no-ansi
 
