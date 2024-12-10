@@ -56,13 +56,6 @@ class MysqlWorkflow(SQLWorkflow):
 
 class MysqlWorkflowBuilder(SQLWorkflowBuilder):
     def __init__(self, application_name: str = APPLICATION_NAME):
-        self.set_transformer(
-            AtlasTransformer(
-                connector_name=application_name,
-                connector_type="mysql",
-                tenant_id=TENANT_ID,
-            )
-        )
         super().__init__()
 
     def build(self, workflow: SQLWorkflow | None = None) -> SQLWorkflow:
