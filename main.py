@@ -50,11 +50,13 @@ async def lifespan(app: FastAPI):
     worker_thread.start()
     yield
 
-APPLICATION_NAME = "mysql-connector"
+
+APPLICATION_NAME = "mysql"
 APP_PORT = int(os.getenv("APP_HTTP_PORT", 8000))
 APP_HOST = os.getenv("APP_HTTP_HOST", "0.0.0.0")
 APP_DASHBOARD_PORT = int(os.getenv("APP_DASHBOARD_HTTP_PORT", 8050))
 APP_DASHBOARD_HOST = os.getenv("APP_DASHBOARD_HTTP_HOST", "0.0.0.0")
+TENANT_ID = os.getenv("ATLAN_TENANT_ID", "development")
 
 
 if __name__ == "__main__":
@@ -66,11 +68,9 @@ if __name__ == "__main__":
     )
     asyncio.run(temporal_resource.load())
 
-    tenant_id = os.getenv("TENANT_ID", "development")
-
     transformer = AtlasTransformer(
         connector_name=APPLICATION_NAME,
-        tenant_id=tenant_id,
+        tenant_id=TENANT_ID,
     )
 
     mysql_workflow: SQLWorkflow = (
