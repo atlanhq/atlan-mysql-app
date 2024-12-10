@@ -8,151 +8,130 @@ on:
     branches:
       - main
       - develop
-
 jobs:
   test:
     runs-on: ubuntu-latest
-
     steps:
-    - uses: actions/checkout@v3
-
-    # Install Dapr
-    - name: Install Dapr CLI
-      run: |
-        wget -q https://raw.githubusercontent.com/dapr/cli/master/install/install.sh -O - | /bin/bash
-        dapr init --slim
-
-    # Install Temporal
-    - name: Install Temporal CLI and Start Server
-      run: |
-        curl -sSf https://temporal.download/cli.sh | sh
-        export PATH="$HOME/.temporalio/bin:$PATH"
-        temporal server start-dev --db-filename /tmp/temporal.db &
-        sleep 10  # Give some time for Temporal to start
-
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v1
-      with:
-        python-version: "3.11"
-
-    - name: Install poetry
-      run: |
-        pip install poetry
-
-    - name: Install Dependencies
-      run: |
-        git config --global url."https://${{ secrets.ORG_PAT_GITHUB }}@github.com/".insteadOf "git@github.com:"
-        # Configure poetry to use project-specific virtualenv
-        poetry config virtualenvs.in-project true
-
-        # Install the dependencies
-        poetry install -vv
-        poetry update application-sdk --dry-run
-
-    # Start dapr and temporal services
-    - name: Start Platform Services
-      run: |
-        make start-deps
-        sleep 10  # Give services time to start up
-
-    # Start the application
-    - name: Start the application
-      run: |
-        make run-app &
-        sleep 10  # Give the app time to start
-
-    # Make API call and capture workflow/run IDs
-    - name: Start the workflow
-      id: workflow_info
-      run: |
-        RESPONSE=$(curl -X POST \
-          -H "Content-Type: application/json" \
-          -d '{
-            "credentials": {
-              "host": "${{ secrets.POSTGRES_DB_HOST }}",
-              "port": 5432,
-              "user": "postgres",
-              "password": "${{ secrets.POSTGRES_DB_PASSWORD }}",
-              "database": "assets_100k"
-            },
-            "connection": {
-              "connection": "development"
-            },
-            "metadata": {
-              "exclude_filter": "{}",
-              "include_filter": "{}",
-              "temp_table_regex": "",
-              "advanced_config_strategy": "default",
-              "use_source_schema_filtering": "false",
-              "use_jdbc_internal_methods": "true",
-              "authentication": "BASIC",
-              "extraction_method": "direct"
-            }
-          }' \
-          http://0.0.0.0:8000/workflows/v1/start)
-
-        # Extract workflow_id and run_id
-        WORKFLOW_ID=$(echo $RESPONSE | jq -r '.data.workflow_id')
-        RUN_ID=$(echo $RESPONSE | jq -r '.data.run_id')
-
-        # Set outputs for next step
-        echo "workflow_id=$WORKFLOW_ID" >> $GITHUB_OUTPUT
-        echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
-
-    # Check Temporal workflows status
-    - name: Check workflow status
-      run: |
-        sleep 100  # Give the workflow time to complete
-        export PATH="$HOME/.temporalio/bin:$PATH"
-
-        # Get workflow details and extract status and duration
-        WORKFLOW_DETAILS=$(temporal workflow describe \
-          --workflow-id=${{ steps.workflow_info.outputs.workflow_id }} \
-          --run-id=${{ steps.workflow_info.outputs.run_id }} \
-          --output=json)
-
-        echo $WORKFLOW_DETAILS
-        STATUS=$(echo $WORKFLOW_DETAILS | jq -r '.workflowExecutionInfo.status')
-        DURATION=$(echo $WORKFLOW_DETAILS | jq -r '.workflowExecutionInfo.executionDuration | rtrimstr("s") | tonumber | (. * 100 | round | . / 100) | tostring + "s"')
-
-        # Convert status to a more readable format with emojis
-        case $STATUS in
-          "WORKFLOW_EXECUTION_STATUS_COMPLETED")
-            DISPLAY_STATUS="🟢 Completed"
-            EXIT_CODE=0
-            ;;
-          "WORKFLOW_EXECUTION_STATUS_FAILED")
-            DISPLAY_STATUS="🔴 Failed"
-            EXIT_CODE=1
-            ;;
-          "WORKFLOW_EXECUTION_STATUS_RUNNING")
-            DISPLAY_STATUS="🟠 Running"
-            EXIT_CODE=1
-            ;;
-          *)
-            DISPLAY_STATUS="❓ ${STATUS}"
-            EXIT_CODE=1
-            ;;
-        esac
-
-        # Create metrics file if it doesn't exist
-        echo "## 📦 Postgres App Test Metrics" > metrics.md
-        echo "| Database Size | Status | Duration |" >> metrics.md
-        echo "|--------------|--------|-----------|" >> metrics.md
-        echo "| 100k (assets_100k) | $DISPLAY_STATUS | $DURATION |" >> metrics.md
-
-        exit $EXIT_CODE
-
-    - name: Comment workflow status on Pull Request
-      if: ${{ github.event_name == 'pull_request' }}
-      uses: mshick/add-pr-comment@v2
-      with:
-        message-id: 'workflow_status'
-        message-path: metrics.md
-
-    # Stop all services
-    - name: Stop all services
-      continue-on-error: true
-      run: |
-        make stop-all
-        sleep 10  # Give services time to stop
+      - uses: actions/checkout@v3
+      # Install Dapr
+      - name: Install Dapr CLI
+        run: |
+          wget -q https://raw.githubusercontent.com/dapr/cli/master/install/install.sh -O - | /bin/bash
+          dapr init --slim
+      # Install Temporal
+      - name: Install Temporal CLI and Start Server
+        run: |
+          curl -sSf https://temporal.download/cli.sh | sh
+          export PATH="$HOME/.temporalio/bin:$PATH"
+          temporal server start-dev --db-filename /tmp/temporal.db &
+          sleep 10  # Give some time for Temporal to start
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v1
+        with:
+          python-version: "3.11"
+      - name: Install poetry
+        run: |
+          pip install poetry
+      - name: Install Dependencies
+        run: |
+          git config --global url."https://${{ secrets.ORG_PAT_GITHUB }}@github.com/".insteadOf "git@github.com:"
+          # Configure poetry to use project-specific virtualenv
+          poetry config virtualenvs.in-project true
+          # Install the dependencies
+          poetry install -vv
+          poetry update application-sdk --dry-run
+      # Start dapr and temporal services
+      - name: Start Platform Services
+        run: |
+          make start-deps
+          sleep 10  # Give services time to start up
+      # Start the application
+      - name: Start the application
+        run: |
+          make run-app &
+          sleep 10  # Give the app time to start
+      # Make API call and capture workflow/run IDs
+      - name: Start the workflow
+        id: workflow_info
+        run: |
+          RESPONSE=$(curl -X POST \
+            -H "Content-Type: application/json" \
+            -d '{
+              "credentials": {
+                "host": "${{ secrets.POSTGRES_DB_HOST }}",
+                "port": 5432,
+                "user": "postgres",
+                "password": "${{ secrets.POSTGRES_DB_PASSWORD }}",
+                "database": "assets_100k"
+              },
+              "connection": {
+                "connection": "development"
+              },
+              "metadata": {
+                "exclude_filter": "{}",
+                "include_filter": "{}",
+                "temp_table_regex": "",
+                "advanced_config_strategy": "default",
+                "use_source_schema_filtering": "false",
+                "use_jdbc_internal_methods": "true",
+                "authentication": "BASIC",
+                "extraction_method": "direct"
+              }
+            }' \
+            http://0.0.0.0:8000/workflows/v1/start)
+          # Extract workflow_id and run_id
+          WORKFLOW_ID=$(echo $RESPONSE | jq -r '.data.workflow_id')
+          RUN_ID=$(echo $RESPONSE | jq -r '.data.run_id')
+          # Set outputs for next step
+          echo "workflow_id=$WORKFLOW_ID" >> $GITHUB_OUTPUT
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+      # Check Temporal workflows status
+      - name: Check workflow status
+        run: |
+          sleep 60  # Give the workflow time to complete
+          export PATH="$HOME/.temporalio/bin:$PATH"
+          # Get workflow details and extract status and duration
+          WORKFLOW_DETAILS=$(temporal workflow describe \
+            --workflow-id=${{ steps.workflow_info.outputs.workflow_id }} \
+            --run-id=${{ steps.workflow_info.outputs.run_id }} \
+            --output=json)
+          echo $WORKFLOW_DETAILS
+          STATUS=$(echo $WORKFLOW_DETAILS | jq -r '.workflowExecutionInfo.status')
+          DURATION=$(echo $WORKFLOW_DETAILS | jq -r '.workflowExecutionInfo.executionDuration | rtrimstr("s") | tonumber | (. * 100 | round | . / 100) | tostring + "s"')
+          # Convert status to a more readable format with emojis
+          case $STATUS in
+            "WORKFLOW_EXECUTION_STATUS_COMPLETED")
+              DISPLAY_STATUS="🟢 Completed"
+              EXIT_CODE=0
+              ;;
+            "WORKFLOW_EXECUTION_STATUS_FAILED")
+              DISPLAY_STATUS="🔴 Failed"
+              EXIT_CODE=1
+              ;;
+            "WORKFLOW_EXECUTION_STATUS_RUNNING")
+              DISPLAY_STATUS="🟠 Running"
+              EXIT_CODE=1
+              ;;
+            *)
+              DISPLAY_STATUS="❓ ${STATUS}"
+              EXIT_CODE=1
+              ;;
+          esac
+          # Create metrics file if it doesn't exist
+          echo "## 📦 Postgres App Test Metrics" > metrics.md
+          echo "| Database Size | Status | Duration |" >> metrics.md
+          echo "|--------------|--------|-----------|" >> metrics.md
+          echo "| 100k (assets_100k) | $DISPLAY_STATUS | $DURATION |" >> metrics.md
+          exit $EXIT_CODE
+      - name: Comment workflow status on Pull Request
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: mshick/add-pr-comment@v2
+        with:
+          message-id: "workflow_status"
+          message-path: metrics.md
+      # Stop all services
+      - name: Stop all services
+        continue-on-error: true
+        run: |
+          make stop-all
+          sleep 10  # Give services time to stop
