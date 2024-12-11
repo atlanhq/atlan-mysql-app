@@ -17,8 +17,9 @@ from application_sdk.workflows.sql.resources.sql_resource import SQLResourceConf
 from application_sdk.workflows.sql.workflows.workflow import SQLWorkflow
 from application_sdk.workflows.transformers.atlas import AtlasTransformer
 from application_sdk.workflows.workers.worker import WorkflowWorker
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 from app.workflow import (
     MysqlResource,
@@ -29,6 +30,8 @@ from app.workflow import (
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+templates = Jinja2Templates(directory="frontend/templates")
 
 
 @asynccontextmanager
@@ -49,6 +52,12 @@ async def lifespan(app: FastAPI):
 
 
 APPLICATION_NAME = "mysql"
+APP_PORT = int(os.getenv("APP_HTTP_PORT", 8000))
+APP_HOST = os.getenv("APP_HTTP_HOST", "0.0.0.0")
+APP_DASHBOARD_PORT = int(os.getenv("APP_DASHBOARD_HTTP_PORT", 8050))
+APP_DASHBOARD_HOST = os.getenv("APP_DASHBOARD_HTTP_HOST", "0.0.0.0")
+TENANT_ID = os.getenv("ATLAN_TENANT_ID", "development")
+
 
 if __name__ == "__main__":
     sql_resource = MysqlResource(SQLResourceConfig())
@@ -59,11 +68,9 @@ if __name__ == "__main__":
     )
     asyncio.run(temporal_resource.load())
 
-    tenant_id = os.getenv("TENANT_ID", "development")
-
     transformer = AtlasTransformer(
         connector_name=APPLICATION_NAME,
-        tenant_id=tenant_id,
+        tenant_id=TENANT_ID,
     )
 
     mysql_workflow: SQLWorkflow = (
@@ -81,13 +88,26 @@ if __name__ == "__main__":
         preflight_check_controller=MysqlWorkflowPreflight(sql_resource=sql_resource),
         workflow=mysql_workflow,
         config=FastAPIApplicationConfig(
-            host=os.getenv("APP_HOST", "0.0.0.0"),
-            port=int(os.getenv("APP_PORT", 8000)),
+            host=APP_HOST,
+            port=APP_PORT,
             lifespan=lifespan,
         ),
     )
+
+    @fastapi_app.app.get("/")
+    async def read_root(request: Request):
+        return templates.TemplateResponse(
+            "index.html",
+            {
+                "request": request,  # Required by Jinja
+                "app_dashboard_host": APP_DASHBOARD_HOST,
+                "app_dashboard_port": APP_DASHBOARD_PORT,
+                # Add any other environment variables you want to pass
+            },
+        )
+
     fastapi_app.app.mount(
-        "/", StaticFiles(directory="frontend", html=True), name="static"
+        "/", StaticFiles(directory="frontend/static", html=True), name="static"
     )
 
     # Starting FastAPI application
