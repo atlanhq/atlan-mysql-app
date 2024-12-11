@@ -4,12 +4,39 @@ APP_NAME := phoenix-mysql-app
 # Phony targets
 .PHONY: install start-deps run
 
+# Attempt to include .env file if it exists
+-include .env
+
+# Default values (will be used if .env doesn't exist or variables are not set)
+ATLAN_APP_HTTP_HOST ?= 0.0.0.0
+ATLAN_APP_HTTP_PORT ?= 8000
+ATLAN_APP_DASHBOARD_HTTP_HOST ?= 0.0.0.0
+ATLAN_APP_DASHBOARD_HTTP_PORT ?= 8050
+ATLAN_DAPR_APP_PORT ?= 3000
+ATLAN_DAPR_HTTP_PORT ?= 3500
+ATLAN_DAPR_GRPC_PORT ?= 50001
+ATLAN_DAPR_METRICS_PORT ?= 3100
+ATLAN_TEMPORAL_UI_ENABLED?=true
+ATLAN_TEMPORAL_HOST ?= 127.0.0.1
+ATLAN_TEMPORAL_PORT ?= 7233
+ATLAN_TEMPORAL_UI_HOST ?= 127.0.0.1
+ATLAN_TEMPORAL_UI_PORT ?= 8233
+ATLAN_TEMPORAL_METRICS_PORT ?= 8234
+ATLAN_TENANT_ID ?= "development"
+
 # Run Temporal locally
 start-temporal-dev:
-	temporal server start-dev --db-filename /tmp/temporal.db
+	@if [ "$(ATLAN_TEMPORAL_UI_ENABLED)" = true ]; then \
+		echo "Starting Temporal with UI enabled"; \
+		temporal server start-dev --db-filename /tmp/temporal.db --ip $(ATLAN_TEMPORAL_HOST) --port $(ATLAN_TEMPORAL_PORT) --ui-ip $(ATLAN_TEMPORAL_UI_HOST) --ui-port $(ATLAN_TEMPORAL_UI_PORT) --metrics-port $(ATLAN_TEMPORAL_METRICS_PORT); \
+	else \
+		echo "Starting Temporal without UI"; \
+		temporal server start-dev --db-filename /tmp/temporal.db --ip $(ATLAN_TEMPORAL_HOST) --port $(ATLAN_TEMPORAL_PORT) --metrics-port $(ATLAN_TEMPORAL_METRICS_PORT) --headless; \
+	fi
 
+# Start Dapr
 start-dapr:
-	dapr run --app-id app --app-port 3000 --dapr-http-port 3500 --dapr-grpc-port 50001 --dapr-http-max-request-size 1024 --resources-path .venv/src/application-sdk/components
+	dapr run --app-id app --app-port $(ATLAN_DAPR_APP_PORT) --dapr-http-port $(ATLAN_DAPR_HTTP_PORT) --dapr-grpc-port $(ATLAN_DAPR_GRPC_PORT) --dapr-http-max-request-size 1024 --resources-path .venv/src/application-sdk/components
 
 start-deps:
 	@echo "Starting all services in detached mode..."
@@ -42,9 +69,12 @@ install:
 
 # Run the application
 run-app:
-	HOST=$${APP_HOST:-localhost} \
- 	PORT=$${APP_PORT:-8000} \
- 	OTEL_EXPORTER_OTLP_ENDPOINT="http://$${HOST}:$${PORT}/telemetry" \
+	ATLAN_APP_HTTP_HOST=$(ATLAN_APP_HTTP_HOST) \
+	ATLAN_APP_HTTP_PORT=$(ATLAN_APP_HTTP_PORT) \
+	ATLAN_APP_DASHBOARD_HTTP_HOST=$(ATLAN_APP_DASHBOARD_HTTP_HOST) \
+	ATLAN_APP_DASHBOARD_HTTP_PORT=$(ATLAN_APP_DASHBOARD_HTTP_PORT) \
+	ATLAN_TENANT_ID=$(ATLAN_TENANT_ID) \
+	OTEL_EXPORTER_OTLP_ENDPOINT="http://$(ATLAN_APP_HTTP_HOST):$(ATLAN_APP_HTTP_PORT)/telemetry" \
 	OTEL_EXPORTER_OTLP_PROTOCOL="http/protobuf" \
 	OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED=true \
 	OTEL_PYTHON_EXCLUDED_URLS="/telemetry/.*,/system/.*" \
