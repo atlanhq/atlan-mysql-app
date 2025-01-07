@@ -42,6 +42,7 @@ jobs:
     - name: Install Dependencies
       run: |
         git config --global url."https://${{ secrets.ORG_PAT_GITHUB }}@github.com/".insteadOf "git@github.com:"
+        git config --global url."https://${{ secrets.ORG_PAT_GITHUB }}@github.com/".insteadOf "https://github.com/"
         # Configure poetry to use project-specific virtualenv
         poetry config virtualenvs.in-project true
 

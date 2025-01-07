@@ -23,5 +23,6 @@ jobs:
       run: |
         poetry config virtualenvs.in-project true
         git config --global url."https://${{ secrets.ORG_PAT_GITHUB }}@github.com/".insteadOf "git@github.com:"
+        git config --global url."https://${{ secrets.ORG_PAT_GITHUB }}@github.com/".insteadOf "https://github.com/"
         poetry install --no-root --without dev,test
     - uses: pre-commit/action@v3.0.1
