@@ -11,7 +11,7 @@ ENV PIP_DEFAULT_TIMEOUT=100 \
     POETRY_VIRTUALENVS_IN_PROJECT=1 \
     POETRY_VIRTUALENVS_CREATE=1 \
     POETRY_CACHE_DIR=/tmp/poetry_cache/$TARGETARCH \
-    POETRY_VERSION=1.8.3
+    POETRY_VERSION=1.8.5
 
 # Install os build dependencies if any
 RUN runtimeDeps='' \
@@ -23,9 +23,13 @@ RUN runtimeDeps='' \
 # installing via pip
 RUN pip install "poetry==$POETRY_VERSION"
 
-# To use the secret during build on your local: docker build -f Dockerfile . --secret id=PRIVATE_REPO_ACCESS_TOKEN,src=/tmp/my_token_on_host_machine
-RUN --mount=type=secret,id=PRIVATE_REPO_ACCESS_TOKEN export PRIVATE_REPO_ACCESS_TOKEN=$(cat /run/secrets/PRIVATE_REPO_ACCESS_TOKEN) && if [ ! -z "$PRIVATE_REPO_ACCESS_TOKEN" ]; then git config --global url."https://${PRIVATE_REPO_ACCESS_TOKEN}@github.com/".insteadOf "git@github.com:"; fi
+RUN poetry config experimental.system-git-client true
 
+# To use the secret during build on your local: docker build -f Dockerfile . --secret id=PRIVATE_REPO_ACCESS_TOKEN,src=/tmp/my_token_on_host_machine
+RUN --mount=type=secret,id=PRIVATE_REPO_ACCESS_TOKEN export PRIVATE_REPO_ACCESS_TOKEN=$(cat /run/secrets/PRIVATE_REPO_ACCESS_TOKEN) && \
+    if [ ! -z "$PRIVATE_REPO_ACCESS_TOKEN" ]; then \
+        git config --global url."https://${PRIVATE_REPO_ACCESS_TOKEN}@github.com/".insteadOf "git@github.com:"; \
+    fi
 WORKDIR /app
 
 # Install Python dependencies
