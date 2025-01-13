@@ -5,16 +5,13 @@ on:
       - main
       - develop
   pull_request:
-    types: [labeled]
-    branches:
-      - main
-      - develop
+    types: [labeled, reopened, synchronize, opened]
 
 jobs:
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'run-e2e') }}
+    if: ${{ contains(github.event.pull_request.labels.*.name, 'e2e-test') }}
 
     steps:
     - uses: actions/checkout@v3
