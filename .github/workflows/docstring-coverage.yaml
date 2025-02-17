@@ -13,6 +13,7 @@ permissions:
   actions: read
   security-events: write
 
+
 jobs:
   docstring-coverage:
     uses: atlanhq/application-sdk/.github/workflows/docstring-coverage.yaml@main
