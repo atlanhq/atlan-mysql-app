@@ -1,6 +1,5 @@
-FROM python:3.11-slim AS builder
-
-RUN mkdir -p /app
+# Builder stage
+FROM registry.access.redhat.com/ubi8/ubi-minimal AS builder
 
 ARG TARGETARCH
 
@@ -13,40 +12,73 @@ ENV PIP_DEFAULT_TIMEOUT=100 \
     POETRY_CACHE_DIR=/tmp/poetry_cache/$TARGETARCH \
     POETRY_VERSION=1.8.5
 
-# Install os build dependencies if any
-RUN runtimeDeps='' \
-    && set -x  \
-    && apt-get update \
-    && apt-get install -y git openssh-client build-essential \
-    && pip install --upgrade pip
+# Install OS build dependencies
+RUN microdnf upgrade -y && \
+    microdnf install -y \
+    git \
+    openssh-clients \
+    gcc \
+    gcc-c++ \
+    make \
+    python3.12-devel \
+    openssl-devel \
+    bzip2-devel \
+    libffi-devel \
+    zlib-devel \
+    wget \
+    findutils \
+    && microdnf clean all
 
-# installing via pip
-RUN pip install "poetry==$POETRY_VERSION"
+# Install Python 3.12 and pip 3.12
+RUN microdnf install -y python3.12 python3.12-pip && \
+    microdnf clean all
 
-RUN poetry config experimental.system-git-client true
+# Create symlink for python3 to point to python3.12
+RUN ln -s /usr/bin/python3.12 /usr/local/bin/python && \
+    ln -s /usr/bin/pip3.12 /usr/local/bin/pip
 
-# To use the secret during build on your local: docker build -f Dockerfile . --secret id=PRIVATE_REPO_ACCESS_TOKEN,src=/tmp/my_token_on_host_machine
-RUN --mount=type=secret,id=PRIVATE_REPO_ACCESS_TOKEN export PRIVATE_REPO_ACCESS_TOKEN=$(cat /run/secrets/PRIVATE_REPO_ACCESS_TOKEN) && \
+# Upgrade pip and install Poetry
+RUN pip install --upgrade pip && \
+    pip install "poetry==$POETRY_VERSION"
+
+# Use the secret during build
+RUN --mount=type=secret,id=PRIVATE_REPO_ACCESS_TOKEN \
+    export PRIVATE_REPO_ACCESS_TOKEN=$(cat /run/secrets/PRIVATE_REPO_ACCESS_TOKEN) && \
     if [ ! -z "$PRIVATE_REPO_ACCESS_TOKEN" ]; then \
         git config --global url."https://${PRIVATE_REPO_ACCESS_TOKEN}@github.com/".insteadOf "git@github.com:"; \
     fi
-WORKDIR /app
+
+WORKDIR /application
 
 # Install Python dependencies
 COPY ./pyproject.toml ./poetry.lock ./
 
-# the cache directory makes rebuilding a docker image if pyproject.toml changes near instant
+# The cache directory makes rebuilding a docker image if pyproject.toml changes near instant
 RUN --mount=type=cache,target=$POETRY_CACHE_DIR poetry install --no-root --without dev,test --no-interaction --no-ansi
 
-# removing poetry alone saves 200 mb
-FROM python:3.11-slim AS runtime
+# Runtime Stage
+FROM registry.access.redhat.com/ubi8/ubi-minimal AS runtime
 
-ENV VIRTUAL_ENV=/app/.venv \
-    PATH="/app/.venv/bin:$PATH"
+WORKDIR /application
 
+# Set environment for virtual environment
+ENV VIRTUAL_ENV=/application/.venv \
+    PATH="/application/.venv/bin:$PATH"
+
+# Copy the virtual environment from the builder
 COPY --from=builder ${VIRTUAL_ENV} ${VIRTUAL_ENV}
 
-# Copy the rest of the code
-COPY . .
+# Enable AppStream repository and install Python and other necessary runtime packages
+RUN microdnf upgrade -y && \
+    microdnf install -y \
+    python3.12 \
+    && microdnf clean all
 
-ENTRYPOINT ["/app/.venv/bin/opentelemetry-instrument", "--traces_exporter", "otlp", "--metrics_exporter", "otlp", "--logs_exporter", "otlp", "--service_name", "mysqlsql-application", "python", "main.py"]
+# Create symlink for python3 to point to python3.12
+RUN ln -s /usr/bin/python3.12 /usr/local/bin/python
+
+# Copy the rest of the code
+COPY . /application
+
+# Set the entrypoint
+ENTRYPOINT ["python", "/application/main.py"]

@@ -1,116 +1,106 @@
 import asyncio
-import logging
 import os
-import threading
-from contextlib import asynccontextmanager
 
-from application_sdk.app.rest.fastapi import (
-    FastAPIApplication,
-    FastAPIApplicationConfig,
-)
-from application_sdk.workflows.resources.temporal_resource import (
-    TemporalConfig,
-    TemporalResource,
-)
-from application_sdk.workflows.sql.controllers.auth import SQLWorkflowAuthController
-from application_sdk.workflows.sql.resources.sql_resource import SQLResourceConfig
-from application_sdk.workflows.sql.workflows.workflow import SQLWorkflow
-from application_sdk.workflows.transformers.atlas import AtlasTransformer
-from application_sdk.workflows.workers.worker import WorkflowWorker
-from fastapi import FastAPI, Request
+from application_sdk.application.fastapi import FastAPIApplication, HttpWorkflowTrigger
+from application_sdk.clients.temporal import TemporalClient
+from application_sdk.common.logger_adaptors import get_logger
+from application_sdk.worker import Worker
+from fastapi import Request
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
-from app.workflow import (
-    MysqlResource,
-    MysqlWorkflowBuilder,
-    MysqlWorkflowMetadata,
-    MysqlWorkflowPreflight,
-)
+from app.activities.metadata_extraction.mysql import MySQLMetadataExtractionActivities
+from app.clients import MySQLClient
+from app.handlers import MySQLWorkflowHandler
+from app.transformers.atlas import MySQLAtlasTransformer
+from app.workflows.metadata_extraction.mysql import MySQLMetadataExtractionWorkflow
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
+logger = get_logger(__name__)
 
+ATLAN_APPLICATION_NAME = os.getenv("ATLAN_APPLICATION_NAME", "mysql")
+ATLAN_APP_HOST = os.getenv("ATLAN_APP_HTTP_HOST", "0.0.0.0")
+ATLAN_APP_PORT = int(os.getenv("ATLAN_APP_HTTP_PORT", 8000))
+ATLAN_APP_DASHBOARD_HOST = os.getenv("ATLAN_APP_DASHBOARD_HTTP_HOST", "0.0.0.0")
+ATLAN_APP_DASHBOARD_PORT = int(os.getenv("ATLAN_APP_DASHBOARD_HTTP_PORT", 8050))
+ATLAN_TENANT_ID = os.getenv("ATLAN_TENANT_ID", "default")
+ATLAN_TEMPORAL_UI_HOST = os.getenv("ATLAN_TEMPORAL_UI_HOST", "localhost")
+ATLAN_TEMPORAL_UI_PORT = int(os.getenv("ATLAN_TEMPORAL_UI_PORT", 8233))
+MAX_CONCURRENT_ACTIVITIES = int(os.getenv("ATLAN_MAX_CONCURRENT_ACTIVITIES", 5))
+
+# Set up templates
 templates = Jinja2Templates(directory="frontend/templates")
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    await fastapi_app.on_app_start()
-
-    worker: WorkflowWorker = WorkflowWorker(
-        temporal_resource=temporal_resource,
-        temporal_activities=mysql_workflow.get_activities(),
-        workflow_classes=[SQLWorkflow],
+async def home(request: Request) -> HTMLResponse:
+    return templates.TemplateResponse(
+        "index.html",
+        {
+            "request": request,
+            "app_dashboard_http_port": ATLAN_APP_DASHBOARD_PORT,
+            "app_dashboard_http_host": ATLAN_APP_DASHBOARD_HOST,
+            "app_http_port": ATLAN_APP_PORT,
+            "app_http_host": ATLAN_APP_HOST,
+            "tenant_id": ATLAN_TENANT_ID,
+            "app_name": ATLAN_APPLICATION_NAME,
+            "temporal_ui_host": ATLAN_TEMPORAL_UI_HOST,
+            "temporal_ui_port": ATLAN_TEMPORAL_UI_PORT,
+        },
     )
 
-    worker_thread = threading.Thread(
-        target=lambda: asyncio.run(worker.start()), daemon=True
-    )
-    worker_thread.start()
-    yield
+
+def setup_routes(app: FastAPIApplication):
+    app.app.get("/")(home)
+    # Mount static files
+    app.app.mount("/", StaticFiles(directory="frontend/static"), name="static")
 
 
-APPLICATION_NAME = "mysql"
-APP_PORT = int(os.getenv("APP_HTTP_PORT", 8000))
-APP_HOST = os.getenv("APP_HTTP_HOST", "0.0.0.0")
-APP_DASHBOARD_PORT = int(os.getenv("APP_DASHBOARD_HTTP_PORT", 8050))
-APP_DASHBOARD_HOST = os.getenv("APP_DASHBOARD_HTTP_HOST", "0.0.0.0")
-TENANT_ID = os.getenv("ATLAN_TENANT_ID", "development")
+async def initialize_and_start():
+    # Creating resources
+    sql_client = MySQLClient()
+    temporal_client = TemporalClient(application_name=ATLAN_APPLICATION_NAME)
+    await temporal_client.load()
 
+    # Creating controllers
+    handler = MySQLWorkflowHandler(sql_client=sql_client)
 
-if __name__ == "__main__":
-    sql_resource = MysqlResource(SQLResourceConfig())
-    temporal_resource = TemporalResource(
-        TemporalConfig(
-            application_name=APPLICATION_NAME,
-        )
-    )
-    asyncio.run(temporal_resource.load())
-
-    transformer = AtlasTransformer(
-        connector_name=APPLICATION_NAME,
-        tenant_id=TENANT_ID,
+    activities = MySQLMetadataExtractionActivities(
+        sql_client_class=MySQLClient,
+        handler_class=MySQLWorkflowHandler,
+        transformer_class=MySQLAtlasTransformer,
     )
 
-    mysql_workflow: SQLWorkflow = (
-        MysqlWorkflowBuilder()
-        .set_sql_resource(sql_resource=sql_resource)
-        .set_temporal_resource(temporal_resource=temporal_resource)
-        .set_transformer(transformer)
-        .build()
+    # Creating workflow
+    worker: Worker = Worker(
+        temporal_client=temporal_client,
+        workflow_classes=[MySQLMetadataExtractionWorkflow],
+        temporal_activities=MySQLMetadataExtractionWorkflow.get_activities(activities),
+        passthrough_modules=["application_sdk", "pandas", "os", "app"],
+        max_concurrent_activities=MAX_CONCURRENT_ACTIVITIES,
     )
 
     # Creating FastAPI application
-    fastapi_app = FastAPIApplication(
-        auth_controller=SQLWorkflowAuthController(sql_resource=sql_resource),
-        metadata_controller=MysqlWorkflowMetadata(sql_resource=sql_resource),
-        preflight_check_controller=MysqlWorkflowPreflight(sql_resource=sql_resource),
-        workflow=mysql_workflow,
-        config=FastAPIApplicationConfig(
-            host=APP_HOST,
-            port=APP_PORT,
-            lifespan=lifespan,
-        ),
+    fast_api_app = FastAPIApplication(
+        handler=handler,
+        temporal_client=temporal_client,
     )
 
-    @fastapi_app.app.get("/")
-    async def read_root(request: Request):
-        return templates.TemplateResponse(
-            "index.html",
-            {
-                "request": request,  # Required by Jinja
-                "app_dashboard_host": APP_DASHBOARD_HOST,
-                "app_dashboard_port": APP_DASHBOARD_PORT,
-                # Add any other environment variables you want to pass
-            },
-        )
-
-    fastapi_app.app.mount(
-        "/", StaticFiles(directory="frontend/static", html=True), name="static"
+    fast_api_app.register_workflow(
+        MySQLMetadataExtractionWorkflow,
+        triggers=[HttpWorkflowTrigger(endpoint="/start", methods=["POST"])],
     )
+    # Setup routes
+    setup_routes(fast_api_app)
 
-    # Starting FastAPI application
-    asyncio.run(fastapi_app.start())
+    # Add more logging statements
+    logger.info("Created application")
+    logger.info(f"Starting worker on {ATLAN_APPLICATION_NAME}")
+    await worker.start(daemon=True)
+    logger.info("Worker started successfully")
 
-    # atlan_app_builder.configure_open_telemetry()
+    logger.info(f"Starting application on {ATLAN_APP_HOST}:{ATLAN_APP_PORT}")
+    await fast_api_app.start(host=ATLAN_APP_HOST, port=ATLAN_APP_PORT)
+
+
+if __name__ == "__main__":
+    asyncio.run(initialize_and_start())

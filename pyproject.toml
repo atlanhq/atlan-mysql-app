@@ -1,36 +1,35 @@
 [tool.poetry]
-name = "phoenix-mysql-app"
+name = "atlan-postgres-app"
 version = "0.1.0"
 description = ""
-authors = ["Amit Prabhu <amit.dp180@gmail.com>"]
+authors = ["Atlan Apps Team <apps@atlan.com>"]
 readme = "README.md"
 package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.11.10"
+pymysql = "^1.1.1"
 fastapi = {extras = ["standard"], version = "^0.115.0"}
 pytest-asyncio = "^0.24.0"
 # use local application-sdk repository for development
-# application-sdk = { path = "../application-sdk/", develop = true, extras = ["workflows", "dashboard"]}
+# application-sdk = { path = "../application-sdk/", develop = true, extras = ["workflows", "iam_auth", "sqlalchemy", "tests"]}
 # use remote application-sdk repository
-application-sdk = {git = "git@github.com:atlanhq/application-sdk.git", rev = "main", extras = ["workflows", "dashboard"]}
-pymysql = "^1.1.1"
-cryptography = "^44.0.0"
+application-sdk = {git = "git@github.com:atlanhq/application-sdk.git", rev = "2b6ad069c7ab8c91b2b4a97c5cf9b77105e2f14a", extras = ["workflows", "iam_auth", "sqlalchemy", "tests"]}
+psycopg = {extras = ["binary"], version = "^3.2.3"}
 jinja2 = "^3.1.2"
-
-[tool.poetry.group.app.dependencies]
-aiofiles = "^24.1.0"
-sqlalchemy = {extras = ["asyncio"], version = "^2.0.35"}
-
+poetry-plugin-dotenv = "^2.8.0"
+temporalio = "^1.10.0"
 
 [tool.poetry.group.dev.dependencies]
 pre-commit = "^3.8.0"
 isort = "^5.13.2"
+watchdog = "^6.0.0"
 
 
 [tool.poetry.group.test.dependencies]
 pytest = "^8.3.3"
 coverage = "^7.6.1"
+scalene = "^1.5.20"
 
 [build-system]
 requires = ["poetry-core"]
@@ -44,3 +43,20 @@ reportMissingTypeStubs = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[tool.coverage.run]
+omit = [
+    "tests/**",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "pass",
+    "raise ImportError",
+]
+fail_under = 60

@@ -679,3 +679,25 @@ input[type="password"] {
     25% { transform: translateX(-10px); }
     75% { transform: translateX(10px); }
 }
+
+.auth-section {
+  display: none;
+}
+
+.auth-section.active {
+  display: block;
+}
+
+.button-group .btn[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Ensure form groups within inactive sections are completely hidden */
+.auth-section:not(.active) .form-group {
+  display: none;
+}
+
+.form-group {
+  position: relative;
+}

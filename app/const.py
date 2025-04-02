@@ -1,126 +1,167 @@
 # Queries
 TABLES_CHECK_SQL = """
-    SELECT count(*) count
-    FROM INFORMATION_SCHEMA.TABLES
-    WHERE TABLE_NAME NOT LIKE '{exclude_table}'
-        AND CONCAT(TABLE_CATALOG, '.', TABLE_SCHEMA) NOT REGEXP '{normalized_exclude_regex}'
-        AND CONCAT(TABLE_CATALOG, '.', TABLE_SCHEMA) REGEXP '{normalized_include_regex}'
-        AND TABLE_SCHEMA NOT IN ('performance_schema', 'information_schema', 'mysql','sys')
+   SELECT count(*) as count
+   FROM information_schema.TABLES
+   WHERE TABLE_SCHEMA NOT IN ('mysql', 'information_schema', 'performance_schema', 'sys')
+       AND TABLE_SCHEMA NOT REGEXP '{normalized_exclude_regex}'
+       AND TABLE_SCHEMA REGEXP '{normalized_include_regex}'
+       {temp_table_regex_sql}
 """
+TABLES_CHECK_TEMP_TABLE_REGEX_SQL = "AND TABLE_NAME NOT REGEXP '{exclude_table_regex}'"
 
 TEST_AUTHENTICATION_SQL = "SELECT 1;"
 
 FILTER_METADATA_SQL = """
-SELECT schema_name schema_name, catalog_name catalog_name
-FROM INFORMATION_SCHEMA.SCHEMATA
-WHERE schema_name NOT IN ('information_schema', 'performance_schema','mysql','sys');
+SELECT
+   catalog_name catalog_name,
+   schema_name schema_name
+FROM information_schema.SCHEMATA
+WHERE schema_name NOT IN ('mysql', 'information_schema', 'performance_schema', 'sys')
 """
 
 ### Extraction Queries
 
+
+# MySQL database extraction query
 DATABASE_EXTRACTION_SQL = """
-SELECT SCHEMA_NAME AS database_name
-FROM INFORMATION_SCHEMA.SCHEMATA
-WHERE schema_name NOT IN ('information_schema', 'performance_schema','mysql','sys');
+SELECT
+   SCHEMA_NAME database_name,
+   DEFAULT_CHARACTER_SET_NAME,
+   DEFAULT_COLLATION_NAME,
+   CATALOG_NAME catalog_name
+FROM information_schema.SCHEMATA
+WHERE SCHEMA_NAME NOT IN ('mysql', 'information_schema', 'performance_schema', 'sys')
+ORDER BY SCHEMA_NAME;
 """
 
+# MySQL schema extraction query (in MySQL schema and database are synonymous)
 SCHEMA_EXTRACTION_SQL = """
 SELECT
-    s.CATALOG_NAME catalog_name,
-    s.SCHEMA_NAME schema_name,
-    s.DEFAULT_CHARACTER_SET_NAME default_character_set_name,
-    s.DEFAULT_COLLATION_NAME default_collation_name,
-    s.SQL_PATH sql_path,
-    s.DEFAULT_ENCRYPTION default_encryption,
-    CAST(table_counts.table_count AS CHAR) AS table_count,
-    CAST(table_counts.view_count AS CHAR) AS view_count
-FROM
-    information_schema.schemata s
-LEFT JOIN (
-    SELECT
-        table_schema,
-        SUM(CASE WHEN table_type = 'BASE TABLE' THEN 1 ELSE 0 END) as table_count,
-        SUM(CASE WHEN table_type = 'VIEW' THEN 1 ELSE 0 END) as view_count
-    FROM
-        information_schema.tables
-    GROUP BY
-        table_schema
-) as table_counts
-ON s.schema_name = table_counts.table_schema
-WHERE s.schema_name NOT IN ('information_schema', 'performance_schema', 'mysql','sys')
-    AND CONCAT(s.CATALOG_NAME, '.', s.SCHEMA_NAME) NOT REGEXP '{normalized_exclude_regex}'
-    AND CONCAT(s.CATALOG_NAME, '.', s.SCHEMA_NAME) REGEXP '{normalized_include_regex}';
+   s.CATALOG_NAME catalog_name,
+   s.SCHEMA_NAME schema_name,
+   NULL schema_owner,
+   COUNT(DISTINCT CASE WHEN t.TABLE_TYPE = 'BASE TABLE' THEN t.TABLE_NAME END) table_count,
+   COUNT(DISTINCT CASE WHEN t.TABLE_TYPE = 'VIEW' THEN t.TABLE_NAME END) views_count
+FROM information_schema.SCHEMATA s
+LEFT JOIN information_schema.TABLES t ON s.SCHEMA_NAME = t.TABLE_SCHEMA
+WHERE s.SCHEMA_NAME NOT IN ('mysql', 'information_schema', 'performance_schema', 'sys')
+   AND CONCAT(s.CATALOG_NAME, '.', s.SCHEMA_NAME) NOT REGEXP '{normalized_exclude_regex}'
+    AND CONCAT(s.CATALOG_NAME, '.', s.SCHEMA_NAME) REGEXP '{normalized_include_regex}'
+GROUP BY s.CATALOG_NAME, s.SCHEMA_NAME
+ORDER BY s.SCHEMA_NAME
 """
 
+# MySQL table extraction query
 TABLE_EXTRACTION_SQL = """
-    SELECT
-    t.TABLE_CATALOG table_catalog,
-    t.TABLE_SCHEMA table_schema,
-    t.TABLE_NAME table_name,
-    CASE
-            WHEN t.table_type = 'BASE TABLE' THEN 'TABLE'
-            ELSE t.table_type
-    END AS table_type,
-    CASE
-        WHEN MAX(p.PARTITION_NAME) IS NOT NULL THEN true
-        ELSE false
-    END AS is_partition
-    FROM
-        INFORMATION_SCHEMA.TABLES t
-    LEFT JOIN
-        INFORMATION_SCHEMA.PARTITIONS p
-    ON
-        t.TABLE_SCHEMA = p.TABLE_SCHEMA
-        AND t.TABLE_NAME = p.TABLE_NAME
-    WHERE
-        t.TABLE_SCHEMA NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys')
-        AND t.TABLE_NAME NOT REGEXP '{exclude_table}'
+   SELECT
+   t.TABLE_CATALOG table_catalog,
+   t.TABLE_SCHEMA table_schema,
+   t.TABLE_NAME table_name,
+   CASE
+           WHEN t.table_type = 'BASE TABLE' THEN 'TABLE'
+           ELSE t.table_type
+   END AS table_type,
+   EXISTS (
+       SELECT 1 FROM INFORMATION_SCHEMA.PARTITIONS p
+       WHERE p.TABLE_SCHEMA = t.TABLE_SCHEMA
+       AND p.TABLE_NAME = t.TABLE_NAME
+       AND p.PARTITION_NAME IS NOT NULL
+   ) AS is_partition
+   FROM
+       INFORMATION_SCHEMA.TABLES t
+   WHERE
+       t.TABLE_SCHEMA NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys')
         AND CONCAT(t.TABLE_CATALOG, '.', t.TABLE_SCHEMA) NOT REGEXP '{normalized_exclude_regex}'
         AND CONCAT(t.TABLE_CATALOG, '.', t.TABLE_SCHEMA) REGEXP '{normalized_include_regex}'
-    GROUP BY
-        t.TABLE_CATALOG,
-        t.TABLE_SCHEMA,
-        t.TABLE_NAME,
-        t.TABLE_TYPE;
-    """
+       {temp_table_regex_sql};
+   """
 
+TABLE_EXTRACTION_TEMP_TABLE_REGEX_SQL = (
+    "AND t.TABLE_NAME NOT REGEXP '{exclude_table_regex}'"
+)
 
+# MySQL column extraction query
 COLUMN_EXTRACTION_SQL = """
 SELECT
-    TABLE_CATALOG table_catalog,
-    TABLE_SCHEMA table_schema,
-    TABLE_NAME table_name,
-    COLUMN_NAME column_name,
-    ORDINAL_POSITION ordinal_position,
-    IS_NULLABLE is_nullable,
-    DATA_TYPE data_type,
-    CASE
-        WHEN EXTRA LIKE '%auto_increment%' THEN 'YES'
-        ELSE 'NO'
-    END AS is_autoincrement
+   c.TABLE_CATALOG table_catalog,
+   c.TABLE_SCHEMA table_schema,
+   c.TABLE_NAME table_name,
+   c.COLUMN_NAME column_name,
+   c.ORDINAL_POSITION ordinal_position,
+   c.COLUMN_DEFAULT column_def,
+   c.IS_NULLABLE is_nullable,
+   c.DATA_TYPE data_type,
+   IF(c.EXTRA LIKE '%auto_increment%', 'YES', 'NO') is_auto_increment,
+   c.NUMERIC_PRECISION numeric_precision,
+   c.CHARACTER_OCTET_LENGTH character_octet_length,
+   c.EXTRA is_generated,
+   IF(c.EXTRA LIKE '%STORED GENERATED%', 'YES', 'NO') is_identity,
+   NULL identity_cycle,
+   c.CHARACTER_MAXIMUM_LENGTH column_size,
+   10 num_prec_radix,
+   c.NUMERIC_SCALE decimal_digits,
+   t.TABLE_TYPE table_type,
+   c.CHARACTER_SET_NAME character_set_name,
+   c.COLLATION_NAME collation_name,
+   c.COLUMN_COMMENT remarks,
+   IF(tc.CONSTRAINT_TYPE = 'PRIMARY KEY', 'YES', 'NO') primary_key,
+   kcu.REFERENCED_TABLE_SCHEMA fk_schema,
+   kcu.REFERENCED_TABLE_NAME fk_table,
+   kcu.REFERENCED_COLUMN_NAME fk_column,
+   IF(tc.CONSTRAINT_TYPE = 'FOREIGN KEY', 'YES', 'NO') foreign_key,
+   tc.CONSTRAINT_TYPE constraint_type,
+   kcu.CONSTRAINT_NAME constraint_name,
+   IF(p.PARTITION_NAME IS NOT NULL, 'YES', 'NO') belongs_to_partition,
+   IF(p.PARTITION_NAME IS NOT NULL, 'YES', 'NO') partitioned_table,
+   NULL partition_order,
+   'r' table_kind
 FROM
-    INFORMATION_SCHEMA.COLUMNS t
+   INFORMATION_SCHEMA.COLUMNS c
+JOIN
+   INFORMATION_SCHEMA.TABLES t ON c.TABLE_SCHEMA = t.TABLE_SCHEMA AND c.TABLE_NAME = t.TABLE_NAME
+LEFT JOIN
+   INFORMATION_SCHEMA.KEY_COLUMN_USAGE kcu ON
+   c.TABLE_SCHEMA = kcu.TABLE_SCHEMA AND
+   c.TABLE_NAME = kcu.TABLE_NAME AND
+   c.COLUMN_NAME = kcu.COLUMN_NAME
+LEFT JOIN
+   INFORMATION_SCHEMA.TABLE_CONSTRAINTS tc ON
+   kcu.CONSTRAINT_NAME = tc.CONSTRAINT_NAME AND
+   kcu.TABLE_SCHEMA = tc.TABLE_SCHEMA AND
+   kcu.TABLE_NAME = tc.TABLE_NAME
+LEFT JOIN
+   INFORMATION_SCHEMA.PARTITIONS p ON
+   c.TABLE_SCHEMA = p.TABLE_SCHEMA AND
+   c.TABLE_NAME = p.TABLE_NAME AND
+   p.PARTITION_NAME IS NOT NULL
 WHERE
-    TABLE_SCHEMA NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys')
-    AND t.TABLE_NAME NOT REGEXP '{exclude_table}'
-    AND CONCAT(t.TABLE_CATALOG, '.', t.TABLE_SCHEMA) NOT REGEXP '{normalized_exclude_regex}'
-    AND CONCAT(t.TABLE_CATALOG, '.', t.TABLE_SCHEMA) REGEXP '{normalized_include_regex}'
+   c.TABLE_SCHEMA NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys')
+   AND CONCAT(c.TABLE_CATALOG, '.', c.TABLE_SCHEMA) NOT REGEXP '{normalized_exclude_regex}'
+   AND CONCAT(c.TABLE_CATALOG, '.', c.TABLE_SCHEMA) REGEXP '{normalized_include_regex}'
+   {temp_table_regex_sql}
 ORDER BY
-    TABLE_SCHEMA, TABLE_NAME, ORDINAL_POSITION;
+   c.TABLE_SCHEMA, c.TABLE_NAME, c.ORDINAL_POSITION, tc.CONSTRAINT_TYPE
 """
+COLUMN_EXTRACTION_TEMP_TABLE_REGEX_SQL = (
+    "AND c.TABLE_NAME NOT REGEXP '{exclude_table_regex}'"
+)
 
-
+# MySQL procedure extraction query
 PROCEDURE_EXTRACTION_SQL = """
 SELECT
-    ROUTINE_CATALOG TABLE_CAT,
-    ROUTINE_SCHEMA TABLE_SCHEM,
-    ROUTINE_SCHEMA PROCEDURE_SCHEM,
-    ROUTINE_NAME PROCEDURE_NAME,
-    DEFINER PROC_OWNER,
-    ROUTINE_DEFINITION ROUTINE_DEFINITION
-FROM INFORMATION_SCHEMA.ROUTINES
-WHERE ROUTINE_TYPE = 'PROCEDURE'
-AND ROUTINE_SCHEMA NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys')
-AND CONCAT(t.ROUTINE_CATALOG, '.', t.ROUTINE_SCHEMA) NOT REGEXP '{normalized_exclude_regex}'
-AND CONCAT(t.ROUTINE_CATALOG, '.', t.ROUTINE_SCHEMA) REGEXP '{normalized_include_regex}';
+   r.ROUTINE_CATALOG procedure_catalog,
+   r.ROUTINE_SCHEMA procedure_schema,
+   r.ROUTINE_NAME procedure_name,
+   r.DEFINER source_owner,
+   r.ROUTINE_DEFINITION procedure_definition,
+   r.ROUTINE_TYPE procedure_type,
+   r.CREATED created,
+   r.LAST_ALTERED last_altered,
+   r.ROUTINE_COMMENT remarks,
+   r.DEFINER proc_owner
+FROM information_schema.ROUTINES r
+WHERE r.ROUTINE_SCHEMA NOT IN ('information_schema', 'performance_schema', 'mysql', 'sys')
+   AND CONCAT(r.ROUTINE_CATALOG, '.', r.ROUTINE_SCHEMA) NOT REGEXP '{normalized_exclude_regex}'
+   AND CONCAT(r.ROUTINE_CATALOG, '.', r.ROUTINE_SCHEMA) REGEXP '{normalized_include_regex}'
+ORDER BY r.ROUTINE_SCHEMA, r.ROUTINE_NAME
 """

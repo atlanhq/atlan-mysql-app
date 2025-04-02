@@ -41,7 +41,7 @@ else
     log "pyenv is already installed."
 fi
 
-# Install Python 3.11 using pyenv
+# Install Python 3.11.x (latest version) using pyenv
 latest_version=$(pyenv install --list | grep -E '^\s*3\.11\.[0-9]+' | tail -n 1 | tr -d '[:space:]')
 if ! pyenv versions | grep -q "$latest_version"; then
     log "Installing Python $latest_version..."
@@ -64,7 +64,7 @@ fi
 # Check and install poetry
 if ! command_exists poetry; then
     log "Installing poetry..."
-    curl -sSL https://install.python-poetry.org | python -
+    pip install poetry==1.8.5
 else
     log "Poetry is already installed."
 fi

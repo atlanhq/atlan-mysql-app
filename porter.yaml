@@ -18,10 +18,6 @@ install:
           - host: 8000
             container: 8000
         env:
-          OTEL_EXPORTER_OTLP_ENDPOINT: "http://localhost:8000/telemetry"
-          OTEL_EXPORTER_OTLP_PROTOCOL: "http/protobuf"
-          OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED: "true"
-          OTEL_PYTHON_EXCLUDED_URLS: "/telemetry/.*,/system/.*"
           TEMPORAL_HOST: "host.docker.internal"
           TEMPORAL_PORT: 7233
 

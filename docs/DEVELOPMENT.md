@@ -52,35 +52,10 @@ _If you are using the Atlan CLI to create a new application, you can skip this s
                 "PYTHONPATH": "${workspaceFolder}"
             }
         },
-        {
-            "name": "Python: Instrumented",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "./.venv/bin/opentelemetry-instrument",
-            "args": [
-                "--traces_exporter",
-                "otlp",
-                "--metrics_exporter",
-                "otlp",
-                "--logs_exporter",
-                "otlp",
-                "--service_name",
-                "mysql-application",
-                "python",
-                "main.py"
-            ],
-            "env": {
-                "OTEL_EXPORTER_OTLP_ENDPOINT": "http://localhost:8000/telemetry",
-                "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
-                "PYTHONUNBUFFERED": "1",
-                "OTEL_PYTHON_LOGGING_AUTO_INSTRUMENTATION_ENABLED": "true",
-                "OTEL_PYTHON_EXCLUDED_URLS": "/telemetry/.*,/system/.*"
-            }
-        }
     ]
 }
 ```
-> This will create a new configuration for running the FastAPI server, running the tests and running the instrumented FastAPI server with OTel agent.
+> This will create a new configuration for running the FastAPI server.
 - You can navigate to the Run and Debug section in the IDE to run the configurations of your choice.
 
 

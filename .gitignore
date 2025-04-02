@@ -38,3 +38,8 @@ archive.zip
 **/frontend/dist/**
 **/frontend/.nuxt/**
 dist/
+
+gh_secret
+
+# env
+.env.dev

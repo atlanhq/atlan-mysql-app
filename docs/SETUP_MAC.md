@@ -13,13 +13,13 @@ This guide will help you set up your Mac for developing this project, starting f
 
 ```bash
 # https
-git clone https://github.com/atlanhq/phoenix-mysql-app.git
+git clone https://github.com/atlanhq/phoenix-postgres-app.git
 
 # ssh
-git clone git@github.com:atlanhq/phoenix-mysql-app.git
+git clone git@github.com:atlanhq/phoenix-postgres-app.git
 
 # github cli
-gh repo clone atlanhq/phoenix-mysql-app
+gh repo clone atlanhq/phoenix-postgres-app
 ```
 
 ## 2. Install Atlan PaaS CLI
@@ -147,14 +147,14 @@ You can choose to clone this repository using either SSH or HTTPS, including the
 
 For SSH:
 ```bash
-git clone git@github.com:atlanhq/phoenix-mysql-app.git
-cd phoenix-mysql-app
+git clone git@github.com:atlanhq/phoenix-postgres-app.git
+cd phoenix-postgres-app
 ```
 
 For HTTPS:
 ```bash
-git clone https://github.com/atlanhq/phoenix-mysql-app.git
-cd phoenix-mysql-app
+git clone https://github.com/atlanhq/phoenix-postgres-app.git
+cd phoenix-postgres-app
 ```
 
 ### 2. Install python project dependencies
