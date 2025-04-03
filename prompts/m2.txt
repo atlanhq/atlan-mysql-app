@@ -1,0 +1,31 @@
+Convert the PostgreSQL client and workflow classes to support MySQL connections and workflow execution.
+
+Key changes needed:
+
+1. Create database client class in app/clients/__**init__**.py:
+
+- Extend SQLClient  instead of AsyncSQLClient
+
+- Update connection string format for MySQL
+
+- Implement connection string generation methods for all authentication types
+
+- Update default port and connection parameters
+
+2. Create metadata extraction workflow in app/workflows:
+
+- Extend SQLMetadataExtractionWorkflow
+
+- Update activities_cls reference
+
+- Maintain existing timeout and retry policies
+
+Implementation guidelines:
+
+- First examine application_sdk to understand proper inheritance patterns
+- Update import statements appropriately, check in application-sdk repo carefully
+- Maintain existing method signatures
+- Ensure proper error handling for connection failures
+- Do NOT change application_sdk code
+- Make changes only in clients/**init**.py , worflows, activities and handler directories
+- make as minimal edits as possible

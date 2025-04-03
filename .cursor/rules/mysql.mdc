@@ -1,0 +1,382 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# MySQL Connector Documentation
+
+## Overview
+The MySQL connector is a package that enables metadata extraction from MySQL databases and publishes it to Atlan. The connector follows a workflow-based approach using Argo Workflows to orchestrate the extraction and publishing process.
+
+## Workflow Components
+
+### 1. Main Workflow Template
+Location: `packages/atlan/mysql/templates/atlan-mysql.yaml`
+
+The main workflow consists of several key components:
+
+#### Input Parameters
+- **Credential Parameters**
+  - `credentials-fetch-strategy`: Strategy to fetch credentials (k8s_secret or credential_guid)
+  - `credential-kube-secret-name`: Name of Kubernetes secret containing credentials
+  - `credential-guid`: GUID of the credential in Atlan
+  - `preflight-hard-fail`: Whether to fail hard on preflight checks
+
+- **Connection Parameters**
+  - `connection`: Atlan connection object
+
+- **Extraction Parameters**
+  - `runtime-properties`: Runtime configuration properties
+  - `include-filter`: Filter for including specific objects
+  - `exclude-filter`: Filter for excluding specific objects
+  - `temp-table-regex`: Regex pattern for temporary tables
+  - `use-jdbc-internal-methods`: Whether to use JDBC internal methods
+  - `use-source-schema-filtering`: Whether to use source schema filtering
+  - `advanced-config-strategy`: Strategy for advanced configuration
+
+- **Publish Parameters**
+  - `publish-mode`: Mode of publishing (production/test/dev)
+  - `atlas-auth-type`: Authentication type for Atlas (internal/apikey)
+  - `auto-classification`: Whether to enable automatic classification
+  - `attachment-confidence-threshold`: Threshold for attachment confidence
+
+- **Extraction Method Parameters**
+  - `extraction-method`: Method of extraction (direct/s3)
+  - `metadata-s3-bucket`: S3 bucket for metadata
+  - `metadata-s3-prefix`: S3 prefix for metadata
+  - `metadata-s3-region`: S3 region for metadata
+  - `blob-sas-token`: SAS token for blob storage
+
+### 2. Workflow Steps
+
+
+#### a. Preflight Checks
+- **Template**: `preflight-checks`
+- **Purpose**: Performs validation checks before starting the extraction
+- **Parameters**:
+  - `hard-fail`: Whether to fail hard on checks
+  - `credential-guid`: Credential GUID
+  - `connection-qualified-name`: Qualified name of the connection
+  - `marketplace-scripts-branch`: Branch of marketplace scripts
+  - `extraction-method`: Method of extraction
+  - `include-filter`: Filter for including objects
+  - `exclude-filter`: Filter for excluding objects
+
+#### b. Extract Metadata
+- **Template**: `atlan-jdbc-crawler.extract-metadata`
+- **Location**: `packages/atlan-helpers/jdbc-crawler/templates/atlan-jdbc-crawler.yaml`
+- **Purpose**: Extracts metadata from MySQL database using JDBC
+- **Parameters**:
+  - `credentials-fetch-strategy`: Strategy to fetch credentials
+  - `credential-kube-secret-name`: Name of Kubernetes secret
+  - `credential-guid`: Credential GUID
+  - `jdbc-jar-tarball-location`: Location of JDBC driver
+  - `runtime-properties`: Runtime properties
+  - `system-schema-regex`: Regex for system schemas
+  - `temp-table-regex`: Regex for temporary tables
+  - `include-filter`: Filter for including objects
+  - `exclude-filter`: Filter for excluding objects
+  - `use-jdbc-internal-methods`: Whether to use JDBC internal methods
+  - `use-source-schema-filtering`: Whether to use source schema filtering
+  - `artifact-output-prefix`: Prefix for output artifacts
+  - `default-database-name`: Default database name (def)
+  - `default-schema-name`: Default schema name
+  - `fetch-primary-keys`: Whether to fetch primary keys
+  - `fetch-imported-keys`: Whether to fetch imported keys
+  - `database-companion-sql`: SQL query for database metadata
+  - `schema-companion-sql`: SQL query for schema metadata
+  - `table-companion-sql`: SQL query for table metadata
+  - `column-companion-sql`: SQL query for column metadata
+  - `extra-companion-sqls`: Additional SQL queries for extra metadata
+  - `dynamic-query-config`: Configuration for dynamic queries
+  - `has-database-abstraction`: Whether database abstraction is used
+  - `fetch-columns`: Whether to fetch column metadata
+  - `skip-source-companion`: Whether to skip source companion queries
+  - `skip-dynamic-query`: Whether to skip dynamic queries
+  - `parallelize-table-enrichment`: Whether to parallelize table enrichment
+  - `parallel-table-chunk-size`: Size of chunks for parallel processing
+  - `augment-table-types`: Whether to augment table types
+  - `exclude-table-types`: Types of tables to exclude
+  - `extract-pvc-size`: Size of PVC for extraction
+  - `statsd-global-tags`: Tags for statsd metrics
+
+
+
+## Transformation Configuration
+The connector uses several Jinja2 templates for transforming extracted metadata:
+
+1. Database Transformation:
+   - Template: `packages/atlan-helpers/jdbc-crawler/transformers/database.jinja2`
+   - Input Pattern: `/tmp/inputs/database*.json`
+   - Output Prefix: "databases"
+   - Purpose: Transforms database-level metadata into Atlan's format
+   - Key Attributes:
+     - Database name and qualified name
+     - Connection information
+     - Schema count
+     - Last sync information
+
+2. Schema Transformation:
+   - Template: `packages/atlan/mysql/transformers/schema.jinja2`
+   - Input Pattern: `/tmp/inputs/schema*.json`
+   - Ignored: true
+   - Purpose: Transforms schema-level metadata
+   - Key Attributes:
+     - Schema name and qualified name
+     - Database relationship
+     - Description and remarks
+     - Last sync information
+
+3. Table Transformation:
+   - Template: `packages/atlan/mysql/transformers/table.jinja2`
+   - Input Pattern: `/tmp/inputs/table*.json`
+   - Ignored: true
+   - Purpose: Transforms table-level metadata
+   - Key Attributes:
+     - Table name and qualified name
+     - Schema relationship
+     - Row count and size
+     - Partition information
+     - View definition (for views)
+     - Last sync information
+
+4. View Transformation:
+   - Template: `packages/atlan/mysql/transformers/view.jinja2`
+   - Input Pattern: `/tmp/inputs/view*.json`
+   - Ignored: true
+   - Purpose: Transforms view-level metadata
+   - Key Attributes:
+     - View name and qualified name
+     - Schema relationship
+     - View definition
+     - Column count
+     - Last sync information
+
+5. Column Transformation:
+   - Template: `packages/atlan/mysql/transformers/column.jinja2`
+   - Input Pattern: `/tmp/inputs/column*.json`
+   - Output Chunk Size: 10000
+   - Purpose: Transforms column-level metadata
+   - Key Attributes:
+     - Column name and qualified name
+     - Data type and precision
+     - Nullability
+     - Primary/Foreign key information
+     - Table/View relationship
+     - Character length and scale
+     - Last sync information
+
+## Procedures, Functions, and Constraints
+
+### Procedures and Functions
+The connector extracts both procedures and functions from MySQL using the `INFORMATION_SCHEMA.ROUTINES` table. The extraction process includes:
+
+1. **Companion SQL Query**:
+```sql
+SELECT 'def' as PROCEDURE_CAT,
+  r.routine_schema as TABLE_SCHEM,
+  r.routine_schema as PROCEDURE_SCHEM,
+  r.definer as PROC_OWNER,
+  r.routine_comment as REMARKS,
+  r.routine_name as PROCEDURE_NAME,
+  r.routine_type as PROCEDURE_TYPE,
+  r.created,
+  r.last_altered,
+  r.ROUTINE_DEFINITION
+from INFORMATION_SCHEMA.ROUTINES r
+where r.routine_schema not in ('performance_schema', 'information_schema', 'mysql', 'sys');
+```
+
+2. **Transformation**:
+   - Uses `procedure.jinja2` transformer
+   - Captures:
+     - Procedure name and qualified name
+     - Schema relationship
+     - Creation and modification timestamps
+     - Procedure definition
+     - Owner information
+     - Description/remarks
+
+### Constraints
+The connector extracts constraint information through the column companion SQL query, which includes:
+
+1. **Constraint Types**:
+   - Primary key constraints
+   - Foreign key constraints
+   - Constraint names and types
+   - Constraint columns
+
+2. **Column-Level Constraints**:
+   - Primary key status
+   - Constraint type
+   - Constraint name
+   - Extra information (auto-increment, default values)
+
+3. **Extraction Process**:
+   - Joins with `information_schema.key_column_usage` for column-level constraints
+   - Joins with `information_schema.table_constraints` for table-level constraints
+   - Transforms using `column.jinja2` transformer
+
+### System Exclusions
+The connector excludes the following system schemas and databases from extraction:
+- `performance_schema`
+- `information_schema`
+- `mysql`
+- `sys`
+
+## System Schemas and Databases
+The connector excludes the following system schemas and databases:
+- System Schemas: `performance_schema`, `information_schema`, `mysql`, `sys`
+- System Databases: `def`
+
+## Companion SQL Queries
+The connector uses several companion SQL queries to gather metadata:
+
+1. Database Companion SQL:
+```sql
+select
+  count(*) as SCHEMA_COUNT,
+  'def' as TABLE_CAT
+from information_schema.SCHEMATA
+where SCHEMA_NAME not in ('performance_schema', 'information_schema', 'mysql', 'sys');
+```
+
+2. Table Companion SQL:
+```sql
+select
+  'def' as TABLE_CAT,
+  'def' as TABLE_CATALOG,
+  T.table_schema as TABLE_SCHEM,
+  T.table_name as TABLE_NAME,
+  T.TABLE_ROWS as ROW_COUNT,
+  (T.INDEX_LENGTH + T.DATA_LENGTH) as BYTES,
+  IF(T.TABLE_TYPE = 'VIEW', 'v', 't') as TABLE_KIND,
+  IF(p.PARTITION_METHOD is NULL, FALSE, TRUE) as HAS_PARTITIONS,
+  IF(p.PARTITION_METHOD is NULL, FALSE, TRUE) as IS_PARTITION,
+  p.PARTITION_METHOD as PARTITION_STRATEGY,
+  IF(p.PARTITION_METHOD is NULL, 0, p.parition_count) as PARTITION_COUNT,
+  p.PARTITIONS,
+  T.table_name as PARENT_TABLE_NAME,
+  v.VIEW_DEFINITION as VIEW_DEFINITION,
+  T.*
+from information_schema.tables T
+LEFT JOIN (
+  select
+    TABLE_NAME,
+    TABLE_SCHEMA,
+    PARTITION_METHOD,
+    count(*) as parition_count,
+    GROUP_CONCAT(PARTITION_NAME order by PARTITION_NAME) as PARTITIONS
+  from information_schema.PARTITIONS
+  group by TABLE_NAME, TABLE_SCHEMA, PARTITION_METHOD
+) as p
+on p.TABLE_NAME = T.TABLE_NAME and p.TABLE_SCHEMA = T.TABLE_SCHEMA
+LEFT join information_schema.VIEWS as v
+on v.TABLE_NAME = T.TABLE_NAME
+and v.TABLE_SCHEMA = T.TABLE_SCHEMA
+where T.TABLE_SCHEMA not in ('performance_schema', 'information_schema', 'mysql', 'sys');
+```
+
+3. Column Companion SQL:
+```sql
+select
+  'def' as TABLE_CAT,
+  'def' as TABLE_CATALOG,
+  columns.TABLE_SCHEMA as TABLE_SCHEM,
+  columns.EXTRA as EXTRA_INFO,
+  columns.*,
+  IF(tab_constraints.constraint_type = 'PRIMARY KEY', true, false) as PRIMARY_KEY,
+  tab_constraints.constraint_type,
+  col_constraints.constraint_name
+from information_schema.columns as columns
+left join information_schema.key_column_usage as col_constraints
+on
+  columns.table_name = col_constraints.table_name
+  and columns.table_schema = col_constraints.TABLE_SCHEMA
+  and columns.column_name = col_constraints.column_name
+left join information_schema.table_constraints as tab_constraints
+on tab_constraints.constraint_name = col_constraints.constraint_name
+  and tab_constraints.CONSTRAINT_CATALOG = col_constraints.CONSTRAINT_CATALOG
+  and tab_constraints.table_schema = col_constraints.table_schema
+  and tab_constraints.TABLE_NAME = col_constraints.TABLE_NAME
+where columns.table_schema not in ('performance_schema', 'information_schema', 'mysql', 'sys');
+```
+
+## Dependencies
+The MySQL connector relies on several helper packages:
+
+1. `atlan-workflow-helpers`: Provides workflow initialization and utility functions
+2. `atlan-jdbc-crawler`: Handles JDBC-based metadata extraction
+3. `atlan-preflight`: Performs preflight validation checks
+4. `cloud-cli`: Handles S3-based operations
+
+## JDBC Driver
+The connector uses the MySQL JDBC driver from:
+`https://atlan-public.s3-eu-west-1.amazonaws.com/atlan/jdbc/mysql.tar.gz`
+
+## Asset Type Mappings
+
+This section details how MySQL objects are mapped to Atlan asset types and their properties.
+
+### Database Assets
+| Source Property | Atlan Property | Location in Atlan |
+|----------------|----------------|-------------------|
+| TABLE_CATALOG | name | Asset preview and profile, overview sidebar |
+| SCHEMA_COUNT | schemaCount | Asset filters |
+
+### Schema Assets
+| Source Property | Atlan Property | Location in Atlan |
+|----------------|----------------|-------------------|
+| TABLE_SCHEMA | name | Asset preview and profile, overview sidebar |
+| TABLE_COUNT | tableCount | Asset preview and profile |
+| VIEW_COUNT | viewsCount | Asset preview and profile |
+| TABLE_CATALOG | databaseName | Asset preview and profile, overview sidebar |
+
+### Table Assets
+| Source Property | Atlan Property | Location in Atlan |
+|----------------|----------------|-------------------|
+| TABLE_NAME | name | Asset preview and profile, overview sidebar |
+| REMARKS | description | Asset preview and profile, overview sidebar |
+| COLUMN_COUNT | columnCount | Asset preview and profile, overview sidebar |
+| ROW_COUNT | rowCount | Asset preview and profile, overview sidebar |
+| BYTES | sizeBytes | Asset preview and profile, overview sidebar |
+| TABLE_TYPE | subType | API only |
+| IS_PARTITION | isPartitioned | API only |
+| PARTITION_STRATEGY | partitionStrategy | API only |
+| PARTITION_COUNT | partitionCount | API only |
+| PARTITIONS | partitionList | API only |
+| CREATE_TIME | sourceCreatedAt | Asset preview and profile, properties sidebar |
+
+### View Assets
+| Source Property | Atlan Property | Location in Atlan |
+|----------------|----------------|-------------------|
+| TABLE_NAME | name | Asset preview and profile, overview sidebar |
+| REMARKS | description | Asset preview and profile, overview sidebar |
+| COLUMN_COUNT | columnCount | Asset preview and profile, overview sidebar |
+| VIEW_DEFINITION | definition | Asset profile and overview sidebar |
+| IS_PARTITION | isPartitioned | API only |
+| PARTITION_COUNT | partitionCount | API only |
+| CREATE_TIME | sourceCreatedAt | Asset preview and profile, properties sidebar |
+
+### Column Assets
+| Source Property | Atlan Property | Location in Atlan |
+|----------------|----------------|-------------------|
+| COLUMN_NAME | name | Asset profile and filter, overview sidebar |
+| REMARKS | description | Asset profile and filter, overview sidebar |
+| ORDINAL_POSITION | order | Parent asset profile |
+| TYPE_NAME | dataType | Asset preview and filter, overview sidebar, parent asset profile |
+| CONSTRAINT_TYPE (PRIMARY KEY) | isPrimary | Asset preview and filter, overview sidebar, parent asset profile |
+| CONSTRAINT_TYPE (FOREIGN KEY) | isForeign | Asset preview and filter, overview sidebar, parent asset profile |
+| IS_NULLABLE | isNullable | API only |
+| NUMERIC_SCALE | numericScale | API only |
+| CHARACTER_MAXIMUM_LENGTH | maxLength | API only |
+
+### Stored Procedure Assets
+| Source Property | Atlan Property | Location in Atlan |
+|----------------|----------------|-------------------|
+| PROCEDURE_NAME | name | API only |
+| REMARKS | description | API only |
+| PROCEDURE_TYPE | subType | API only |
+| ROUTINE_DEFINITION | definition | API only |
+| CREATED | sourceCreatedAt | API only |
+| LAST_ALTERED | sourceUpdatedAt | API only |

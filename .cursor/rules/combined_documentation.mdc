@@ -1,0 +1,1210 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+
+================================================================================
+FILE: 1 main_doc.md
+================================================================================
+
+# Atlan Postgres App Documentation
+
+## Overview
+
+The Atlan Postgres App is a specialized application built on top of the Application SDK that enables metadata extraction from PostgreSQL databases. It provides a user-friendly web interface for configuring database connections, selecting metadata to extract, and managing the extraction process.
+
+## Core Components
+
+### 1. Application Structure
+
+#### Main Application (`main.py`)
+- Implements a FastAPI-based web application
+- Sets up Temporal workflow management
+- Configures PostgreSQL client and handlers
+- Manages application routes and static file serving
+
+#### Frontend (`frontend/static/script.js`)
+- Provides a multi-step web interface
+- Handles database connection configuration
+- Manages metadata selection
+- Implements preflight checks
+- Controls workflow execution
+
+### 2. Key Features
+
+#### Authentication Methods
+1. Basic Authentication
+   - Username/password based authentication
+   - Direct database connection
+
+2. IAM User Authentication
+   - AWS IAM user credentials
+   - Access key and secret key based authentication
+
+3. IAM Role Authentication
+   - AWS IAM role based authentication
+   - Role ARN and external ID support
+
+#### Metadata Selection
+1. Database Selection
+   - Multiple database support
+   - Schema-level granularity
+   - Include/exclude filters
+
+2. Schema Selection
+   - Per-database schema selection
+   - Bulk selection capabilities
+   - Visual hierarchy display
+
+#### Preflight Checks
+- Connection validation
+- Schema accessibility verification
+- Filter validation
+- Temporary table handling
+
+### 3. Workflow Management
+
+#### Metadata Extraction Workflow
+1. Configuration
+   - Connection details
+   - Metadata filters
+   - Temporary table patterns
+
+2. Execution
+   - Parallel processing
+   - Batch handling
+   - Progress tracking
+
+3. Output
+   - Atlas entity generation
+   - Metadata transformation
+   - Result validation
+
+## Technical Implementation
+
+### 1. Backend Components
+
+#### FastAPI Application
+```python
+fast_api_app = FastAPIApplication(
+    handler=handler,
+    temporal_client=temporal_client,
+)
+```
+
+- Handles HTTP requests
+- Manages workflow triggers
+- Serves static content
+- Provides API endpoints
+
+#### Temporal Integration
+```python
+worker = Worker(
+    temporal_client=temporal_client,
+    workflow_classes=[PostgresMetadataExtractionWorkflow],
+    temporal_activities=PostgresMetadataExtractionWorkflow.get_activities(activities),
+    passthrough_modules=["application_sdk", "pandas", "os", "app"],
+    max_concurrent_activities=MAX_CONCURRENT_ACTIVITIES,
+)
+```
+
+- Manages workflow execution
+- Handles activity scheduling
+- Provides state management
+- Ensures fault tolerance
+
+### 2. Frontend Implementation
+
+#### Multi-step Interface
+1. Connection Configuration
+   - Authentication method selection
+   - Credential input
+   - Connection testing
+
+2. Metadata Selection
+   - Database browsing
+   - Schema selection
+   - Filter configuration
+
+3. Workflow Execution
+   - Preflight checks
+   - Workflow initiation
+   - Status monitoring
+
+#### User Experience Features
+- Real-time validation
+- Visual feedback
+- Error handling
+- Progress tracking
+
+## API Endpoints
+
+### 1. Authentication
+- `POST /workflows/v1/auth`
+  - Validates database credentials
+  - Tests connection accessibility
+
+### 2. Metadata
+- `POST /workflows/v1/metadata`
+  - Fetches available databases and schemas
+  - Returns metadata structure
+
+### 3. Preflight Checks
+- `POST /workflows/v1/check`
+  - Validates connection configuration
+  - Verifies metadata filters
+  - Checks schema accessibility
+
+### 4. Workflow Management
+- `POST /workflows/v1/start`
+  - Initiates metadata extraction
+  - Configures workflow parameters
+  - Returns execution status
+
+## Configuration
+
+### 1. Environment Variables
+```python
+ATLAN_APPLICATION_NAME = "postgres"
+ATLAN_APP_HOST = "0.0.0.0"
+ATLAN_APP_PORT = 8000
+ATLAN_APP_DASHBOARD_HOST = "0.0.0.0"
+ATLAN_APP_DASHBOARD_PORT = 8050
+ATLAN_TENANT_ID = "default"
+ATLAN_TEMPORAL_UI_HOST = "localhost"
+ATLAN_TEMPORAL_UI_PORT = 8233
+MAX_CONCURRENT_ACTIVITIES = 5
+```
+
+### 2. Application Settings
+- Chunk size configuration
+- Concurrent activity limits
+- Timeout settings
+- Retry policies
+
+## Error Handling
+
+### 1. Frontend Errors
+- Connection failures
+- Validation errors
+- Workflow execution errors
+- UI state management
+
+### 2. Backend Errors
+- Database connection issues
+- Authentication failures
+- Workflow execution errors
+- Resource management
+
+## Best Practices
+
+### 1. Security
+- Secure credential handling
+- IAM role support
+- Connection encryption
+- Access control
+
+### 2. Performance
+- Batch processing
+- Parallel execution
+- Resource optimization
+- Memory management
+
+### 3. User Experience
+- Clear error messages
+- Progress indicators
+- Intuitive interface
+- Responsive design
+
+## Future Considerations
+
+### 1. Features
+- Additional authentication methods
+- Enhanced metadata filtering
+- Advanced scheduling options
+- Extended monitoring capabilities
+
+### 2. Improvements
+- Performance optimization
+- UI enhancements
+- Error handling refinement
+- Documentation updates
+
+### 3. Integration
+- Additional database support
+- Extended API capabilities
+- Enhanced monitoring
+- Advanced analytics
+
+# Atlan Postgres App - Technical Flow Documentation
+
+## Application Flow Overview
+
+### 1. Application Initialization
+1. `main.py` starts the application
+   - `initialize_and_start()`: Main entry point that sets up all components
+   - `setup_routes()`: Configures FastAPI routes and static file serving
+   - `home()`: Handles root route and renders main UI
+
+2. Worker Setup
+   - `Worker.__init__()`: Creates Temporal worker with workflow and activities
+   - `worker.start()`: Starts worker in daemon mode
+
+### 2. Frontend Flow
+
+#### Step 1: Connection Configuration
+1. User Interface Flow
+   - `testConnection()`: Frontend function to test database connection
+   - `performConnectionTest()`: Makes API call to validate credentials
+
+2. Backend Processing
+   - `FastAPIApplication.test_auth()`: Validates database credentials
+   - `PostgresWorkflowHandler.test_auth()`: Tests PostgreSQL connection
+
+#### Step 2: Metadata Selection
+1. Database Discovery
+   - `FastAPIApplication.fetch_metadata()`: Handles metadata fetch request
+   - `PostgresWorkflowHandler.fetch_metadata()`: Queries PostgreSQL for metadata
+   - `PostgresMetadataExtractionActivities.fetch_databases()`: Extracts database info
+
+2. User Selection Process
+   - `populateMetadataDropdowns()`: Frontend function to populate UI
+   - `handleDatabaseSelection()`: Manages database selection state
+   - `handleSchemaSelection()`: Manages schema selection state
+
+#### Step 3: Preflight Checks
+1. Validation Process
+   - `FastAPIApplication.preflight_check()`: Handles preflight check request
+   - `PostgresWorkflowHandler.preflight_check()`: Validates configuration
+   - `PostgresMetadataExtractionActivities.preflight_check()`: Performs checks
+
+2. Results Display
+   - `runPreflightChecks()`: Frontend function to execute checks
+   - `formatFilters()`: Formats metadata filters for validation
+
+#### Step 4: Workflow Execution
+1. Workflow Initiation
+   - `FastAPIApplication.start_workflow()`: Starts metadata extraction
+   - `PostgresMetadataExtractionWorkflow.run()`: Main workflow execution
+   - `handleRunWorkflow()`: Frontend function to initiate workflow
+
+2. Workflow Processing
+   - `PostgresMetadataExtractionActivities.fetch_databases()`: Database extraction
+   - `PostgresMetadataExtractionActivities.fetch_schemas()`: Schema extraction
+   - `PostgresMetadataExtractionActivities.fetch_tables()`: Table extraction
+   - `PostgresMetadataExtractionActivities.fetch_columns()`: Column extraction
+
+3. Status Updates
+   - `get_workflow_run_status()`: Retrieves workflow status
+   - `get_workflow_result()`: Gets workflow execution results
+
+### 3. Backend Processing Flow
+
+#### Authentication Flow
+1. Credential Validation
+   - `PostgreSQLClient.load()`: Establishes database connection
+   - `PostgresWorkflowHandler.test_auth()`: Validates credentials
+
+#### Metadata Extraction Flow
+1. Database Discovery
+   - `PostgresMetadataExtractionActivities.fetch_databases()`: Gets databases
+   - `PostgresMetadataExtractionActivities.fetch_schemas()`: Gets schemas
+   - `PostgresMetadataExtractionActivities.fetch_tables()`: Gets tables
+
+2. Filter Processing
+   - `prepare_query()`: Prepares SQL with filters
+   - `prepare_filters()`: Formats include/exclude filters
+   - `normalize_filters()`: Normalizes filter patterns
+
+#### Workflow Execution Flow
+1. Initialization
+   - `PostgresMetadataExtractionWorkflow.get_activities()`: Gets workflow activities
+   - `PostgresMetadataExtractionWorkflow.run()`: Executes workflow
+
+2. Activity Execution
+   - `fetch_and_transform()`: Fetches and transforms metadata
+   - `get_transform_batches()`: Prepares data for parallel processing
+
+3. State Management
+   - `ActivitiesState._set_state()`: Sets activity state
+   - `ActivitiesState._get_state()`: Gets activity state
+   - `ActivitiesState._clean_state()`: Cleans up state
+
+### 4. Error Handling Flow
+
+#### Frontend Error Handling
+1. Connection Errors
+   - `testConnection()`: Handles connection test errors
+   - `handleRunWorkflow()`: Manages workflow execution errors
+
+2. Validation Errors
+   - `validateForm()`: Validates form inputs
+   - `showError()`: Displays error messages
+
+3. Workflow Errors
+   - `get_workflow_run_status()`: Checks workflow status
+   - `handleWorkflowError()`: Manages workflow errors
+
+#### Backend Error Handling
+1. Database Errors
+   - `PostgreSQLClient.close()`: Handles connection cleanup
+   - `PostgresWorkflowHandler.test_auth()`: Manages auth errors
+
+2. Workflow Errors
+   - `PostgresMetadataExtractionWorkflow.run()`: Handles workflow errors
+   - `fetch_and_transform()`: Manages transformation errors
+
+3. Resource Management
+   - `ActivitiesState._clean_state()`: Cleans up resources
+   - `PostgreSQLClient.close()`: Closes database connections
+
+### 5. Data Processing Flow
+
+#### Metadata Extraction
+1. Database Processing
+   - `PostgresMetadataExtractionActivities.fetch_databases()`: Gets database info
+   - `PostgresAtlasTransformer.transform_database()`: Creates database entities
+
+2. Schema Processing
+   - `PostgresMetadataExtractionActivities.fetch_schemas()`: Gets schema info
+   - `PostgresAtlasTransformer.transform_schema()`: Creates schema entities
+
+3. Table Processing
+   - `PostgresMetadataExtractionActivities.fetch_tables()`: Gets table info
+   - `PostgresAtlasTransformer.transform_table()`: Creates table entities
+
+#### Atlas Entity Generation
+1. Entity Creation
+   - `PostgresAtlasTransformer.transform_database()`: Database entities
+   - `PostgresAtlasTransformer.transform_schema()`: Schema entities
+   - `PostgresAtlasTransformer.transform_table()`: Table entities
+   - `PostgresAtlasTransformer.transform_column()`: Column entities
+
+2. Relationship Management
+   - `build_atlas_qualified_name()`: Creates entity relationships
+   - `build_phoenix_uri()`: Generates entity URIs
+
+3. Output Generation
+   - `transform_data()`: Transforms metadata to Atlas format
+   - `write_batched_dataframe()`: Writes transformed data
+
+================================================================================
+FILE: 2 activities_doc.md
+================================================================================
+
+# PostgreSQL Metadata Extraction Activities Documentation
+
+## Overview
+
+The PostgreSQL Metadata Extraction Activities module extends the base SQL metadata extraction functionality from the Application SDK to provide PostgreSQL-specific metadata extraction capabilities. This module is responsible for extracting various types of metadata from PostgreSQL databases, including databases, schemas, tables, columns, and stored procedures.
+
+## Class Structure
+
+### PostgresMetadataExtractionActivities
+
+This class extends `SQLMetadataExtractionActivities` from the Application SDK and provides PostgreSQL-specific implementations for metadata extraction.
+
+#### Class Attributes
+
+1. SQL Query Templates
+   ```python
+   fetch_database_sql = DATABASE_EXTRACTION_SQL
+   fetch_schema_sql = SCHEMA_EXTRACTION_SQL
+   fetch_table_sql = TABLE_EXTRACTION_SQL
+   fetch_column_sql = COLUMN_EXTRACTION_SQL
+   fetch_procedure_sql = PROCEDURE_EXTRACTION_SQL
+   ```
+   - Defines SQL queries for extracting different types of metadata
+   - Each query is specific to PostgreSQL's system catalogs
+   - Queries are defined in `app/const.py`
+
+2. Temporary Table Filters
+   ```python
+   tables_extraction_temp_table_regex_sql = TABLE_EXTRACTION_TEMP_TABLE_REGEX_SQL
+   column_extraction_temp_table_regex_sql = COLUMN_EXTRACTION_TEMP_TABLE_REGEX_SQL
+   ```
+   - Defines regex patterns to filter out temporary tables
+   - Separate patterns for table and column extraction
+   - Helps in excluding system-generated temporary tables
+
+3. Class Dependencies
+   ```python
+   sql_client_class = PostgreSQLClient
+   handler_class = PostgresWorkflowHandler
+   transformer_class = PostgresAtlasTransformer
+   ```
+   - Specifies the PostgreSQL-specific implementations of core components
+   - Used for database operations, workflow handling, and metadata transformation
+
+#### Methods
+
+1. `fetch_procedures`
+   ```python
+   @activity.defn
+   @auto_heartbeater
+   @transform(
+       batch_input=SQLQueryInput(query="fetch_procedure_sql"),
+       raw_output=JsonOutput(output_suffix="/raw/extras-procedure"),
+   )
+   async def fetch_procedures(self, batch_input: pd.DataFrame, raw_output: JsonOutput, **kwargs)
+   ```
+   - Extracts stored procedure metadata from PostgreSQL
+   - Decorated with:
+     - `@activity.defn`: Marks as a Temporal activity
+     - `@auto_heartbeater`: Ensures activity stays alive
+     - `@transform`: Handles data transformation
+   - Parameters:
+     - `batch_input`: DataFrame containing procedure data
+     - `raw_output`: Output handler for writing results
+     - `**kwargs`: Additional arguments
+   - Returns: Statistics about the extraction process
+
+## Inherited Functionality
+
+The class inherits several methods from `SQLMetadataExtractionActivities`:
+
+1. Database Extraction
+   - `fetch_databases`: Extracts database-level metadata
+   - Uses PostgreSQL-specific system catalogs
+   - Handles database permissions and visibility
+
+2. Schema Extraction
+   - `fetch_schemas`: Extracts schema-level metadata
+   - Processes schema ownership and permissions
+   - Handles schema hierarchy
+
+3. Table Extraction
+   - `fetch_tables`: Extracts table-level metadata
+   - Filters temporary tables
+   - Processes table types and properties
+
+4. Column Extraction
+   - `fetch_columns`: Extracts column-level metadata
+   - Handles data types and constraints
+   - Processes column relationships
+
+## Activity Flow
+
+1. Initialization
+   - Sets up PostgreSQL client
+   - Configures activity state
+   - Prepares transformation pipeline
+
+2. Execution
+   - Executes SQL queries
+   - Processes results in batches
+   - Transforms metadata to Atlas format
+   - Writes output to JSON files
+
+3. Cleanup
+   - Closes database connections
+   - Cleans up temporary resources
+   - Updates activity statistics
+
+## Error Handling
+
+1. Database Errors
+   - Connection failures
+   - Query execution errors
+   - Permission issues
+
+2. Transformation Errors
+   - Data type mismatches
+   - Invalid metadata
+   - Missing required fields
+
+3. Resource Management
+   - Connection cleanup
+   - Memory management
+   - Temporary file handling
+
+## Integration Points
+
+1. Application SDK
+   - Extends base SQL activities
+   - Uses common utilities
+   - Follows SDK patterns
+
+2. Temporal Workflow
+   - Activity registration
+   - State management
+   - Error handling
+
+3. PostgreSQL Client
+   - Connection management
+   - Query execution
+   - Result processing
+
+4. Atlas Transformer
+   - Entity creation
+   - Relationship management
+   - Data validation
+
+## Best Practices
+
+1. Query Optimization
+   - Efficient SQL queries
+   - Proper indexing usage
+   - Batch processing
+
+2. Resource Management
+   - Connection pooling
+   - Memory optimization
+   - Cleanup procedures
+
+3. Error Handling
+   - Graceful degradation
+   - Detailed logging
+   - Recovery mechanisms
+
+4. Performance
+   - Parallel processing
+   - Batch operations
+   - Caching strategies
+
+================================================================================
+FILE: 3 clients_doc.md
+================================================================================
+
+# PostgreSQL Client Documentation
+
+## Overview
+
+The PostgreSQL Client module extends the Application SDK's `AsyncSQLClient` to provide PostgreSQL-specific database connection handling. It supports multiple authentication methods including basic authentication, AWS IAM user authentication, and AWS IAM role authentication. The client is designed to handle secure connection string generation and database operations for PostgreSQL databases.
+
+## Class Structure
+
+### PostgreSQLClient
+
+This class extends `AsyncSQLClient` from the Application SDK and provides PostgreSQL-specific connection handling.
+
+#### Class Attributes
+
+1. Source Connection Parameters
+   ```python
+   source_connection_params = {
+       "application_name": "Atlan",
+       "connect_timeout": 5,
+   }
+   ```
+   - Defines default connection parameters
+   - Sets application name for connection tracking
+   - Configures connection timeout
+
+#### Methods
+
+1. `get_iam_user_connection_string`
+   ```python
+   def get_iam_user_connection_string(self)
+   ```
+   - Generates connection string for AWS IAM user authentication
+   - Parameters required:
+     - AWS access key ID
+     - AWS secret access key
+     - Host
+     - Username
+     - Database
+     - Port
+     - Region (optional)
+   - Process:
+     - Generates RDS authentication token
+     - URL encodes credentials
+     - Constructs PostgreSQL connection string
+
+2. `get_iam_role_connection_string`
+   ```python
+   def get_iam_role_connection_string(self)
+   ```
+   - Generates connection string for AWS IAM role authentication
+   - Parameters required:
+     - AWS role ARN
+     - External ID
+     - Database
+     - Username
+     - Host
+     - Port
+     - Region (optional)
+   - Process:
+     - Generates RDS authentication token using IAM role
+     - URL encodes credentials
+     - Constructs PostgreSQL connection string
+
+3. `get_basic_connection_string`
+   ```python
+   def get_basic_connection_string(self)
+   ```
+   - Generates connection string for basic authentication
+   - Parameters required:
+     - Username
+     - Password
+     - Host
+     - Database
+     - Port (default: 5432)
+   - Process:
+     - URL encodes password
+     - Constructs PostgreSQL connection string
+
+4. `get_sqlalchemy_connection_string`
+   ```python
+   def get_sqlalchemy_connection_string(self) -> str
+   ```
+   - Main method for generating SQLAlchemy connection string
+   - Supports multiple authentication types:
+     - Basic authentication
+     - IAM user authentication
+     - IAM role authentication
+   - Process:
+     - Determines authentication type
+     - Calls appropriate connection string generator
+     - Adds source connection parameters
+     - Returns complete connection string
+
+## Authentication Methods
+
+### 1. Basic Authentication
+- Username/password based
+- Direct database connection
+- URL encoded credentials
+- Default port: 5432
+
+### 2. IAM User Authentication
+- AWS IAM user credentials
+- RDS authentication token
+- Temporary credentials
+- Region-specific endpoints
+
+### 3. IAM Role Authentication
+- AWS IAM role credentials
+- External ID support
+- Session management
+- Role-based access
+
+## Connection String Format
+
+### Basic Structure
+```
+postgresql+psycopg://{username}:{password}@{host}:{port}/{database}?{params}
+```
+
+### Parameters
+1. Authentication
+   - Username
+   - Password/Token
+   - Host
+   - Port
+   - Database
+
+2. Connection Settings
+   - Application name
+   - Connection timeout
+   - Additional parameters
+
+## Error Handling
+
+1. Validation Errors
+   - Missing required parameters
+   - Invalid authentication type
+   - Invalid credentials
+
+2. Connection Errors
+   - Timeout handling
+   - Connection failures
+   - Authentication failures
+
+3. AWS Integration Errors
+   - Token generation failures
+   - IAM permission issues
+   - Region configuration errors
+
+## Security Features
+
+1. Credential Protection
+   - URL encoding of sensitive data
+   - Secure token generation
+   - Temporary credential handling
+
+2. AWS Integration
+   - IAM role support
+   - External ID validation
+   - Session management
+
+3. Connection Security
+   - SSL support
+   - Timeout configuration
+   - Connection pooling
+
+## Integration Points
+
+1. Application SDK
+   - Extends AsyncSQLClient
+   - Uses SDK utilities
+   - Follows SDK patterns
+
+2. AWS Services
+   - IAM integration
+   - RDS authentication
+   - Region handling
+
+3. SQLAlchemy
+   - Connection string format
+   - Driver configuration
+   - Parameter handling
+
+## Best Practices
+
+1. Connection Management
+   - Connection pooling
+   - Timeout handling
+   - Resource cleanup
+
+2. Security
+   - Credential handling
+   - Token management
+   - Access control
+
+3. Error Handling
+   - Validation
+   - Graceful degradation
+   - Detailed logging
+
+4. Performance
+   - Connection reuse
+   - Parameter optimization
+   - Resource management
+
+================================================================================
+FILE: 4 handlers_transformers_doc.md
+================================================================================
+
+# PostgreSQL Handlers and Transformers Documentation
+
+## Overview
+
+This document covers both the PostgreSQL-specific handlers and transformers implementations. The handlers manage workflow operations and database interactions, while the transformers handle the conversion of PostgreSQL metadata into Atlas entities.
+
+## Handlers Implementation
+
+### PostgresWorkflowHandler
+
+This class extends the Application SDK's `SQLHandler` to provide PostgreSQL-specific workflow handling.
+
+#### Class Structure
+
+```python
+class PostgresWorkflowHandler(SQLHandler):
+    metadata_sql = FILTER_METADATA_SQL
+    tables_check_sql = TABLES_CHECK_SQL
+    temp_table_regex_sql = TABLES_CHECK_TEMP_TABLE_REGEX_SQL
+```
+
+#### Key Components
+
+1. SQL Templates
+   - `metadata_sql`: SQL query for metadata filtering
+   - `tables_check_sql`: SQL query for table validation
+   - `temp_table_regex_sql`: Pattern for temporary table filtering
+
+2. Inherited Functionality
+   - Authentication handling
+   - Metadata extraction
+   - Preflight checks
+   - Connection management
+
+## Transformers Implementation
+
+### PostgresAtlasTransformer
+
+The main transformer class that handles conversion of PostgreSQL metadata to Atlas entities.
+
+#### Class Structure
+
+```python
+class PostgresAtlasTransformer(AtlasTransformer):
+    def __init__(self, connector_name: str, tenant_id: str, **kwargs: Any):
+        self.entity_class_definitions = {
+            "TABLE": PostgresTable,
+            "COLUMN": PostgresColumn,
+            "EXTRAS-PROCEDURE": Procedure
+        }
+```
+
+### Entity Transformers
+
+#### 1. PostgresTable
+
+Extends the base `Table` class to handle PostgreSQL-specific table attributes.
+
+##### Key Features
+1. Table Attributes
+   ```python
+   table_attributes = {
+       "constraint": partition_constraint,
+       "is_partitioned": boolean,
+       "partition_strategy": string,
+       "partition_count": integer,
+       "definition": view_definition  # For views
+   }
+   ```
+
+2. Custom Attributes
+   ```python
+   table_custom_attributes = {
+       "is_insertable_into": boolean,
+       "is_typed": boolean,
+       "self_referencing_col_name": string,
+       "ref_generation": string
+   }
+   ```
+
+3. View Handling
+   - Regular views
+   - Materialized views
+   - View definitions
+
+#### 2. PostgresColumn
+
+Extends the base `Column` class to handle PostgreSQL-specific column attributes.
+
+##### Key Features
+1. Column Attributes
+   ```python
+   column_attributes = {
+       "is_primary": boolean,
+       "is_foreign": boolean
+   }
+   ```
+
+2. Custom Attributes
+   ```python
+   column_custom_attributes = {
+       "num_prec_radix": string,
+       "is_identity": string,
+       "identity_cycle": string
+   }
+   ```
+
+## Transformation Process
+
+### 1. Table Transformation
+1. Base Attributes
+   - Table name
+   - Table type
+   - Schema information
+   - Database information
+
+2. PostgreSQL-Specific Attributes
+   - Partitioning information
+   - View definitions
+   - Table constraints
+   - Custom properties
+
+3. View Processing
+   - Regular view definitions
+   - Materialized view definitions
+   - View dependencies
+
+### 2. Column Transformation
+1. Base Attributes
+   - Column name
+   - Data type
+   - Nullability
+   - Default values
+
+2. PostgreSQL-Specific Attributes
+   - Identity columns
+   - Precision information
+   - Constraint types
+   - Custom properties
+
+### 3. Procedure Transformation
+1. Base Attributes
+   - Procedure name
+   - Schema information
+   - Database information
+
+2. PostgreSQL-Specific Attributes
+   - Procedure language
+   - Parameter information
+   - Return type
+   - Security definer
+
+## Integration Points
+
+### 1. Application SDK
+- Extends base handlers
+- Uses SDK transformers
+- Follows SDK patterns
+
+### 2. Database Layer
+- SQL query execution
+- Result processing
+- Error handling
+
+### 3. Atlas Integration
+- Entity creation
+- Relationship management
+- Attribute mapping
+
+## Error Handling
+
+### 1. Validation Errors
+- Required field validation
+- Type checking
+- Constraint validation
+
+### 2. Transformation Errors
+- Data type mismatches
+- Missing attributes
+- Invalid relationships
+
+### 3. Database Errors
+- Query execution errors
+- Connection issues
+- Permission problems
+
+## Best Practices
+
+### 1. Data Validation
+- Input validation
+- Type checking
+- Constraint enforcement
+
+### 2. Error Handling
+- Graceful degradation
+- Detailed error messages
+- Recovery mechanisms
+
+### 3. Performance
+- Efficient transformations
+- Batch processing
+- Resource management
+
+### 4. Maintainability
+- Clear documentation
+- Consistent patterns
+- Modular design
+
+================================================================================
+FILE: 5 workflows_doc.md
+================================================================================
+
+# PostgreSQL Workflows Documentation
+
+## Overview
+
+This document covers the PostgreSQL-specific workflow implementations, focusing on metadata extraction workflows. The implementation extends the Application SDK's base workflows to provide PostgreSQL-specific functionality and optimizations.
+
+## Key Differences from Application SDK
+
+### 1. Timeout Configurations
+```python
+# PostgreSQL Implementation
+DEFAULT_HEARTBEAT_TIMEOUT = timedelta(
+    seconds=int(os.getenv("ATLAN_HEARTBEAT_TIMEOUT", 120))  # 2 minutes
+)
+DEFAULT_START_TO_CLOSE_TIMEOUT = timedelta(
+    seconds=int(os.getenv("ATLAN_START_TO_CLOSE_TIMEOUT", 2 * 60 * 60))  # 2 hours
+)
+
+# Application SDK Default
+default_heartbeat_timeout = timedelta(seconds=10)  # 10 seconds
+default_start_to_close_timeout = timedelta(hours=2)  # 2 hours
+```
+
+### 2. Activity Sequence
+```python
+# PostgreSQL Implementation
+fetch_and_transforms = [
+    self.fetch_and_transform(self.activities_cls.fetch_databases, ...),
+    self.fetch_and_transform(self.activities_cls.fetch_schemas, ...),
+    self.fetch_and_transform(self.activities_cls.fetch_tables, ...),
+    self.fetch_and_transform(self.activities_cls.fetch_columns, ...),
+    self.fetch_and_transform(self.activities_cls.fetch_procedures, ...),
+]
+
+# Application SDK Default
+fetch_and_transforms = [
+    self.fetch_and_transform(self.activities_cls.fetch_databases, ...),
+    self.fetch_and_transform(self.activities_cls.fetch_schemas, ...),
+    self.fetch_and_transform(self.activities_cls.fetch_tables, ...),
+    self.fetch_and_transform(self.activities_cls.fetch_columns, ...),
+]
+```
+
+### 3. Retry Policy
+```python
+# PostgreSQL Implementation
+retry_policy = RetryPolicy(
+    maximum_attempts=6,
+    backoff_coefficient=2,
+)
+
+# Application SDK Default
+retry_policy = RetryPolicy(
+    maximum_attempts=3,
+    backoff_coefficient=1,
+)
+```
+
+## Workflow Implementation
+
+### PostgresMetadataExtractionWorkflow
+
+This class extends `SQLMetadataExtractionWorkflow` to provide PostgreSQL-specific metadata extraction capabilities.
+
+#### Class Structure
+```python
+@workflow.defn
+class PostgresMetadataExtractionWorkflow(SQLMetadataExtractionWorkflow):
+    activities_cls = PostgresMetadataExtractionActivities
+    default_heartbeat_timeout = DEFAULT_HEARTBEAT_TIMEOUT
+    default_start_to_close_timeout = DEFAULT_START_TO_CLOSE_TIMEOUT
+```
+
+#### Key Components
+
+1. Activity Class
+   - Uses `PostgresMetadataExtractionActivities`
+   - Handles PostgreSQL-specific operations
+   - Manages database interactions
+
+2. Timeout Settings
+   - Configurable heartbeat timeout
+   - Configurable activity timeout
+   - Environment variable support
+
+3. Activity Sequence
+   - Database extraction
+   - Schema extraction
+   - Table extraction
+   - Column extraction
+   - Procedure extraction
+
+#### Workflow Execution
+
+1. Initialization
+   ```python
+   workflow_id = workflow_config["workflow_id"]
+   workflow_args = StateStoreInput.extract_configuration(workflow_id)
+   workflow_args["workflow_run_id"] = workflow.info().run_id
+   ```
+
+2. Output Configuration
+   ```python
+   output_prefix = workflow_args["output_prefix"]
+   output_path = f"{output_prefix}/{workflow_id}/{workflow_run_id}"
+   workflow_args["output_path"] = output_path
+   ```
+
+3. Preflight Check
+   ```python
+   await workflow.execute_activity_method(
+       self.activities_cls.preflight_check,
+       workflow_args,
+       retry_policy=retry_policy,
+       start_to_close_timeout=self.default_start_to_close_timeout,
+       heartbeat_timeout=self.default_heartbeat_timeout,
+   )
+   ```
+
+4. Parallel Execution
+   ```python
+   fetch_and_transforms = [
+       self.fetch_and_transform(self.activities_cls.fetch_databases, ...),
+       self.fetch_and_transform(self.activities_cls.fetch_schemas, ...),
+       self.fetch_and_transform(self.activities_cls.fetch_tables, ...),
+       self.fetch_and_transform(self.activities_cls.fetch_columns, ...),
+       self.fetch_and_transform(self.activities_cls.fetch_procedures, ...),
+   ]
+   await asyncio.gather(*fetch_and_transforms)
+   ```
+
+## Activity Management
+
+### 1. Activity Sequence
+```python
+@staticmethod
+def get_activities(activities: PostgresMetadataExtractionActivities) -> List[Callable[..., Any]]:
+    return [
+        activities.preflight_check,
+        activities.fetch_databases,
+        activities.fetch_schemas,
+        activities.fetch_tables,
+        activities.fetch_columns,
+        activities.fetch_procedures,
+        activities.transform_data,
+    ]
+```
+
+### 2. Retry Handling
+- Maximum 6 retry attempts
+- Exponential backoff
+- Configurable timeouts
+
+### 3. Error Management
+- Activity-specific error handling
+- Workflow-level error recovery
+- Detailed logging
+
+## Integration Points
+
+### 1. Application SDK
+- Extends base workflow
+- Uses SDK utilities
+- Follows SDK patterns
+
+### 2. State Management
+- Configuration extraction
+- State persistence
+- Workflow tracking
+
+### 3. Activity System
+- PostgreSQL-specific activities
+- Parallel execution
+- Resource management
+
+## Best Practices
+
+### 1. Configuration
+- Environment variable support
+- Configurable timeouts
+- Flexible retry policies
+
+### 2. Performance
+- Parallel activity execution
+- Efficient resource usage
+- Optimized data handling
+
+### 3. Error Handling
+- Comprehensive error recovery
+- Detailed logging
+- State preservation
+
+### 4. Maintainability
+- Clear documentation
+- Consistent patterns
+- Modular design
+
+## Why Override Application SDK?
+
+1. **PostgreSQL-Specific Requirements**
+   - Custom timeout configurations
+   - Additional metadata extraction
+   - Procedure handling
+
+2. **Performance Optimization**
+   - Longer heartbeat timeouts
+   - More retry attempts
+   - Parallel execution
+
+3. **Enhanced Error Handling**
+   - PostgreSQL-specific error cases
+   - Custom recovery strategies
+   - Detailed logging
+
+4. **Extended Functionality**
+   - Procedure extraction
+   - Custom activity sequence
+   - Additional metadata types

@@ -1,0 +1,447 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# MySQL Connector Implementation Guide
+
+## Overview
+This guide outlines the steps and components needed to create a MySQL connector based on the existing PostgreSQL app structure. The implementation will follow similar patterns but with MySQL-specific adaptations.
+
+## Specific Changes Required from PostgreSQL App
+
+### 1. File Structure Changes
+1. Rename files and directories:
+   - `postgres_client.py` → `mysql_client.py`
+   - `postgres_workflow_handler.py` → `mysql_workflow_handler.py`
+   - `postgres_metadata_extraction_activities.py` → `mysql_metadata_extraction_activities.py`
+   - `postgres_atlas_transformer.py` → `mysql_atlas_transformer.py`
+   - `postgres_metadata_extraction_workflow.py` → `mysql_metadata_extraction_workflow.py`
+
+2. Update imports and class references in all files
+
+### 2. SQL Query Changes
+1. Replace PostgreSQL system catalogs with MySQL INFORMATION_SCHEMA:
+   ```sql
+   -- PostgreSQL
+   SELECT * FROM pg_database
+
+   -- MySQL
+   SELECT * FROM information_schema.SCHEMATA
+   ```
+
+2. Update table metadata queries:
+   ```sql
+   -- PostgreSQL
+   SELECT * FROM pg_tables
+
+   -- MySQL
+   SELECT * FROM information_schema.TABLES
+   ```
+
+3. Update column metadata queries:
+   ```sql
+   -- PostgreSQL
+   SELECT * FROM pg_columns
+
+   -- MySQL
+   SELECT * FROM information_schema.COLUMNS
+   ```
+
+### 3. Connection String Changes
+1. Update connection string format:
+   ```python
+   # PostgreSQL
+   postgresql+psycopg://user:pass@host:5432/db
+
+   # MySQL
+   mysql+pymysql://user:pass@host:3306/db
+   ```
+
+2. Update connection parameters:
+   - Default port: 3306 (MySQL) instead of 5432 (PostgreSQL)
+   - Different SSL parameters
+   - Different authentication methods
+
+### 4. Data Type Mapping Changes
+1. Update data type mappings in transformers:
+   ```python
+   # PostgreSQL
+   type_mapping = {
+       'integer': 'INT',
+       'character varying': 'VARCHAR',
+       'timestamp': 'TIMESTAMP'
+   }
+
+   # MySQL
+   type_mapping = {
+       'int': 'INT',
+       'varchar': 'VARCHAR',
+       'datetime': 'DATETIME'
+   }
+   ```
+
+### 5. Constraint Handling Changes
+1. Update constraint extraction queries:
+   ```sql
+   -- PostgreSQL
+   SELECT * FROM pg_constraints
+
+   -- MySQL
+   SELECT * FROM information_schema.TABLE_CONSTRAINTS
+   ```
+
+2. Update foreign key handling:
+   ```sql
+   -- PostgreSQL
+   SELECT * FROM pg_foreign_keys
+
+   -- MySQL
+   SELECT * FROM information_schema.KEY_COLUMN_USAGE
+   ```
+
+### 6. Authentication Changes
+1. Update AWS IAM authentication:
+   ```python
+   # PostgreSQL
+   token = rds.generate_auth_token()
+
+   # MySQL
+   token = rds.generate_auth_token()  # Similar but different parameters
+   ```
+
+2. Update connection parameters for different auth methods
+
+### 7. Metadata Extraction Changes
+1. Update system schema exclusions:
+   ```python
+   # PostgreSQL
+   system_schemas = ['information_schema', 'pg_catalog']
+
+   # MySQL
+   system_schemas = ['information_schema', 'performance_schema', 'mysql', 'sys']
+   ```
+
+2. Update metadata queries for:
+   - Views
+   - Functions
+   - Triggers
+   - Events
+
+### 8. Entity Transformation Changes
+1. Update Atlas entity attributes:
+   ```python
+   # PostgreSQL
+   table_attributes = {
+       'is_partitioned': bool,
+       'partition_strategy': str
+   }
+
+   # MySQL
+   table_attributes = {
+       'is_partitioned': bool,
+       'partition_strategy': str,
+       'partition_expression': str
+   }
+   ```
+
+2. Update relationship handling:
+   - Different foreign key constraints
+   - Different view dependencies
+   - Different procedure dependencies
+
+### 9. Configuration Changes
+1. Update environment variables:
+   ```python
+   # PostgreSQL
+   POSTGRES_PORT = 5432
+
+   # MySQL
+   MYSQL_PORT = 3306
+   ```
+
+2. Update default settings:
+   - Connection timeouts
+   - Batch sizes
+   - Retry policies
+
+### 10. Error Handling Changes
+1. Update error codes and messages:
+   ```python
+   # PostgreSQL
+   error_codes = {
+       '42P01': 'Table not found',
+       '42P02': 'Schema not found'
+   }
+
+   # MySQL
+   error_codes = {
+       '1146': 'Table not found',
+       '1049': 'Database not found'
+   }
+   ```
+
+2. Update error handling for MySQL-specific issues
+
+### 11. Testing Changes
+1. Update test data:
+   - Different data types
+   - Different constraints
+   - Different features
+
+2. Update test cases for:
+   - MySQL-specific features
+   - Different error scenarios
+   - Different performance characteristics
+
+### 12. Documentation Updates
+1. Update all references from PostgreSQL to MySQL
+2. Update SQL examples
+3. Update configuration examples
+4. Update error handling documentation
+
+## 1. Core Components to Implement
+
+### 1.1 Client Implementation
+- Create `MySQLClient` class extending `AsyncSQLClient`
+- Implement MySQL-specific connection string generation
+- Support authentication methods:
+  - Basic authentication
+  - AWS IAM user authentication
+  - AWS IAM role authentication
+- Handle MySQL-specific connection parameters
+
+### 1.2 Activities Implementation
+- Create `MySQLMetadataExtractionActivities` class
+- Implement MySQL-specific SQL queries for:
+  - Database extraction
+  - Schema extraction
+  - Table extraction
+  - Column extraction
+  - Procedure/Function extraction
+- Handle MySQL-specific metadata types and properties
+
+### 1.3 Handlers Implementation
+- Create `MySQLWorkflowHandler` class
+- Implement MySQL-specific workflow handling
+- Add MySQL-specific preflight checks
+- Handle MySQL-specific error cases
+
+### 1.4 Transformers Implementation
+- Create `MySQLAtlasTransformer` class
+- Implement MySQL-specific entity transformations:
+  - Database entities
+  - Schema entities
+  - Table entities
+  - Column entities
+  - Procedure/Function entities
+- Handle MySQL-specific attributes and relationships
+
+### 1.5 Workflow Implementation
+- Create `MySQLMetadataExtractionWorkflow` class
+- Configure MySQL-specific timeouts and retry policies
+- Implement MySQL-specific activity sequence
+- Handle MySQL-specific workflow states
+
+## 2. Key Differences from PostgreSQL Implementation
+
+### 2.1 SQL Queries
+- Replace PostgreSQL system catalogs with MySQL INFORMATION_SCHEMA
+- Adapt queries for MySQL syntax and features
+- Handle MySQL-specific metadata structures
+
+### 2.2 Authentication
+- Implement MySQL-specific authentication methods
+- Handle MySQL connection string format
+- Support MySQL-specific security features
+
+### 2.3 Metadata Extraction
+- Handle MySQL-specific data types
+- Process MySQL-specific constraints
+- Extract MySQL-specific features (triggers, events, etc.)
+
+### 2.4 Entity Transformation
+- Map MySQL-specific attributes to Atlas entities
+- Handle MySQL-specific relationships
+- Process MySQL-specific metadata properties
+
+## 3. Required Documentation
+
+### 3.1 Technical Documentation
+1. MySQL System Tables Reference
+   - INFORMATION_SCHEMA structure
+   - System tables and views
+   - Metadata storage locations
+
+2. MySQL JDBC Documentation
+   - Connection string format
+   - Driver configuration
+   - Authentication methods
+
+3. MySQL Metadata Extraction
+   - Available metadata types
+   - Extraction methods
+   - Performance considerations
+
+### 3.2 Implementation Documentation
+1. Architecture Overview
+   - Component relationships
+   - Data flow
+   - Error handling
+
+2. Configuration Guide
+   - Environment variables
+   - Connection parameters
+   - Extraction settings
+
+3. API Documentation
+   - Endpoints
+   - Request/Response formats
+   - Error codes
+
+## 4. Implementation Steps
+
+### 4.1 Setup Phase
+1. Create new package structure
+2. Set up development environment
+3. Configure MySQL dependencies
+4. Create test database
+
+### 4.2 Core Implementation
+1. Implement MySQLClient
+2. Create metadata extraction activities
+3. Implement workflow handler
+4. Create Atlas transformers
+5. Set up workflow management
+
+### 4.3 Testing Phase
+1. Unit tests for components
+2. Integration tests
+3. End-to-end testing
+4. Performance testing
+
+### 4.4 Documentation Phase
+1. Technical documentation
+2. API documentation
+3. User guides
+4. Deployment guides
+
+## 5. Key Considerations
+
+### 5.1 Performance
+- Batch processing optimization
+- Connection pooling
+- Query optimization
+- Resource management
+
+### 5.2 Security
+- Credential handling
+- Connection encryption
+- Access control
+- Audit logging
+
+### 5.3 Error Handling
+- Connection failures
+- Query errors
+- Transformation errors
+- Workflow failures
+
+### 5.4 Monitoring
+- Activity logging
+- Performance metrics
+- Error tracking
+- State monitoring
+
+## 6. Dependencies
+
+### 6.1 Required Packages
+- MySQL JDBC driver
+- Application SDK
+- Temporal workflow engine
+- FastAPI framework
+
+### 6.2 Development Tools
+- Testing frameworks
+- Code quality tools
+- Documentation generators
+- Deployment tools
+
+## 7. Testing Strategy
+
+### 7.1 Unit Tests
+- Component testing
+- Mock implementations
+- Edge cases
+- Error scenarios
+
+### 7.2 Integration Tests
+- End-to-end workflows
+- Database interactions
+- API endpoints
+- Error handling
+
+### 7.3 Performance Tests
+- Load testing
+- Resource usage
+- Response times
+- Scalability
+
+## 8. Deployment Considerations
+
+### 8.1 Environment Setup
+- Development environment
+- Testing environment
+- Production environment
+- Monitoring setup
+
+### 8.2 Configuration Management
+- Environment variables
+- Connection settings
+- Feature flags
+- Logging configuration
+
+### 8.3 Monitoring and Maintenance
+- Health checks
+- Performance monitoring
+- Error tracking
+- Update procedures
+
+## 9. Future Enhancements
+
+### 9.1 Feature Additions
+- Additional metadata types
+- Enhanced filtering
+- Advanced scheduling
+- Extended monitoring
+
+### 9.2 Performance Optimizations
+- Query optimization
+- Resource management
+- Caching strategies
+- Parallel processing
+
+### 9.3 Integration Extensions
+- Additional databases
+- Extended API capabilities
+- Enhanced monitoring
+- Advanced analytics
+
+## 10. Resources
+
+### 10.1 Documentation
+- MySQL Documentation
+- Application SDK Documentation
+- Temporal Documentation
+- FastAPI Documentation
+
+### 10.2 Tools
+- Development tools
+- Testing frameworks
+- Monitoring tools
+- Deployment tools
+
+### 10.3 References
+- Code examples
+- Best practices
+- Design patterns
+- Security guidelines

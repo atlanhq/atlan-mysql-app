@@ -1,0 +1,33 @@
+Convert PostgreSQL system catalog queries to MySQL INFORMATION_SCHEMA queries.
+
+Key changes needed:
+
+1. Update SQL queries in const.py:
+
+- Replace pg_catalog references with information_schema equivalents
+
+- Update system schema exclusions to: 'mysql', 'information_schema', 'performance_schema', 'sys'
+
+- use correct syntax for mysql queries. do not use “!~”, instead use “NOT REGEXP”
+
+- Match expected column names and output format
+
+- Update temporary table pattern regex
+
+CRITICAL requirements:
+
+- Ensure column naming follows exact patterns in working queries:
+
+- Use lowercase aliases consistently (e.g., 'table_name' not 'TABLE_NAME')
+
+- Maintain the same output column structure expected by transformers
+
+- Pay special attention to boolean values and data types
+
+SQL conversion guidelines:
+
+- Examine application_sdk transformers to understand expected column format THIS IS VERY VERY IMPORTANT
+- Use appropriate JOINs with INFORMATION_SCHEMA tables
+- Maintain consistent filtering patterns using REGEXP
+- Ensure proper GROUP BY clauses for aggregated queries
+- Do NOT change code outside of const.py

@@ -1,0 +1,61 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+Here are the 5 milestones for converting PostgreSQL app to MySQL:
+
+## Milestone 1: Frontend Updates
+- Update UI components from PostgreSQL to MySQL
+- Update connection form (port 3306, MySQL params)
+- Update authentication UI components
+- Update error messages and help text
+- Update configuration examples
+- Update placeholder texts
+- Update frontend validation rules
+
+## Milestone 2: Core Client and Connection
+- Create MySQL client from PostgreSQL client
+- Update connection string handling
+- Update authentication methods (Basic, AWS IAM)
+- Update SSL/TLS parameters
+- Update error codes and messages
+- Update system schema exclusions
+- Update environment variables and configs
+
+## Milestone 3: Metadata Extraction
+- Convert all PostgreSQL catalog queries to MySQL INFORMATION_SCHEMA
+- Update metadata extraction activities
+- Update data type mappings
+- Update constraint handling
+- Add MySQL-specific features (triggers, events)
+- Update preflight checks
+- Update batch processing logic
+
+## Milestone 4: Entity Transformation and Workflow
+- Update Atlas entity transformers for MySQL
+- Update relationship handling
+- Update workflow handlers and sequences
+- Update state management
+- Update error recovery mechanisms
+- Update activity timeouts and retries
+- Update output formatting
+
+## Milestone 5: Testing Suite
+- Unit tests:
+  - Client tests
+  - Authentication tests
+  - Query tests
+  - Transformation tests
+- Integration tests:
+  - Workflow tests
+  - API tests
+  - State management tests
+- E2E tests:
+  - UI interaction tests
+  - Full extraction tests
+  - Performance tests
+  - Error scenario tests
+- Documentation updates
+
+Each milestone builds upon the previous one and should be tested before moving to the next. Would you like to start with Milestone 1?

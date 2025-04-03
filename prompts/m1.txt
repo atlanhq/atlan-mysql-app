@@ -1,0 +1,27 @@
+Convert the PostgreSQL app frontend to MySQL app with minimal changes to support MySQL connection parameters and terminology.
+
+Key changes needed:
+
+1. Update all PostgreSQL references to MySQL in HTML and JavaScript files
+
+2. Change connection parameters:
+
+- Update default port from 5432 to 3306
+
+- Modify connection form placeholders and validation logic
+
+3. Update authentication UI components while maintaining the same structure
+
+4. Update error messages and help text to reflect MySQL-specific guidance
+
+5. Modify preflight check logic to handle MySQL system schemas
+
+Implementation guidelines:
+
+- Only modify index.html and script.js files
+- Keep the same multi-step workflow structure
+- Maintain all existing functionality
+- Update labels, placeholders, and validation patterns
+- Do NOT change application_sdk code
+- Make only the minimal necessary changes to ensure functionality
+- DO NOT REMOVE ANY OF THE EXISTING FUNCTIONALITY. ONLY EDIT THE EXISTING FUNCTIONALITY TO SUPPPORT MYSQL wherever absolutely dnecesary. you need to do very less edits

@@ -1,0 +1,37 @@
+Update main application and transformers to integrate MySQL-specific components.
+
+Key changes needed in transformers/**init**.py:
+
+1. Create database-specific transformer class extending AtlasTransformer
+
+2. Create entity classes for tables and columns:
+
+- Implement data type mappings for MySQL
+
+- Handle MySQL-specific attributes (e.g., auto_increment)
+
+- Maintain compatibility with expected query output
+
+3. Ensure connection_qualified_name is properly handled
+
+4. create classses for mysql table columns database, schema and procedure assets, and get_attributes for each of them acc to the queries and application_sdk transformers
+
+Key changes needed in main.py:
+
+1. Update application name from "postgres" to "mysql"
+
+2. Replace all PostgreSQL class references with MySQL equivalents
+
+3. Update import statements to reflect new class names
+
+4. Maintain existing application structure and workflow
+
+Implementation guidelines:
+
+- Only modify main.py and transformers/**init**.py
+- Carefully examine how transformers process entity attributes
+- Ensure transformer classes match column names from SQL queries
+- Maintain existing method signatures and interfaces
+- Properly handle data type conversions and special cases
+- Do NOT change application_sdk code
+- put logs in the transformer process

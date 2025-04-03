@@ -1,0 +1,2400 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+
+================================================================================
+FILE: 1. OVERVIEW.md
+================================================================================
+
+# Application SDK Overview
+
+## Project Overview
+
+The Application SDK is a comprehensive framework for building data processing applications with a focus on metadata extraction, query processing, and workflow management. It provides a robust set of tools for handling various data sources, processing workflows, and managing application state.
+
+## Core Components
+
+### 1. Workflow Management
+- **Base Workflow Interface**
+  - Abstract base class for all workflow implementations
+  - Handles activity sequencing and execution
+  - Manages workflow state and configuration
+  - Supports retry policies and timeouts
+
+- **LangGraph Workflow**
+  - Specialized workflow for LangGraph agent operations
+  - Manages agent state and execution
+  - Supports message processing and task execution
+  - Handles graph compilation and execution
+
+- **SQL Workflows**
+  - Metadata extraction workflows
+  - Query extraction workflows
+  - Supports batch processing
+  - Handles database operations
+
+### 2. Data Input/Output
+- **Input Handlers**
+  - JSON Input: Handles JSON file reading with chunking
+  - SQL Input: Manages database queries and results
+  - Parquet Input: Handles Parquet file reading
+  - Iceberg Input: Manages Iceberg table operations
+  - Object Store Input: Handles file downloads
+
+- **Output Handlers**
+  - JSON Output: Writes data in JSON format with chunking
+  - SQL Output: Manages database writes
+  - Parquet Output: Handles Parquet file writing
+  - Iceberg Output: Manages Iceberg table writes
+  - Object Store Output: Handles file uploads
+
+### 3. State Management
+- **State Store**
+  - Manages application state
+  - Handles configuration storage
+  - Supports state retrieval
+  - Provides error handling
+
+- **Secret Store**
+  - Manages credentials
+  - Handles secure storage
+  - Supports credential retrieval
+  - Provides access control
+
+### 4. Agent System
+- **LangGraph Agent**
+  - Manages agent state
+  - Handles task execution
+  - Supports message processing
+  - Provides graph-based execution
+
+## Architecture
+
+### 1. Core Architecture
+```
+Application SDK
+├── Workflows
+│   ├── Base Interface
+│   ├── LangGraph Workflow
+│   └── SQL Workflows
+├── Input/Output
+│   ├── Input Handlers
+│   └── Output Handlers
+├── State Management
+│   ├── State Store
+│   └── Secret Store
+└── Agent System
+    └── LangGraph Agent
+```
+
+### 2. Data Flow
+1. **Input Processing**
+   - Data source connection
+   - Chunked data reading
+   - Format conversion
+   - Validation
+
+2. **Workflow Execution**
+   - Activity sequencing
+   - State management
+   - Error handling
+   - Progress tracking
+
+3. **Output Generation**
+   - Data transformation
+   - Chunked writing
+   - Format conversion
+   - Storage management
+
+### 3. State Management
+1. **Configuration**
+   - Environment variables
+   - Default settings
+   - Runtime configuration
+   - Dynamic updates
+
+2. **Credentials**
+   - Secure storage
+   - Access control
+   - Validation
+   - Error handling
+
+## Key Features
+
+### 1. Data Processing
+- Chunked data handling
+- Multiple format support
+- Batch processing
+- Parallel execution
+
+### 2. Workflow Management
+- Activity sequencing
+- State tracking
+- Error recovery
+- Progress monitoring
+
+### 3. State Management
+- Configuration storage
+- Credential management
+- Secure access
+- Error handling
+
+### 4. Agent System
+- State management
+- Task execution
+- Message processing
+- Graph-based execution
+
+## Technical Details
+
+### 1. Dependencies
+- Temporal: Workflow management
+- Dapr: State and secret management
+- LangGraph: Agent system
+- Pandas/Daft: Data processing
+
+### 2. Configuration
+- Environment variables
+- Default settings
+- Runtime updates
+- Type safety
+
+### 3. Error Handling
+- Exception management
+- Error recovery
+- State preservation
+- Logging
+
+### 4. Performance
+- Chunked processing
+- Parallel execution
+- Resource management
+- Memory optimization
+
+## Best Practices
+
+### 1. Development
+- Type hints
+- Comprehensive documentation
+- Error handling
+- Testing
+
+### 2. Usage
+- Configuration management
+- State handling
+- Resource cleanup
+- Error recovery
+
+### 3. Performance
+- Chunk size optimization
+- Parallel processing
+- Resource management
+- Memory usage
+
+### 4. Security
+- Credential management
+- Access control
+- Secure storage
+- Validation
+
+## Future Considerations
+
+### 1. Extensibility
+- New input/output handlers
+- Additional workflows
+- Custom agents
+- Enhanced state management
+
+### 2. Performance
+- Optimized processing
+- Better resource management
+- Enhanced parallelization
+- Memory optimization
+
+### 3. Features
+- Additional data formats
+- Enhanced error handling
+- Better monitoring
+- Advanced security
+
+### 4. Integration
+- Additional services
+- Enhanced APIs
+- Better tooling
+- Improved documentation
+
+================================================================================
+FILE: 10. config_worker.md
+================================================================================
+
+# Configuration and Worker Documentation
+
+This document provides a comprehensive overview of the Application SDK's configuration and worker modules, which handle application settings and Temporal worker management.
+
+## Configuration (`config.py`)
+
+The configuration module provides centralized settings management using Pydantic's BaseSettings.
+
+### ApplicationSDKSettings
+```python
+class ApplicationSDKSettings(BaseSettings):
+    """Central configuration for application-sdk.
+
+    This class uses Pydantic's BaseSettings which allows for configuration via environment
+    variables and/or direct assignment. Environment variables take precedence over defaults.
+
+    Environment Variables:
+        ATLAN_APP_SDK_CHUNK_SIZE: Chunk size for SQL | JSON | Parquet | Iceberg I/0 query operations
+
+    Attributes:
+        chunk_size (int): Chunk size for I/O operations (default: 100000)
+            Applies to Iceberg, Parquet, JSON, and SQL operations
+    """
+
+    model_config = SettingsConfigDict(
+        env_prefix="ATLAN_APP_SDK_",
+        case_sensitive=False,
+        extra="allow",  # Allow extra fields for future extensibility
+    )
+
+    chunk_size: int = 100000
+
+    def model_dump(self, *args: Any, **kwargs: Any) -> Dict[str, Any]:
+        """Get settings as a dictionary."""
+        return super().model_dump(*args, **kwargs)
+
+    @classmethod
+    def get_settings(cls, **kwargs: Any) -> "ApplicationSDKSettings":
+        """Create settings with optional overrides."""
+        return cls(**kwargs)
+```
+
+### Global Settings Management
+```python
+# Global settings instance with default values
+settings = ApplicationSDKSettings()
+
+@lru_cache()
+def get_settings() -> ApplicationSDKSettings:
+    """Get the global settings instance.
+
+    Returns:
+        ApplicationSDKSettings: The global settings instance
+
+    Note:
+        This function is cached to avoid re-reading environment variables.
+        To refresh settings, call get_settings.cache_clear()
+    """
+    return settings
+
+def configure_settings(**kwargs: Any) -> None:
+    """Configure global settings with overrides.
+
+    Args:
+        **kwargs: Keyword arguments to override default settings
+
+    Example:
+        >>> configure_settings(chunk_size=50000)
+    """
+    global settings
+    settings = ApplicationSDKSettings.get_settings(**kwargs)
+    # Clear the cache to ensure get_settings returns the new values
+    get_settings.cache_clear()
+```
+
+## Worker (`worker.py`)
+
+The worker module provides functionality for managing Temporal workflow workers.
+
+### Worker Class
+```python
+class Worker:
+    """Worker class for managing Temporal workflow workers.
+
+    This class handles the initialization and execution of Temporal workers,
+    including their activities, workflows, and module configurations.
+
+    Attributes:
+        temporal_client (TemporalClient | None): Client for interacting with Temporal
+        temporal_worker: The Temporal worker instance
+        temporal_activities (Sequence[CallableType]): List of activity functions
+        workflow_classes (List[Any]): List of workflow classes
+        passthrough_modules (List[str]): List of module names to pass through
+        max_concurrent_activities (int | None): Maximum number of concurrent activities
+    """
+
+    def __init__(
+        self,
+        temporal_client: TemporalClient | None = None,
+        temporal_activities: Sequence[CallableType] = [],
+        passthrough_modules: List[str] = ["application_sdk", "os"],
+        workflow_classes: List[Any] = [],
+        max_concurrent_activities: Optional[int] = None,
+    ):
+        """Initialize the Worker.
+
+        Args:
+            temporal_client: Client for interacting with Temporal
+            temporal_activities: List of activity functions
+            passthrough_modules: List of module names to pass through
+            workflow_classes: List of workflow classes
+            max_concurrent_activities: Maximum number of concurrent activities
+        """
+
+    async def start(self, daemon: bool = False, *args: Any, **kwargs: Any) -> None:
+        """Start the Temporal worker.
+
+        Args:
+            daemon: Whether to run the worker in a daemon thread
+            *args: Additional positional arguments
+            **kwargs: Additional keyword arguments
+
+        Raises:
+            ValueError: If temporal_client is not set
+
+        Note:
+            When running as a daemon, the worker runs in a separate thread and
+            does not block the main thread.
+        """
+```
+
+## Common Features and Best Practices
+
+### Configuration Management
+1. Environment Variables
+   - Case-insensitive matching
+   - Environment variable precedence
+   - Prefix-based configuration
+
+2. Settings Management
+   - Cached settings access
+   - Dynamic configuration updates
+   - Type-safe settings
+
+3. Extensibility
+   - Extra field support
+   - Override capabilities
+   - Default value handling
+
+### Worker Management
+1. Worker Initialization
+   - Client configuration
+   - Activity registration
+   - Workflow class registration
+   - Module passthrough
+
+2. Execution Modes
+   - Synchronous execution
+   - Daemon thread support
+   - Concurrent activity handling
+
+3. Error Handling
+   - Client validation
+   - Exception logging
+   - Graceful shutdown
+
+### Best Practices
+1. Configuration
+   - Use environment variables
+   - Cache settings access
+   - Type-safe settings
+   - Clear defaults
+
+2. Worker Setup
+   - Proper client initialization
+   - Activity registration
+   - Workflow registration
+   - Resource management
+
+3. Error Handling
+   - Validate inputs
+   - Log errors
+   - Handle exceptions
+   - Clean up resources
+
+4. Performance
+   - Cache settings
+   - Optimize worker threads
+   - Manage concurrent activities
+   - Monitor resource usage
+
+================================================================================
+FILE: 2. activities.md
+================================================================================
+
+# Application SDK Activities Documentation
+
+This document provides comprehensive documentation for all activities in the Application SDK.
+
+## Table of Contents
+1. [Base Activities](mdc:#base-activities)
+2. [Query Extraction Activities](mdc:#query-extraction-activities)
+3. [Metadata Extraction Activities](mdc:#metadata-extraction-activities)
+4. [Agent Activities](mdc:#agent-activities)
+5. [Common Utilities](mdc:#common-utilities)
+
+## Base Activities
+
+### ActivitiesState
+Base state model for workflow activities.
+
+**Attributes:**
+- `handler` (Optional[HandlerInterface]): Handler instance for activity-specific operations
+- `workflow_args` (Optional[Dict[str, Any]]): Arguments passed to the workflow
+
+### ActivitiesInterface
+Abstract base class defining the interface for workflow activities.
+
+**Methods:**
+- `__init__()`: Initialize with empty state dictionary
+- `_set_state(workflow_args: Dict[str, Any])`: Initialize or update state for current workflow
+- `_get_state(workflow_args: Dict[str, Any])`: Retrieve state for current workflow
+- `_clean_state()`: Remove state data for current workflow
+- `preflight_check(workflow_args: Dict[str, Any])`: Perform preflight checks before workflow execution
+
+## Query Extraction Activities
+
+### SQLQueryExtractionActivities
+Activities for extracting SQL queries from databases.
+
+**Attributes:**
+- `_state`: Internal state storage
+- `sql_client_class`: Class for SQL client operations
+- `handler_class`: Class for SQL handling operations
+- `fetch_queries_sql`: SQL query template for fetching queries
+
+**Methods:**
+- `__init__(sql_client_class=None, handler_class=None)`: Initialize with optional custom classes
+- `_set_state(workflow_args: Dict[str, Any])`: Set up state with SQL client and handler
+- `fetch_queries(batch_input, raw_output: JsonOutput, **kwargs)`: Fetch and process queries
+- `parallelize_query(query: str, timestamp_column: str, chunk_size: int, ...)`: Process query in chunks
+- `get_query_batches(workflow_args: Dict[str, Any], **kwargs)`: Get batches of queries
+
+### MinerArgs
+Arguments for SQL query mining operations.
+
+**Attributes:**
+- `database_name_cleaned`: Cleaned name of target database
+- `schema_name_cleaned`: Cleaned name of target schema
+- `timestamp_column`: Name of timestamp column
+- `chunk_size`: Number of records per chunk
+- `current_marker`: Current timestamp marker
+- `sql_replace_from`: Original SQL fragment to replace
+- `sql_replace_to`: Replacement SQL fragment
+- `ranged_sql_start_key`: Placeholder for range start timestamp
+- `ranged_sql_end_key`: Placeholder for range end timestamp
+- `miner_start_time_epoch`: Start time for mining (defaults to 14 days ago)
+
+## Metadata Extraction Activities
+
+### SQLMetadataExtractionActivities
+Activities for extracting metadata from SQL databases.
+
+**Attributes:**
+- `fetch_database_sql`: SQL query for fetching databases
+- `fetch_schema_sql`: SQL query for fetching schemas
+- `fetch_table_sql`: SQL query for fetching tables
+- `fetch_column_sql`: SQL query for fetching columns
+- `sql_client_class`: Class for SQL client operations
+- `handler_class`: Class for SQL handling operations
+- `transformer_class`: Class for metadata transformation
+- `tables_extraction_temp_table_regex_sql`: SQL for excluding temporary tables
+- `column_extraction_temp_table_regex_sql`: SQL for excluding temporary columns
+
+**Methods:**
+- `__init__(sql_client_class=None, handler_class=None, transformer_class=None)`: Initialize with custom classes
+- `_get_state(workflow_args: Dict[str, Any])`: Get current workflow state
+- `_set_state(workflow_args: Dict[str, Any])`: Set up state with clients and handlers
+- `_clean_state()`: Clean up resources after workflow
+- `_process_rows(results: pd.DataFrame, typename: str, ...)`: Process DataFrame rows
+- `_transform_batch(results, typename: str, ...)`: Transform batch of results
+- `fetch_databases(batch_input, raw_output: JsonOutput, **kwargs)`: Fetch database metadata
+- `fetch_schemas(batch_input, raw_output: JsonOutput, **kwargs)`: Fetch schema metadata
+- `fetch_tables(batch_input, raw_output: JsonOutput, **kwargs)`: Fetch table metadata
+- `fetch_columns(batch_input, raw_output: JsonOutput, **kwargs)`: Fetch column metadata
+- `transform_data(raw_input, transformed_output: JsonOutput, **kwargs)`: Transform raw data
+
+### SQLMetadataExtractionActivitiesState
+State class for SQL metadata extraction activities.
+
+**Attributes:**
+- `sql_client`: Client for SQL database operations
+- `handler`: Handler for SQL-specific operations
+- `transformer`: Transformer for metadata conversion
+
+## Agent Activities
+
+### LangGraphActivities
+Activities for LangGraph agent operations.
+
+**Methods:**
+- `run_agent(activity_input: Dict[str, Any])`: Run LangGraph agent with given task
+
+**Global Functions:**
+- `register_graph_builder(name: str, builder_func: Callable)`: Register graph builder function
+- `get_graph_builder(name: str)`: Get graph builder by name
+
+## Common Utilities
+
+### Decorators
+- `@auto_heartbeater`: Decorator for automatic heartbeat management
+- `@transform`: Decorator for data transformation
+- `@run_sync`: Decorator for running synchronous code
+
+### Utils
+- `get_workflow_id()`: Get current workflow ID
+- Various helper functions for state management and data processing
+
+## Usage Examples
+
+### SQL Query Extraction
+```python
+activities = SQLQueryExtractionActivities()
+result = await activities.fetch_queries(batch_input, raw_output)
+```
+
+### Metadata Extraction
+```python
+activities = SQLMetadataExtractionActivities()
+await activities.fetch_databases(batch_input, raw_output)
+```
+
+### Agent Operations
+```python
+activities = LangGraphActivities()
+result = await activities.run_agent({
+    "user_query": "Process data",
+    "graph_builder_name": "my_graph_builder"
+})
+```
+
+## Error Handling
+
+All activities include comprehensive error handling:
+- Preflight checks before execution
+- State validation
+- Resource cleanup
+- Detailed error logging
+- Graceful failure handling
+
+## Best Practices
+
+1. Always use the provided decorators for activities
+2. Implement proper state management
+3. Clean up resources after workflow completion
+4. Use appropriate error handling
+5. Follow the activity interface patterns
+
+================================================================================
+FILE: 3. application.md
+================================================================================
+
+# Application SDK Application Documentation
+
+This document provides comprehensive documentation for the Application SDK's application module, which implements the core application interface and FastAPI-based web application.
+
+## Table of Contents
+1. [Base Application Interface](mdc:#base-application-interface)
+2. [FastAPI Application](mdc:#fastapi-application)
+3. [FastAPI Agent Application](mdc:#fastapi-agent-application)
+4. [Models](mdc:#models)
+5. [Workflow Triggers](mdc:#workflow-triggers)
+6. [API Endpoints](mdc:#api-endpoints)
+7. [Server Router](mdc:#server-router)
+8. [Middleware](mdc:#middleware)
+
+## Base Application Interface
+
+### AtlanApplicationInterface
+Abstract base class for Atlan applications.
+
+**Attributes:**
+- `handler` (Optional[HandlerInterface]): Handler instance for processing application-specific operations
+
+**Methods:**
+- `__init__(handler: Optional[HandlerInterface] = None)`: Initialize with optional handler
+- `start() -> None`: Abstract method for application startup
+
+## FastAPI Application
+
+### FastAPIApplication
+FastAPI-based web application implementation of the Atlan Application Interface.
+
+**Attributes:**
+- `app` (FastAPI): Main FastAPI application instance
+- `temporal_client` (Optional[TemporalClient]): Client for Temporal workflow operations
+- `workflow_router` (APIRouter): Router for workflow endpoints
+- `pubsub_router` (APIRouter): Router for pub/sub operations
+- `events_router` (APIRouter): Router for event handling
+- `docs_directory_path` (str): Path to documentation source (default: "docs")
+- `docs_export_path` (str): Path for exported documentation (default: "dist")
+- `workflows` (List[WorkflowInterface]): Registered workflows
+- `event_triggers` (List[EventWorkflowTrigger]): Event-based workflow triggers
+
+**Methods:**
+- `__init__(lifespan=None, handler=None, temporal_client=None)`: Initialize application
+- `setup_atlan_docs()`: Set up and serve Atlan documentation
+- `register_routers()`: Register all application routers
+- `register_workflow(workflow_class, triggers)`: Register workflow with triggers
+- `register_routes()`: Register application routes
+- `get_dapr_subscriptions() -> List[dict]`: Get Dapr subscriptions
+- `on_event(event: dict)`: Handle incoming events
+- `test_auth(body: TestAuthRequest) -> TestAuthResponse`: Test authentication
+- `fetch_metadata(body: FetchMetadataRequest) -> FetchMetadataResponse`: Fetch metadata
+- `preflight_check(body: PreflightCheckRequest) -> PreflightCheckResponse`: Perform preflight check
+- `get_workflow_config(config_id: str) -> WorkflowConfigResponse`: Get workflow configuration
+- `get_workflow_run_status(workflow_id: str, run_id: str) -> JSONResponse`: Get workflow status
+- `update_workflow_config(config_id: str, body: WorkflowConfigRequest) -> WorkflowConfigResponse`: Update workflow config
+- `stop_workflow(workflow_id: str, run_id: str) -> JSONResponse`: Stop workflow
+- `start(host: str = "0.0.0.0", port: int = 8000)`: Start the application server
+
+## FastAPI Agent Application
+
+### FastAPIAgentApplication
+FastAPI application with agent capabilities.
+
+**Attributes:**
+- `agent_router` (APIRouter): Router for agent endpoints
+- `temporal_client` (Optional[TemporalClient]): Temporal workflow client
+- `worker` (Optional[Worker]): Worker instance
+- `workflow_handles` (Dict[str, Any]): Workflow handles
+- `graph_builder_name` (str): Name of the graph builder
+
+**Methods:**
+- `__init__(*args, **kwargs)`: Initialize agent application
+- `register_routers()`: Register application routers
+- `register_routes()`: Register application routes
+- `process_query(request: AgentRequest) -> Dict[str, Any]`: Process agent query
+- `get_workflow_result(workflow_id: str) -> Dict[str, Any]`: Get workflow result
+- `setup_worker(temporal_client: TemporalClient) -> Worker`: Set up worker
+- `register_graph(state_graph_builder, graph_builder_name="workflow")`: Register graph builder
+
+## Models
+
+### Request/Response Models
+- `TestAuthRequest`: Authentication test request
+- `TestAuthResponse`: Authentication test response
+- `FetchMetadataRequest`: Metadata fetch request
+- `FetchMetadataResponse`: Metadata fetch response
+- `PreflightCheckRequest`: Preflight check request
+- `PreflightCheckResponse`: Preflight check response
+- `WorkflowRequest`: Workflow execution request
+- `WorkflowData`: Workflow data model
+- `WorkflowResponse`: Workflow execution response
+- `WorkflowConfigRequest`: Workflow configuration request
+- `WorkflowConfigResponse`: Workflow configuration response
+
+### Enums
+- `MetadataType`: Types of metadata (DATABASE, SCHEMA, ALL)
+
+## Workflow Triggers
+
+### WorkflowTrigger
+Base class for workflow triggers.
+
+**Attributes:**
+- `workflow_class` (Optional[Type[WorkflowInterface]]): Associated workflow class
+
+### HttpWorkflowTrigger
+HTTP-based workflow trigger.
+
+**Attributes:**
+- `endpoint` (str): HTTP endpoint
+- `methods` (List[str]): HTTP methods
+
+### EventWorkflowTrigger
+Event-based workflow trigger.
+
+**Attributes:**
+- `should_trigger_workflow` (Callable[[Any], bool]): Trigger condition function
+
+## API Endpoints
+
+### Workflow Endpoints
+- `POST /workflows/v1/auth`: Test authentication
+- `POST /workflows/v1/metadata`: Fetch metadata
+- `POST /workflows/v1/check`: Perform preflight check
+- `GET /workflows/v1/config/{config_id}`: Get workflow configuration
+- `POST /workflows/v1/config/{config_id}`: Update workflow configuration
+- `GET /workflows/v1/status/{workflow_id}/{run_id}`: Get workflow status
+- `POST /workflows/v1/stop/{workflow_id}/{run_id}`: Stop workflow
+
+### Agent Endpoints
+- `POST /agent/query`: Process agent query
+- `GET /agent/result/{workflow_id}`: Get workflow result
+
+### Documentation
+- `/atlandocs`: Served documentation
+
+## Usage Examples
+
+### Basic Application
+```python
+app = FastAPIApplication(
+    handler=MyHandler(),
+    temporal_client=TemporalClient()
+)
+await app.start()
+```
+
+### Agent Application
+```python
+app = FastAPIAgentApplication(
+    handler=MyHandler(),
+    temporal_client=TemporalClient()
+)
+
+def my_graph_builder():
+    return StateGraph()
+
+app.register_graph(my_graph_builder)
+await app.start()
+```
+
+### Registering Workflows
+```python
+app.register_workflow(
+    MyWorkflow,
+    triggers=[
+        HttpWorkflowTrigger(
+            endpoint="/my-workflow",
+            methods=["POST"]
+        )
+    ]
+)
+```
+
+## Error Handling
+
+The application includes comprehensive error handling:
+- HTTP 500 error handler
+- Workflow execution error handling
+- Authentication validation
+- Preflight checks
+- Resource cleanup
+
+## Best Practices
+
+1. Always implement proper error handling
+2. Use appropriate request/response models
+3. Register workflows with appropriate triggers
+4. Implement proper authentication
+5. Follow FastAPI best practices for route definitions
+6. Use proper type hints and documentation
+7. Implement proper resource cleanup
+
+## Server Router
+
+### Server Router Endpoints
+The server router provides system-level endpoints for health checks, readiness probes, and graceful shutdown.
+
+**Endpoints:**
+- `GET /server/health`: Check system health
+  - Returns system information including:
+    - Platform details (system, release, version)
+    - Architecture
+    - Hostname
+    - IP address
+    - MAC address
+    - Processor information
+    - RAM usage
+- `GET /server/ready`: Check system readiness
+  - Returns `{"status": "ok"}` if system is ready
+- `POST /server/shutdown`: Gracefully stop the application
+  - Optional `force` parameter to force immediate shutdown
+  - Cancels pending tasks and terminates the process
+
+**Helper Functions:**
+- `get_ip_address()`: Get system IP address with fallback options
+- `terminate_process()`: Terminate the parent process
+- `get_server_router()`: Get the server router instance
+
+## Middleware
+
+### LogMiddleware
+Middleware for request logging and tracking.
+
+**Features:**
+- Request ID generation and tracking
+- Request timing and duration measurement
+- Detailed request logging including:
+  - HTTP method
+  - URL path
+  - Status code
+  - Duration
+  - Client host
+  - Request ID
+- Error logging with full stack traces
+- Context management for request tracking
+
+**Implementation Details:**
+- Inherits from `BaseHTTPMiddleware`
+- Uses `request_context` for request ID tracking
+- Handles request lifecycle:
+  - Request start logging
+  - Response completion logging
+  - Error logging
+  - Context cleanup
+
+**Example Log Output:**
+```json
+{
+  "method": "GET",
+  "path": "/api/endpoint",
+  "request_id": "uuid",
+  "url": "http://example.com/api/endpoint",
+  "client_host": "127.0.0.1",
+  "status_code": 200,
+  "duration_ms": 123.45
+}
+```
+
+================================================================================
+FILE: 4. clients.md
+================================================================================
+
+# Application SDK Clients Documentation
+
+This document provides comprehensive documentation for the Application SDK's clients module, which implements client interfaces for various external services.
+
+## Table of Contents
+1. [Base Client Interface](mdc:#base-client-interface)
+2. [SQL Client](mdc:#sql-client)
+3. [Temporal Client](mdc:#temporal-client)
+4. [Constants](mdc:#constants)
+
+## Base Client Interface
+
+### ClientInterface
+Abstract base class for implementing client connections.
+
+**Methods:**
+- `load() -> None`: Abstract method for establishing client connection
+- `close() -> None`: Method for closing client connection (default implementation does nothing)
+
+## SQL Client
+
+### SQLConstants
+Constants for SQL client configuration.
+
+**Values:**
+- `USE_SERVER_SIDE_CURSOR`: Boolean flag for server-side cursor usage (default: true)
+
+### SQLClient
+Base SQL client for database operations.
+
+**Attributes:**
+- `connection`: Database connection instance
+- `engine`: SQLAlchemy engine instance
+- `sql_alchemy_connect_args`: Additional connection arguments
+- `credentials`: Database credentials
+- `use_server_side_cursor`: Whether to use server-side cursors
+
+**Methods:**
+- `__init__(use_server_side_cursor=None, credentials=None, sql_alchemy_connect_args=None)`: Initialize client
+- `load(credentials: Dict[str, Any]) -> None`: Establish database connection
+- `close() -> None`: Close database connection
+- `get_sqlalchemy_connection_string() -> str`: Get connection string (abstract)
+- `run_query(query: str, batch_size: int = 100000)`: Run query in batch mode
+
+### AsyncSQLClient
+Asynchronous SQL client for database operations.
+
+**Attributes:**
+- `connection`: Async database connection instance
+- `engine`: Async SQLAlchemy engine instance
+
+**Methods:**
+- `load(credentials: Dict[str, Any]) -> None`: Establish async connection
+- `run_query(query: str, batch_size: int = 100000)`: Run query in async batch mode
+
+## Temporal Client
+
+### TemporalConstants
+Constants for Temporal client configuration.
+
+**Values:**
+- `HOST`: Temporal server host (default: "localhost")
+- `PORT`: Temporal server port (default: "7233")
+- `NAMESPACE`: Temporal namespace (default: "default")
+- `APPLICATION_NAME`: Application name (default: "default")
+- `WORKFLOW_MAX_TIMEOUT_HOURS`: Maximum workflow timeout (default: 1 hour)
+
+### Event Interceptors
+
+#### EventActivityInboundInterceptor
+Interceptor for tracking activity execution events.
+
+**Methods:**
+- `execute_activity(input: ExecuteActivityInput) -> Any`: Execute activity with event tracking
+
+#### EventWorkflowInboundInterceptor
+Interceptor for tracking workflow execution events.
+
+**Methods:**
+- `execute_workflow(input: ExecuteWorkflowInput) -> Any`: Execute workflow with event tracking
+
+#### EventInterceptor
+Temporal interceptor for event tracking.
+
+**Methods:**
+- `intercept_activity(next: ActivityInboundInterceptor) -> ActivityInboundInterceptor`: Intercept activity executions
+- `workflow_interceptor_class(input: WorkflowInterceptorClassInput) -> Optional[Type[WorkflowInboundInterceptor]]`: Get workflow interceptor class
+
+### TemporalClient
+Client for interacting with Temporal workflow service.
+
+**Attributes:**
+- `client`: Temporal client instance
+- `worker`: Temporal worker instance
+- `application_name`: Name of the application
+- `worker_task_queue`: Task queue for the worker
+- `host`: Temporal server host
+- `port`: Temporal server port
+- `namespace`: Temporal namespace
+
+**Methods:**
+- `__init__(host=None, port=None, application_name=None, namespace="default")`: Initialize client
+- `get_worker_task_queue() -> str`: Get worker task queue name
+- `get_connection_string() -> str`: Get Temporal server connection string
+- `get_namespace() -> str`: Get Temporal namespace
+- `load() -> None`: Connect to Temporal server
+- `close() -> None`: Close client connection
+- `start_workflow(workflow_args: Dict[str, Any], workflow_class: Type[WorkflowInterface]) -> Dict[str, Any]`: Start workflow execution
+- `stop_workflow(workflow_id: str, run_id: str) -> None`: Stop workflow execution
+- `create_worker(activities: Sequence[CallableType], workflow_classes: Sequence[ClassType], passthrough_modules: Sequence[str], max_concurrent_activities: Optional[int] = None) -> Worker`: Create Temporal worker
+- `get_workflow_run_status(workflow_id: str, run_id: Optional[str] = None, include_last_executed_run_id: bool = False) -> Dict[str, Any]`: Get workflow status
+
+## Usage Examples
+
+### SQL Client
+```python
+# Synchronous client
+client = SQLClient(
+    use_server_side_cursor=True,
+    credentials={"host": "localhost", "port": 5432}
+)
+await client.load()
+async for batch in client.run_query("SELECT * FROM table"):
+    process_batch(batch)
+
+# Asynchronous client
+client = AsyncSQLClient(
+    use_server_side_cursor=True,
+    credentials={"host": "localhost", "port": 5432}
+)
+await client.load()
+async for batch in client.run_query("SELECT * FROM table"):
+    process_batch(batch)
+```
+
+### Temporal Client
+```python
+client = TemporalClient(
+    host="localhost",
+    port="7233",
+    application_name="my-app"
+)
+await client.load()
+
+# Start workflow
+result = await client.start_workflow(
+    workflow_args={"data": "test"},
+    workflow_class=MyWorkflow
+)
+
+# Create worker
+worker = client.create_worker(
+    activities=[my_activity],
+    workflow_classes=[MyWorkflow],
+    passthrough_modules=["my_module"]
+)
+```
+
+## Error Handling
+
+### SQL Client
+- Connection errors during `load()`
+- Query execution errors in `run_query()`
+- Resource cleanup in `close()`
+
+### Temporal Client
+- Connection errors during `load()`
+- Workflow execution errors
+- Worker creation errors
+- Status retrieval errors
+
+## Best Practices
+
+1. Always use appropriate client type (sync/async) for your use case
+2. Implement proper error handling
+3. Clean up resources using `close()`
+4. Use appropriate batch sizes for queries
+5. Configure server-side cursors when appropriate
+6. Handle workflow timeouts properly
+7. Implement proper event tracking
+8. Use appropriate worker configurations
+
+================================================================================
+FILE: 5. common.md
+================================================================================
+
+# Application SDK Common and Decorators Documentation
+
+This document provides comprehensive documentation for the Application SDK's common utilities and decorators.
+
+## Table of Contents
+1. [Common Module](mdc:#common-module)
+   - [Constants](mdc:#constants)
+   - [AWS Utilities](mdc:#aws-utilities)
+   - [Logger Adaptors](mdc:#logger-adaptors)
+   - [General Utilities](mdc:#general-utilities)
+2. [Decorators Module](mdc:#decorators-module)
+   - [Core Decorators](mdc:#core-decorators)
+   - [Helper Functions](mdc:#helper-functions)
+
+## Common Module
+
+### Constants
+
+#### ApplicationConstants
+Application-wide constants.
+
+**Values:**
+- `APPLICATION_NAME`: Application name (default: "default")
+- `TENANT_ID`: Tenant ID (default: "default")
+
+### AWS Utilities
+
+#### Functions
+- `get_region_name_from_hostname(hostname: str) -> str`: Extract AWS region from RDS endpoint
+- `generate_aws_rds_token_with_iam_role(role_arn: str, host: str, user: str, ...) -> str`: Generate RDS auth token using IAM role
+- `generate_aws_rds_token_with_iam_user(aws_access_key_id: str, aws_secret_access_key: str, ...) -> str`: Generate RDS auth token using IAM user
+
+### Logger Adaptors
+
+#### AtlanLoggerAdapter
+Enhanced logger adapter with OpenTelemetry integration.
+
+**Features:**
+- Request context tracking
+- Workflow and activity context logging
+- OpenTelemetry integration
+- Structured logging
+- Log level management
+
+**Methods:**
+- `__init__(logger_name: str)`: Initialize logger with configuration
+- `process(msg: Any, kwargs: Dict[str, Any]) -> Tuple[Any, Dict[str, Any]]`: Process log message
+- `debug(msg: str, *args, **kwargs)`: Log debug message
+- `info(msg: str, *args, **kwargs)`: Log info message
+- `warning(msg: str, *args, **kwargs)`: Log warning message
+- `error(msg: str, *args, **kwargs)`: Log error message
+- `critical(msg: str, *args, **kwargs)`: Log critical message
+
+**Configuration:**
+- Environment variables for OpenTelemetry setup
+- Log level configuration
+- Resource attributes
+- Batch processing settings
+
+### General Utilities
+
+#### Functions
+- `prepare_query(query: str, workflow_args: Dict[str, Any], temp_table_regex_sql: str = "") -> Optional[str]`: Prepare SQL query with filters
+- `prepare_filters(include_filter_str: str, exclude_filter_str: str) -> Tuple[str, str]`: Prepare SQL filters
+- `normalize_filters(filter_dict: Dict[str, List[str] | str], is_include: bool) -> List[str]`: Normalize SQL filters
+- `get_workflow_config(config_id: str) -> Dict[str, Any]`: Get workflow configuration
+- `update_workflow_config(config_id: str, config: Dict[str, Any]) -> Dict[str, Any]`: Update workflow configuration
+
+## Decorators Module
+
+### Core Decorators
+
+#### @transform
+Decorator for data transformation with input/output handling.
+
+**Features:**
+- Batch processing support
+- Input/Output class integration
+- State management
+- Error handling
+
+**Usage:**
+```python
+@transform(
+    batch_input=SQLQueryInput(query="SELECT * FROM table"),
+    output=JsonOutput(output_path="/path/to/output")
+)
+async def process_data(batch_input: pd.DataFrame, output: JsonOutput, **kwargs):
+    await output.write_batched_dataframe(batch_input)
+```
+
+#### @transform_daft
+Decorator for Daft DataFrame transformations.
+
+**Features:**
+- Daft DataFrame support
+- Batch processing
+- Input/Output integration
+
+#### @run_sync
+Decorator for running synchronous functions in thread pool.
+
+**Usage:**
+```python
+@run_sync
+def heavy_computation():
+    # Synchronous code here
+    pass
+```
+
+### Helper Functions
+
+#### Core Functions
+- `to_async(func: Callable[..., Any], *args, **kwargs) -> Iterator[Union[pd.DataFrame, "daft.DataFrame"]]`: Convert sync to async
+- `_get_dataframe(input_obj: Input, get_dataframe_fn: Callable[..., Any]) -> Union[pd.DataFrame, "daft.DataFrame"]`: Get DataFrame from input
+- `prepare_fn_kwargs(self: Any, state: Optional[ActivitiesState], ...) -> Dict[str, Any]`: Prepare function arguments
+- `run_process(fn: Callable[..., Any], ...) -> Any`: Process input data through function
+
+## Usage Examples
+
+### Logger Usage
+```python
+logger = get_logger(__name__)
+logger.info("Processing data", extra={"data_id": "123"})
+```
+
+### Query Preparation
+```python
+query = prepare_query(
+    "SELECT * FROM table WHERE name ~ '{normalized_include_regex}'",
+    workflow_args={
+        "metadata": {
+            "include-filter": '{"db1": ["schema1"]}',
+            "exclude-filter": '{"db1": ["temp"]}'
+        }
+    }
+)
+```
+
+### Transform Decorator
+```python
+@transform(
+    batch_input=SQLQueryInput(query="SELECT * FROM users"),
+    output=JsonOutput(output_path="/data/users")
+)
+async def process_users(batch_input: pd.DataFrame, output: JsonOutput):
+    processed_data = batch_input.apply(process_user)
+    await output.write_batched_dataframe(processed_data)
+```
+
+## Error Handling
+
+### Logger
+- OpenTelemetry integration errors
+- Context management errors
+- Log processing errors
+
+### Utilities
+- Query preparation errors
+- Filter normalization errors
+- Configuration management errors
+
+### Decorators
+- Input/Output processing errors
+- State management errors
+- Batch processing errors
+
+## Best Practices
+
+1. Use appropriate log levels
+2. Implement proper error handling
+3. Use batch processing for large datasets
+4. Configure OpenTelemetry properly
+5. Use appropriate filter patterns
+6. Handle state management correctly
+7. Implement proper resource cleanup
+8. Use type hints consistently
+
+================================================================================
+FILE: 6. handlers.md
+================================================================================
+
+# Application SDK Handlers Documentation
+
+This document provides comprehensive documentation for the Application SDK's handlers module, which implements the core handler interfaces and SQL-specific handlers.
+
+## Table of Contents
+1. [Base Handler Interface](mdc:#base-handler-interface)
+2. [SQL Handler](mdc:#sql-handler)
+3. [Constants](mdc:#constants)
+4. [Usage Examples](mdc:#usage-examples)
+
+## Base Handler Interface
+
+### HandlerInterface
+Abstract base class for workflow handlers.
+
+**Methods:**
+- `load(**kwargs: Any) -> None`: Abstract method to load the handler
+- `test_auth(**kwargs: Any) -> bool`: Abstract method to test authentication credentials
+- `preflight_check(*args, **kwargs: Any) -> Any`: Abstract method to perform preflight checks
+- `fetch_metadata(**kwargs: Any) -> Any`: Abstract method to fetch metadata
+
+## SQL Handler
+
+### SQLConstants
+Constants for SQL handler configuration.
+
+**Values:**
+- `DATABASE_ALIAS_KEY`: Key for database alias ("catalog_name")
+- `SCHEMA_ALIAS_KEY`: Key for schema alias ("schema_name")
+- `DATABASE_RESULT_KEY`: Key for database result ("TABLE_CATALOG")
+- `SCHEMA_RESULT_KEY`: Key for schema result ("TABLE_SCHEMA")
+
+### SQLHandler
+Handler class for SQL workflows.
+
+**Attributes:**
+- `sql_client`: SQL client instance
+- `test_authentication_sql`: SQL query for testing authentication
+- `metadata_sql`: SQL query for fetching metadata
+- `tables_check_sql`: SQL query for checking tables
+- `fetch_databases_sql`: SQL query for fetching databases
+- `fetch_schemas_sql`: SQL query for fetching schemas
+- `database_alias_key`: Key for database alias
+- `schema_alias_key`: Key for schema alias
+- `database_result_key`: Key for database result
+- `schema_result_key`: Key for schema result
+- `temp_table_regex_sql`: SQL regex for temporary tables
+
+**Methods:**
+- `__init__(sql_client: SQLClient | None = None)`: Initialize handler with optional SQL client
+- `load(credentials: Dict[str, Any]) -> None`: Load and initialize SQL client
+- `prepare_metadata(sql_input: pd.DataFrame, **kwargs) -> List[Dict[Any, Any]]`: Prepare metadata from SQL results
+- `test_auth(sql_input: pd.DataFrame, **kwargs) -> bool`: Test authentication credentials
+- `fetch_metadata(metadata_type: Optional[MetadataType] = None, database: Optional[str] = None) -> List[Dict[str, str]]`: Fetch metadata based on type
+- `fetch_databases() -> List[Dict[str, str]]`: Fetch database information
+- `fetch_schemas(database: str) -> List[Dict[str, str]]`: Fetch schemas for specific database
+- `preflight_check(payload: Dict[str, Any]) -> Dict[str, Any]`: Perform preflight checks
+- `check_schemas_and_databases(payload: Dict[str, Any]) -> Dict[str, Any]`: Check schemas and databases
+- `extract_allowed_schemas(schemas_results: List[Dict[str, str]]) -> Tuple[Set[str], Set[str]]`: Extract allowed schemas
+- `validate_filters(include_filter: Dict[str, List[str] | str], allowed_databases: Set[str], allowed_schemas: Set[str]) -> Tuple[bool, str]`: Validate filters
+- `tables_check(sql_input: pd.DataFrame, **kwargs) -> Dict[str, Any]`: Check tables
+
+## Usage Examples
+
+### Basic Handler Usage
+```python
+# Initialize handler
+handler = SQLHandler(sql_client=SQLClient())
+
+# Load credentials
+await handler.load(credentials={
+    "host": "localhost",
+    "port": 5432,
+    "username": "user",
+    "password": "pass"
+})
+
+# Test authentication
+is_valid = await handler.test_auth()
+
+# Fetch metadata
+metadata = await handler.fetch_metadata(
+    metadata_type=MetadataType.ALL
+)
+
+# Perform preflight check
+check_result = await handler.preflight_check({
+    "metadata": {
+        "include-filter": '{"db1": ["schema1"]}',
+        "exclude-filter": '{"db1": ["temp"]}'
+    }
+})
+```
+
+### Database Operations
+```python
+# Fetch databases
+databases = await handler.fetch_databases()
+
+# Fetch schemas for a database
+schemas = await handler.fetch_schemas("my_database")
+
+# Prepare metadata
+metadata = await handler.prepare_metadata(sql_input)
+```
+
+## Error Handling
+
+### Authentication Errors
+- Invalid credentials
+- Connection failures
+- Query execution errors
+
+### Metadata Errors
+- Invalid metadata type
+- Missing database information
+- Query execution errors
+
+### Preflight Check Errors
+- Schema validation failures
+- Table check failures
+- Filter validation errors
+
+## Best Practices
+
+1. Always implement proper error handling
+2. Use appropriate SQL queries for each operation
+3. Validate input parameters
+4. Handle database connections properly
+5. Implement proper logging
+6. Use appropriate data structures for results
+7. Follow SQL best practices
+8. Implement proper cleanup
+9. Use appropriate transaction management
+10. Handle timeouts appropriately
+
+================================================================================
+FILE: 7. inputs_and_outputs.md
+================================================================================
+
+# Inputs and Outputs Documentation
+
+This document provides a comprehensive overview of the Application SDK's input and output modules.
+
+## Base Classes and Utilities
+
+### Base Classes
+```python
+class Input(ABC):
+    """Abstract base class for input data sources.
+
+    This class defines the interface for input handlers that can read data
+    from various sources in different formats.
+
+    Methods:
+        re_init: Re-initialize the input class with given keyword arguments
+        get_batched_dataframe: Get an iterator of batched pandas DataFrames
+        get_dataframe: Get a single pandas DataFrame
+        get_batched_daft_dataframe: Get an iterator of batched daft DataFrames
+        get_daft_dataframe: Get a single daft DataFrame
+    """
+
+    @classmethod
+    def re_init(cls, **kwargs: Dict[str, Any]):
+        """Re-initialize the input class with given keyword arguments.
+
+        Args:
+            **kwargs: Keyword arguments for re-initialization
+
+        Returns:
+            Input: An instance of the input class
+        """
+        return cls(**kwargs)
+
+    @abstractmethod
+    def get_batched_dataframe(self) -> Iterator[pd.DataFrame]:
+        """Get an iterator of batched pandas DataFrames."""
+
+    @abstractmethod
+    def get_dataframe(self) -> pd.DataFrame:
+        """Get a single pandas DataFrame."""
+
+    @abstractmethod
+    def get_batched_daft_dataframe(self) -> Iterator["daft.DataFrame"]:
+        """Get an iterator of batched daft DataFrames."""
+
+    @abstractmethod
+    def get_daft_dataframe(self) -> "daft.DataFrame":
+        """Get a single daft DataFrame."""
+
+
+class Output(ABC):
+    """Abstract base class for output handlers.
+
+    This class defines the interface for output handlers that can write data
+    to various destinations in different formats.
+
+    Attributes:
+        output_path (str): Path where the output will be written
+        output_prefix (str): Prefix for files when uploading to object store
+        total_record_count (int): Total number of records processed
+        chunk_count (int): Number of chunks the output was split into
+        state (Optional[ActivitiesState]): Current state of the activity
+
+    Methods:
+        re_init: Re-initialize the output class with given keyword arguments
+        write_batched_dataframe: Write batched pandas DataFrames
+        write_dataframe: Write a single pandas DataFrame
+        write_batched_daft_dataframe: Write batched daft DataFrames
+        write_daft_dataframe: Write a single daft DataFrame
+        get_statistics: Get statistics about the output operation
+        write_statistics: Write statistics to a JSON file
+    """
+
+    @classmethod
+    def re_init(cls, **kwargs: Dict[str, Any]):
+        """Re-initialize the output class with given keyword arguments.
+
+        Args:
+            **kwargs: Keyword arguments for re-initialization
+
+        Returns:
+            Output: An instance of the output class
+        """
+        return cls(**kwargs)
+
+    async def write_batched_dataframe(
+        self,
+        batched_dataframe: Union[AsyncGenerator, Generator]
+    ):
+        """Write batched pandas DataFrames to output."""
+
+    @abstractmethod
+    async def write_dataframe(self, dataframe: pd.DataFrame):
+        """Write a single pandas DataFrame to output."""
+
+    async def write_batched_daft_dataframe(
+        self,
+        batched_dataframe: Union[AsyncGenerator, Generator]
+    ):
+        """Write batched daft DataFrames to output."""
+
+    @abstractmethod
+    async def write_daft_dataframe(self, dataframe: "daft.DataFrame"):
+        """Write a single daft DataFrame to output."""
+
+    async def get_statistics(self, typename: Optional[str] = None) -> ActivityStatistics:
+        """Get statistics about the output operation."""
+```
+
+### Utility Functions
+```python
+def is_empty_dataframe(dataframe: Union[pd.DataFrame, "daft.DataFrame"]) -> bool:
+    """Helper method to check if the dataframe has any rows.
+
+    Args:
+        dataframe: A pandas or daft DataFrame
+
+    Returns:
+        bool: True if the DataFrame is empty, False otherwise
+
+    Note:
+        For daft DataFrames, this requires the daft module to be installed.
+        If daft is not found, the function returns True.
+    """
+```
+
+## Input Types
+
+### SQL Query Input (`sql_query.py`)
+```python
+class SQLQueryInput(Input):
+    """Input handler for SQL queries with support for:
+    - Asynchronous query execution
+    - SQLAlchemy engine and connection string support
+    - Temporary table handling
+    - Chunked data reading
+    - ConnectorX integration for supported databases
+    """
+
+    def __init__(
+        self,
+        query: str,
+        engine: Optional[Union[Engine, str]] = None,
+        chunk_size: Optional[int] = 100000,
+        temp_table_sql_query: Optional[str] = None,
+        **kwargs: Dict[str, Any],
+    ):
+        """Initialize with SQL query and connection details."""
+```
+
+### JSON Input (`json.py`)
+```python
+class JsonInput(Input):
+    """Input handler for JSON files with support for:
+    - Multiple file reading
+    - Object store integration
+    - Chunked data reading
+    - Line-delimited JSON support
+    """
+
+    def __init__(
+        self,
+        path: str,
+        file_names: Optional[List[str]] = None,
+        download_file_prefix: Optional[str] = None,
+        chunk_size: Optional[int] = None,
+        **kwargs: Dict[str, Any],
+    ):
+        """Initialize with file path and reading configuration."""
+```
+
+### Parquet Input (`parquet.py`)
+```python
+class ParquetInput(Input):
+    """Input handler for Parquet files with support for:
+    - Single file and directory reading
+    - Efficient columnar storage reading
+    - Object store integration
+    - Native daft chunking support
+    """
+
+    def __init__(
+        self,
+        file_path: str,
+        chunk_size: Optional[int] = 100000,
+        input_prefix: Optional[str] = None,
+        **kwargs: Dict[str, Any],
+    ):
+        """Initialize with file path and reading configuration."""
+```
+
+### Iceberg Input (`iceberg.py`)
+```python
+class IcebergInput(Input):
+    """Input handler for Iceberg tables with support for:
+    - Table versioning
+    - Partition pruning
+    - Schema evolution
+    - Native daft integration
+    """
+
+    def __init__(
+        self, table: Table, chunk_size: Optional[int] = 100000, **kwargs: Dict[str, Any]
+    ):
+        """Initialize with Iceberg table and reading configuration."""
+```
+
+### Object Store Input (`objectstore.py`)
+```python
+class ObjectStoreInput:
+    """Utility class for object store operations with support for:
+    - Dapr bindings integration
+    - File downloading
+    - Path handling
+    - Error management
+    """
+
+    OBJECT_STORE_NAME = os.getenv("OBJECT_STORE_NAME", "objectstore")
+    OBJECT_GET_OPERATION = "get"
+```
+
+### State Store Input (`statestore.py`)
+```python
+class StateStoreInput:
+    """State store interface for the application.
+
+    This class provides functionality to read state data using Dapr state store bindings.
+    It supports retrieving state data and configurations with proper error handling.
+
+    Class Attributes:
+        STATE_STORE_NAME (str): Name of the state store binding, defaults to "statestore"
+    """
+
+    STATE_STORE_NAME = os.getenv("STATE_STORE_NAME", "statestore")
+
+    @classmethod
+    def get_state(cls, key: str) -> Dict[str, Any]:
+        """Get state from the store.
+
+        Args:
+            key: The key to retrieve the state for
+
+        Returns:
+            Dict[str, Any]: The retrieved state data
+
+        Raises:
+            ValueError: If no state is found for the given key
+            Exception: If there's an error with the Dapr client operations
+        """
+
+    @classmethod
+    def extract_configuration(cls, config_id: str) -> Dict[str, Any]:
+        """Extract configuration from the state store using the config ID.
+
+        Args:
+            config_id: The unique identifier for the configuration
+
+        Returns:
+            Dict[str, Any]: The configuration if found
+
+        Raises:
+            ValueError: If the config_id is invalid or configuration is not found
+            Exception: If there's an error with the Dapr client operations
+        """
+```
+
+### Secret Store Input (`secretstore.py`)
+```python
+class SecretStoreInput:
+    """Secret store interface for the application.
+
+    This class provides functionality to retrieve credentials and secrets using
+    Dapr secret store bindings. It integrates with the state store for credential
+    management.
+
+    Class Attributes:
+        SECRET_STORE_NAME (str): Name of the secret store binding, defaults to "secretstore"
+    """
+
+    SECRET_STORE_NAME = os.getenv("SECRET_STORE_NAME", "secretstore")
+
+    @classmethod
+    def extract_credentials(cls, credential_guid: str) -> Dict[str, Any]:
+        """Extract credentials from the state store using the credential GUID.
+
+        Args:
+            credential_guid: The unique identifier for the credentials
+
+        Returns:
+            Dict[str, Any]: The credentials if found
+
+        Raises:
+            ValueError: If the credential_guid is invalid or credentials are not found
+            Exception: If there's an error with the Dapr client operations
+
+        Examples:
+            >>> SecretStoreInput.extract_credentials("1234567890")
+            {"username": "admin", "password": "password"}
+        """
+```
+
+## Output Types
+
+### JSON Output (`json.py`)
+```python
+class JsonOutput(Output):
+    """Output handler for JSON files with support for:
+    - Chunked writing
+    - Buffer management
+    - Object store integration
+    - Custom path generation
+    """
+
+    def __init__(
+        self,
+        output_suffix: str,
+        output_path: Optional[str] = None,
+        output_prefix: Optional[str] = None,
+        typename: Optional[str] = None,
+        state: Optional[ActivitiesState] = None,
+        chunk_start: Optional[int] = None,
+        buffer_size: int = 1024 * 1024 * 10,
+        chunk_size: Optional[int] = None,
+        total_record_count: int = 0,
+        chunk_count: int = 0,
+        path_gen: Callable[[int | None, int], str] = path_gen,
+        **kwargs: Dict[str, Any],
+    ):
+        """Initialize with output configuration and buffer settings."""
+```
+
+### Parquet Output (`parquet.py`)
+```python
+class ParquetOutput(Output):
+    """Output handler for Parquet files with support for:
+    - Efficient columnar storage
+    - Snappy compression
+    - Object store integration
+    - Chunked writing
+    """
+
+    def __init__(
+        self,
+        output_path: str,
+        output_suffix: str,
+        output_prefix: str,
+        typename: Optional[str] = None,
+        mode: str = "append",
+        chunk_size: int = 100000,
+        total_record_count: int = 0,
+        chunk_count: int = 0,
+        state: Optional[ActivitiesState] = None,
+        **kwargs: Dict[str, Any],
+    ):
+        """Initialize with output configuration and write settings."""
+```
+
+### Iceberg Output (`iceberg.py`)
+```python
+class IcebergOutput(Output):
+    """Output handler for Iceberg tables with support for:
+    - Table versioning
+    - Schema evolution
+    - Transaction management
+    - Native daft integration
+    """
+
+    def __init__(
+        self,
+        iceberg_catalog: Catalog,
+        iceberg_namespace: str,
+        iceberg_table: Union[str, Table],
+        mode: str = "append",
+        total_record_count: int = 0,
+        chunk_count: int = 0,
+        **kwargs: Dict[str, Any],
+    ):
+        """Initialize with Iceberg catalog and table configuration."""
+```
+
+### Object Store Output (`objectstore.py`)
+```python
+class ObjectStoreOutput:
+    """Utility class for object store operations with support for:
+    - Dapr bindings integration
+    - File uploading
+    - Directory uploading
+    - Path handling
+    - Error management
+    """
+
+    OBJECT_STORE_NAME = os.getenv("OBJECT_STORE_NAME", "objectstore")
+    OBJECT_CREATE_OPERATION = "create"
+```
+
+### Event Store Output (`eventstore.py`)
+```python
+class EventStore:
+    """Event store for publishing application events.
+
+    This class provides functionality to publish events to a pub/sub system using Dapr.
+    It supports various event types including workflow, activity, and custom events.
+
+    Class Attributes:
+        EVENT_STORE_NAME (str): Name of the event store binding, defaults to "eventstore"
+        TOPIC_NAME (str): Default topic name for events, defaults to "app_events"
+    """
+
+    EVENT_STORE_NAME = "eventstore"
+    TOPIC_NAME = "app_events"
+
+    @classmethod
+    def create_event(cls, event: Event, topic_name: str = TOPIC_NAME):
+        """Create and publish a new event.
+
+        Args:
+            event (Event): Event data to publish
+            topic_name (str, optional): Topic name to publish to. Defaults to TOPIC_NAME.
+
+        Example:
+            >>> event = WorkflowStartEvent(
+            ...     workflow_name="test_workflow",
+            ...     workflow_id="123",
+            ...     workflow_run_id="run_1"
+            ... )
+            >>> EventStore.create_event(event)
+        """
+```
+
+### Event Types
+```python
+class Event(BaseModel):
+    """Base class for all events.
+
+    Attributes:
+        event_type (str): Type of the event
+    """
+
+    event_type: str = Field(init=False)
+
+class ActivityStartEvent(Event):
+    """Event emitted when an activity starts.
+
+    Attributes:
+        event_type (str): Always set to ACTIVITY_START_EVENT
+        activity_type (str | None): Type of the activity
+        activity_id (str | None): Unique identifier for the activity
+    """
+
+class ActivityEndEvent(Event):
+    """Event emitted when an activity ends.
+
+    Attributes:
+        event_type (str): Always set to ACTIVITY_END_EVENT
+        activity_type (str | None): Type of the activity
+        activity_id (str | None): Unique identifier for the activity
+    """
+
+class WorkflowStartEvent(Event):
+    """Event emitted when a workflow starts.
+
+    Attributes:
+        event_type (str): Always set to WORKFLOW_START_EVENT
+        workflow_name (str | None): Name of the workflow
+        workflow_id (str | None): Unique identifier for the workflow
+        workflow_run_id (str | None): Run identifier for the workflow
+    """
+
+class WorkflowEndEvent(Event):
+    """Event emitted when a workflow ends.
+
+    Attributes:
+        event_type (str): Always set to WORKFLOW_END_EVENT
+        workflow_name (str | None): Name of the workflow
+        workflow_id (str | None): Unique identifier for the workflow
+        workflow_run_id (str | None): Run identifier for the workflow
+        workflow_output (Dict[str, Any]): Output data from the workflow
+    """
+
+class CustomEvent(Event):
+    """Custom event for application-specific events.
+
+    Attributes:
+        event_type (str): Always set to CUSTOM_EVENT
+        data (Dict[str, Any]): Custom event data
+    """
+```
+
+## Common Features and Best Practices
+
+### Common Features
+1. DataFrame Support
+   - Both pandas and daft DataFrame formats
+   - Chunked operations for memory efficiency
+   - Type hints and validation
+
+2. Storage Integration
+   - Object store support
+   - Path handling
+   - Error management
+
+3. Performance
+   - Async/await support
+   - Buffer management
+   - Configurable chunk sizes
+
+4. Monitoring
+   - Progress tracking
+   - Statistics collection
+   - Error logging
+
+### Best Practices
+1. Memory Management
+   - Use appropriate chunk sizes
+   - Monitor buffer sizes
+   - Implement proper cleanup
+
+2. Error Handling
+   - Graceful error handling
+   - Proper logging
+   - Error recovery mechanisms
+
+3. Code Quality
+   - Type hints
+   - Consistent naming
+   - Comprehensive documentation
+   - Appropriate file formats
+
+4. Performance
+   - Use async/await
+   - Implement chunking
+   - Monitor resource usage
+
+================================================================================
+FILE: 8. transformers.md
+================================================================================
+
+# Transformers Documentation
+
+This document provides a comprehensive overview of the Application SDK's transformers module, which handles the transformation of metadata into Atlas entities.
+
+## Overview
+
+The transformers module is organized into two main components:
+1. Atlas Transformers: Handle transformation of SQL metadata into Atlas entities
+2. Common Utilities: Provide shared functionality for text processing and name building
+
+## Atlas SQL Transformers (`atlas/sql.py`)
+
+### Base Entity Transformers
+```python
+class Database(assets.Database):
+    """Database entity transformer for Atlas.
+
+    Transforms database metadata into Atlas Database entities.
+
+    Methods:
+        get_attributes: Parse dictionary into Database entity attributes
+    """
+
+class Schema(assets.Schema):
+    """Schema entity transformer for Atlas.
+
+    Transforms schema metadata into Atlas Schema entities.
+
+    Methods:
+        get_attributes: Parse dictionary into Schema entity attributes
+    """
+
+class Table(assets.Table):
+    """Table entity transformer for Atlas.
+
+    Transforms table metadata into Atlas Table entities.
+
+    Methods:
+        get_attributes: Parse dictionary into Table entity attributes
+    """
+
+class Column(assets.Column):
+    """Column entity transformer for Atlas.
+
+    Transforms column metadata into Atlas Column entities.
+
+    Methods:
+        get_attributes: Parse dictionary into Column entity attributes
+    """
+
+class Function(assets.Function):
+    """Function entity transformer for Atlas.
+
+    Transforms function metadata into Atlas Function entities.
+
+    Methods:
+        creator: Create a new Function entity
+        get_attributes: Parse dictionary into Function entity attributes
+
+    Attributes:
+        function_arguments: List of function arguments
+    """
+
+class Procedure(assets.Procedure):
+    """Procedure entity transformer for Atlas.
+
+    Transforms procedure metadata into Atlas Procedure entities.
+
+    Methods:
+        get_attributes: Parse dictionary into Procedure entity attributes
+    """
+
+class TagAttachment(assets.TagAttachment):
+    """Tag attachment transformer for Atlas.
+
+    Handles attachment of tags to Atlas entities.
+
+    Methods:
+        creator: Create a new TagAttachment entity
+        get_attributes: Parse dictionary into TagAttachment entity attributes
+    """
+```
+
+## Common Utilities (`common/utils.py`)
+
+### Text Processing
+```python
+def process_text(text: str, max_length: int = 100000) -> str:
+    """Process and sanitize text for storage.
+
+    Args:
+        text: The text to process
+        max_length: Maximum length of text to keep (default: 100000)
+
+    Returns:
+        str: The processed text, truncated and sanitized
+
+    Note:
+        - Truncates text to max_length
+        - Removes HTML tags
+        - Converts to JSON-safe string
+    """
+```
+
+### Name Building
+```python
+def build_phoenix_uri(connector_name: str, connector_type: str, *args: str) -> str:
+    """Build the URI for a Phoenix entity.
+
+    Args:
+        connector_name: Name of the connector
+        connector_type: Type of the connector
+        *args: Additional path components
+
+    Returns:
+        str: The constructed URI path
+
+    Example:
+        >>> build_phoenix_uri("myconnector", "sql", "db", "schema")
+        '/myconnector/sql/db/schema'
+    """
+
+def build_atlas_qualified_name(connection_qualified_name: str, *args: str) -> str:
+    """Build the qualified name for an Atlas entity.
+
+    Args:
+        connection_qualified_name: Base qualified name for the connection
+        *args: Additional name components
+
+    Returns:
+        str: The constructed qualified name
+
+    Example:
+        >>> build_atlas_qualified_name("tenant/connector/1", "db", "schema")
+        'tenant/connector/1/db/schema'
+    """
+```
+
+## Common Features and Best Practices
+
+### Entity Transformation
+1. Input Validation
+   - Required fields are validated
+   - Type checking is performed
+   - Error messages are descriptive
+
+2. Name Handling
+   - Qualified names are properly constructed
+   - URI paths are standardized
+   - Special characters are handled
+
+3. Relationship Management
+   - Parent-child relationships are maintained
+   - References are properly linked
+   - Hierarchies are preserved
+
+### Text Processing
+1. Sanitization
+   - HTML tags are removed
+   - Whitespace is normalized
+   - Special characters are handled
+
+2. Length Management
+   - Text is truncated if needed
+   - Maximum lengths are configurable
+   - Truncation is logged
+
+### Error Handling
+1. Validation Errors
+   - Clear error messages
+   - Proper exception types
+   - Context preservation
+
+2. Processing Errors
+   - Graceful degradation
+   - Error logging
+   - Recovery mechanisms
+
+### Best Practices
+1. Code Quality
+   - Type hints
+   - Comprehensive documentation
+   - Consistent naming
+   - Clear error messages
+
+2. Performance
+   - Efficient text processing
+   - Optimized name building
+   - Minimal memory usage
+
+3. Maintainability
+   - Modular design
+   - Clear separation of concerns
+   - Reusable utilities
+   - Testable components
+
+================================================================================
+FILE: 9. workflows.md
+================================================================================
+
+# Workflows Documentation
+
+This document provides a comprehensive overview of the Application SDK's workflows module, which implements Temporal workflows for various data processing tasks.
+
+## Overview
+
+The workflows module is organized into several components:
+1. Base Workflow Interface: Common functionality for all workflows
+2. LangGraph Workflow: Handles LangGraph agent operations
+3. Metadata Extraction Workflows: Extract metadata from various sources
+4. Query Extraction Workflows: Extract and process queries
+
+## Base Workflow Interface (`__init__.py`)
+
+```python
+@workflow.defn
+class WorkflowInterface(ABC):
+    """Abstract base class for all workflow implementations.
+
+    This class defines the interface that all workflows must implement and provides
+    common functionality for workflow execution.
+
+    Attributes:
+        activities_cls (Type[ActivitiesInterface]): The activities class to be used
+            by the workflow
+        default_heartbeat_timeout (timedelta): Default heartbeat timeout (10s)
+        default_start_to_close_timeout (timedelta): Default activity timeout (2h)
+
+    Methods:
+        get_activities: Get sequence of activities to execute
+        run: Execute the workflow with given configuration
+    """
+
+    @staticmethod
+    def get_activities(activities: ActivitiesInterface) -> Sequence[Callable[..., Any]]:
+        """Get the sequence of activities for this workflow.
+
+        Args:
+            activities: The activities interface instance
+
+        Returns:
+            Sequence[Callable[..., Any]]: List of activity methods to execute
+
+        Raises:
+            NotImplementedError: If not implemented by subclass
+        """
+
+    @workflow.run
+    async def run(self, workflow_config: Dict[str, Any]) -> None:
+        """Run the workflow with the given configuration.
+
+        Args:
+            workflow_config: Includes workflow_id and other parameters
+                workflow_id is used to extract configuration from state store
+
+        Note:
+            - Extracts workflow configuration from state store
+            - Sets up workflow run ID and retry policy
+            - Executes preflight check activity
+        """
+```
+
+## LangGraph Workflow (`langgraph.py`)
+
+```python
+@workflow.defn
+class LangGraphWorkflow(WorkflowInterface):
+    """Temporal Workflow to execute LangGraph agent steps.
+
+    This workflow handles the execution of LangGraph agent operations,
+    including graph compilation and task execution.
+
+    Attributes:
+        activities_cls: The activities class for LangGraph operations
+        state: Current state of the workflow
+            - messages: List of messages
+            - enriched_query: Processed query
+            - steps_list: List of execution steps
+            - validation_response: Validation results
+
+    Methods:
+        get_activities: Get sequence of LangGraph activities
+        run: Execute the LangGraph workflow
+    """
+
+    def __init__(self):
+        """Initialize workflow state."""
+        self.state = {
+            "messages": [],
+            "enriched_query": "",
+            "steps_list": [],
+            "validation_response": "",
+        }
+
+    @staticmethod
+    def get_activities(activities: ActivitiesInterface) -> Sequence[Callable[..., Any]]:
+        """Get the sequence of activities for this workflow.
+
+        Args:
+            activities: The activities interface instance
+
+        Returns:
+            Sequence[Callable[..., Any]]: List of activity methods to execute
+        """
+
+    @workflow.run
+    async def run(self, workflow_config: Dict[str, Any]) -> None:
+        """Execute the LangGraph workflow.
+
+        Args:
+            workflow_config: Includes workflow_id and other parameters
+
+        Note:
+            - Initializes workflow state
+            - Compiles the LangGraph
+            - Executes the user's task
+        """
+```
+
+## Metadata Extraction Workflows
+
+### SQL Metadata Extraction (`metadata_extraction/sql.py`)
+
+```python
+@workflow.defn
+class SQLMetadataExtractionWorkflow(MetadataExtractionWorkflow):
+    """Workflow for extracting metadata from SQL databases.
+
+    This workflow orchestrates the extraction of metadata from SQL databases,
+    including databases, schemas, tables, and columns.
+
+    Attributes:
+        activities_cls: The activities class for metadata extraction
+        application_name: Name of the application ("sql-connector")
+
+    Methods:
+        get_activities: Get sequence of metadata extraction activities
+        fetch_and_transform: Fetch and transform metadata in batches
+        get_transform_batches: Get batches for parallel processing
+        run: Execute the metadata extraction workflow
+    """
+
+    @staticmethod
+    def get_activities(activities: SQLMetadataExtractionActivities) -> Sequence[Callable[..., Any]]:
+        """Get the sequence of activities to be executed.
+
+        Returns:
+            Sequence[Callable[..., Any]]: Activities for:
+                - Preflight check
+                - Fetching databases
+                - Fetching schemas
+                - Fetching tables
+                - Fetching columns
+                - Transforming data
+        """
+
+    async def fetch_and_transform(
+        self,
+        fetch_fn: Callable[[Dict[str, Any]], Coroutine[Any, Any, Dict[str, Any]]],
+        workflow_args: Dict[str, Any],
+        retry_policy: RetryPolicy,
+    ) -> None:
+        """Fetch and transform metadata using the provided fetch function.
+
+        Args:
+            fetch_fn: Function to fetch metadata
+            workflow_args: Arguments for workflow execution
+            retry_policy: Retry policy for activity execution
+
+        Note:
+            - Handles chunking of data
+            - Supports parallel processing
+            - Validates activity statistics
+        """
+
+    def get_transform_batches(self, chunk_count: int, typename: str):
+        """Get batches for parallel transformation processing.
+
+        Args:
+            chunk_count: Total number of chunks to process
+            typename: Type name for the chunks
+
+        Returns:
+            Tuple[List[List[str]], List[int]]:
+                - List of batches (file paths)
+                - List of starting chunk numbers
+        """
+```
+
+## Query Extraction Workflows
+
+### SQL Query Extraction (`query_extraction/sql.py`)
+
+```python
+@workflow.defn
+class SQLQueryExtractionWorkflow(QueryExtractionWorkflow):
+    """SQL query extraction workflow implementation.
+
+    This class implements the workflow for extracting SQL queries from databases.
+    It handles batch processing of queries and manages the workflow state.
+
+    Attributes:
+        activities_cls: The activities class for SQL query extraction
+        fetch_queries_sql: SQL query for fetching queries
+        sql_client: SQL client instance
+        application_name: Name of the application
+        batch_size: Size of each batch for processing (default: 100000)
+
+    Methods:
+        get_activities: Get sequence of query extraction activities
+        run: Execute the query extraction workflow
+    """
+
+    @staticmethod
+    def get_activities(activities: ActivitiesInterface) -> Sequence[Callable[..., Any]]:
+        """Get the sequence of activities for this workflow.
+
+        Returns:
+            Sequence[Callable[..., Any]]: Activities for:
+                - Getting query batches
+                - Fetching queries
+                - Preflight check
+        """
+
+    @workflow.run
+    async def run(self, workflow_config: Dict[str, Any]):
+        """Run the workflow.
+
+        Args:
+            workflow_config: Includes workflow_id and other parameters
+
+        Note:
+            - Processes queries in batches
+            - Handles parallel execution
+            - Manages workflow state
+        """
+```
+
+## Common Features and Best Practices
+
+### Workflow Execution
+1. Configuration Management
+   - State store integration
+   - Workflow ID handling
+   - Run ID tracking
+
+2. Activity Management
+   - Retry policies
+   - Timeout handling
+   - Heartbeat monitoring
+
+3. Error Handling
+   - Exception logging
+   - Error recovery
+   - State preservation
+
+### Performance Optimization
+1. Batch Processing
+   - Configurable batch sizes
+   - Parallel execution
+   - Resource management
+
+2. State Management
+   - Efficient state updates
+   - Memory optimization
+   - State persistence
+
+3. Resource Usage
+   - Timeout configuration
+   - Heartbeat intervals
+   - Activity limits
+
+### Best Practices
+1. Code Quality
+   - Type hints
+   - Comprehensive documentation
+   - Clear error messages
+   - Consistent naming
+
+2. Error Handling
+   - Graceful degradation
+   - Proper logging
+   - Recovery mechanisms
+   - State preservation
+
+3. Performance
+   - Efficient batching
+   - Parallel processing
+   - Resource optimization
+   - Memory management
+
+4. Maintainability
+   - Modular design
+   - Clear interfaces
+   - Reusable components
+   - Testable workflows
