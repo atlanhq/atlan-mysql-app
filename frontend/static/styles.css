@@ -1,6 +1,6 @@
 :root {
-    --primary-color: #293c54;
-    --primary-hover: #36465a;  /* A slightly darker shade for hover states */
+    --primary-color: #1E26DF;
+    --primary-hover: #1720c4;  /* A slightly darker shade for hover states */
     --secondary-color: #6B7280;
     --border-color: #E5E7EB;
     --background-color: #F9FAFB;
@@ -678,4 +678,68 @@ input[type="password"] {
     0%, 100% { transform: translateX(0); }
     25% { transform: translateX(-10px); }
     75% { transform: translateX(10px); }
+}
+
+.auth-section {
+  display: none;
+}
+
+.auth-section.active {
+  display: block;
+}
+
+.button-group .btn[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Ensure form groups within inactive sections are completely hidden */
+.auth-section:not(.active) .form-group {
+  display: none;
+}
+
+.form-group {
+  position: relative;
+}
+
+.input-with-prefix {
+    display: flex;
+    align-items: center;
+    border: 1px solid var(--border-color);
+    border-radius: 0.375rem;
+    background-color: white;
+}
+
+.input-with-prefix .prefix {
+    padding: 0.625rem;
+    background-color: #f3f4f6;
+    border-right: 1px solid var(--border-color);
+    border-radius: 0.375rem 0 0 0.375rem;
+    color: var(--secondary-color);
+    font-size: 0.875rem;
+    user-select: none;
+}
+
+.input-with-prefix input {
+    border: none;
+    border-radius: 0 0.375rem 0.375rem 0;
+    flex: 1;
+}
+
+.input-with-prefix input:focus {
+    outline: none;
+    box-shadow: none;
+}
+
+/* Add focus styles for all input fields */
+input[type="text"]:focus,
+input[type="password"]:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(30, 38, 223, 0.2);
+    outline: none;
+}
+
+.input-with-prefix:focus-within {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 2px rgba(30, 38, 223, 0.2);
 }
