@@ -1,46 +1,87 @@
-[tool.poetry]
-name = "phoenix-mysql-app"
+[project]
+name = "atlan-mysql-app"
 version = "0.1.0"
-description = ""
-authors = ["Amit Prabhu <amit.dp180@gmail.com>"]
+description = "Atlan MySQL App: Built using Atlan Application SDK"
+authors = [{ name = "Atlan Apps Team", email = "contact@example.com" }]
+requires-python = ">=3.11"
+license = "Apache-2.0"
 readme = "README.md"
-package-mode = false
+dependencies = [
+    # TODO: Add a local application-sdk dependency
+    "atlan-application-sdk[daft,iam-auth,sqlalchemy,tests,workflows,pandas]==0.1.1rc13",
+    "aiomysql>=0.2.0",
+    "cryptography>=3.4.0",
+    "jinja2>=3.1.2",
+    "poethepoet>=0.34.0"
+]
 
-[tool.poetry.dependencies]
-python = "^3.11.10"
-fastapi = {extras = ["standard"], version = "^0.115.0"}
-pytest-asyncio = "^0.24.0"
-# use local application-sdk repository for development
-# application-sdk = { path = "../application-sdk/", develop = true, extras = ["workflows", "dashboard"]}
-# use remote application-sdk repository
-application-sdk = {git = "git@github.com:atlanhq/application-sdk.git", rev = "main", extras = ["workflows", "dashboard"]}
-pymysql = "^1.1.1"
-cryptography = "^44.0.0"
-jinja2 = "^3.1.2"
+# Optional dependencies for specific functionality - Install using: uv sync --extra dev
+[project.optional-dependencies]
+dev = [
+    "pre-commit>=3.8.0",
+    "isort>=5.13.2",
+    "watchdog>=6.0.0",
+    "requests"
+]
+test = [
+    "pytest>=8.3.3",
+    "coverage>=7.6.1",
+    "scalene>=1.5.20",
+    "hypothesis>=6.98.8",
+    "pytest-asyncio>=0.24.0"
+]
 
-[tool.poetry.group.app.dependencies]
-aiofiles = "^24.1.0"
-sqlalchemy = {extras = ["asyncio"], version = "^2.0.35"}
+[tool.poe.tasks]
+download-components = "python scripts/download_components.py --ref v0.1.1rc10"
 
+# Dapr and Temporal service tasks
+start-dapr = "dapr run --enable-api-logging --log-level debug --app-id app --app-port 3000 --dapr-http-port 3500 --dapr-grpc-port 50001 --dapr-http-max-request-size 1024 --resources-path components"
+start-temporal = "temporal server start-dev --db-filename /tmp/temporal.db"
+start-deps.shell = "poe start-dapr & poe start-temporal &"
+stop-deps.shell = "lsof -ti:3000,3500,7233,50001 | xargs kill -9 2>/dev/null || true"
 
-[tool.poetry.group.dev.dependencies]
-pre-commit = "^3.8.0"
-isort = "^5.13.2"
+[tool.hatch.build.targets.sdist]
+include = ["./**/*.py"]
 
-
-[tool.poetry.group.test.dependencies]
-pytest = "^8.3.3"
-coverage = "^7.6.1"
+[tool.hatch.build.targets.wheel]
+include = ["./**/*.py"]
+packages = [
+    "app",
+]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
-typeCheckingMode = "strict"
+typeCheckingMode = "standard"
+exclude = [
+    ".github/**",
+]
 reportMissingTypeStubs = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+
+[tool.coverage.run]
+omit = [
+    "tests/**",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "pass",
+    "raise ImportError",
+]
+fail_under = 60
+
+# [tool.uv.sources]
+# atlan-application-sdk = { path = "../application-sdk", editable = true }
+# atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "5fa0e489cd484a877af9bd0f0fe3f8b230e4a91a" }

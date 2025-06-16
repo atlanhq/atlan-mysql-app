@@ -1,0 +1,312 @@
+schema_type: dataframe
+version: 0.22.1
+columns:
+  typeName:
+    title: Type Name
+    description: Check the type name of the data asset
+    dtype: str
+    nullable: false
+    checks:
+      str_matches:
+        value: Column
+        options:
+          raise_warning: false
+          ignore_na: true
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  attributes.name:
+    title: Column Name
+    description: The name of the column
+    dtype: str
+    nullable: false
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  attributes.tenantId:
+    title: Tenant ID
+    description: The ID of the tenant
+    dtype: str
+    nullable: false
+    checks:
+      str_matches:
+        value: default
+        options:
+          raise_warning: false
+          ignore_na: true
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  attributes.connectorName:
+    title: Connector Name
+    description: Checks the name of the connector.
+    dtype: str
+    nullable: false
+    checks:
+      str_matches:
+        value: postgres
+        options:
+          raise_warning: false
+          ignore_na: true
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  attributes.connectionName:
+    title: Connection Name
+    description: The name of the connection
+    dtype: str
+    nullable: false
+    checks:
+      str_matches:
+        value: dev
+        options:
+          raise_warning: false
+          ignore_na: true
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  attributes.connectionQualifiedName:
+    title: Connection Qualified Name
+    description: The qualified name of the connection
+    dtype: str
+    nullable: false
+    checks:
+      str_matches:
+        value: default/postgres/[0-9]{10}
+        options:
+          raise_warning: false
+          ignore_na: true
+    unique: false
+    coerce: false
+    required: true
+    regex: true
+  attributes.qualifiedName:
+    title: Qualified Name
+    description: The qualified name of the attribute
+    dtype: str
+    nullable: false
+    checks:
+      str_matches:
+        value: default/postgres/[0-9]{10}/wwi/.*
+        options:
+          raise_warning: false
+          ignore_na: true
+    unique: false
+    coerce: false
+    required: true
+    regex: true
+  attributes.databaseName:
+    title: Database Name
+    description: The name of the database
+    dtype: str
+    nullable: false
+    checks:
+      str_matches:
+        value: wwi
+        options:
+          raise_warning: false
+          ignore_na: true
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  attributes.databaseQualifiedName:
+    title: Database Qualified Name
+    description: The qualified name of the database
+    dtype: str
+    nullable: false
+    checks:
+      str_matches:
+        value: default/postgres/[0-9]{10}/wwi
+        options:
+          raise_warning: false
+          ignore_na: true
+    unique: false
+    coerce: false
+    required: true
+    regex: true
+  attributes.schemaName:
+    title: Schema Name
+    description: The name of the schema
+    dtype: str
+    nullable: false
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  attributes.schemaQualifiedName:
+    title: Schema Qualified Name
+    description: The qualified name of the schema
+    dtype: str
+    nullable: false
+    checks:
+      str_matches:
+        value: default/postgres/[0-9]{10}/wwi/.*
+        options:
+          raise_warning: false
+          ignore_na: true
+    unique: false
+    coerce: false
+    required: true
+    regex: true
+  attributes.tableName:
+    title: Table Name
+    description: The name of the table
+    dtype: str
+    nullable: true
+    unique: false
+    coerce: false
+    required: false
+    regex: false
+  attributes.materialisedViewName:
+    title: Materialised View Name
+    description: The name of the table
+    dtype: str
+    nullable: true
+    unique: false
+    coerce: false
+    required: false
+    regex: false
+  attributes.viewName:
+    title: View Name
+    description: The name of the view
+    dtype: str
+    nullable: true
+    unique: false
+    coerce: false
+    required: false
+    regex: false
+  attributes.tableQualifiedName:
+    title: Table Qualified Name
+    description: The qualified name of the table
+    dtype: str
+    nullable: true
+    unique: false
+    coerce: false
+    required: true
+    regex: true
+    checks:
+      str_matches:
+        value: default/postgres/[0-9]{10}/wwi/.*
+        options:
+          raise_warning: false
+          ignore_na: true
+  status:
+    title: Status
+    description: The status of the schema
+    dtype: str
+    nullable: false
+    checks:
+      str_matches:
+        value: ACTIVE
+        options:
+          raise_warning: false
+          ignore_na: true
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  attributes.lastSyncWorkflowName:
+    title: lastSyncWorkflowName
+    description: The name of the last sync workflow
+    dtype: str
+    nullable: false
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  attributes.lastSyncRunAt:
+    title: lastSyncRunAt
+    description: The timestamp of the last sync run
+    dtype: int
+    nullable: false
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  attributes.dataType:
+    title: Data Type
+    description: The data type of the column
+    dtype: str
+    nullable: false
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  attributes.isPartition:
+    title: Is Partition
+    description: Whether the column is a partition
+    dtype: bool
+    nullable: false
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  attributes.isPrimary:
+    title: Is Primary
+    description: Whether the column is a primary key
+    dtype: bool
+    nullable: false
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  attributes.isForeign:
+    title: Is Foreign
+    description: Whether the column is a foreign key
+    dtype: bool
+    nullable: false
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  attributes.isNullable:
+    title: Is Nullable
+    description: Whether the column is nullable
+    dtype: bool
+    nullable: false
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  attributes.numericScale:
+    title: Numeric Scale
+    description: The numeric scale of the column
+    dtype: float
+    nullable: false
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  attributes.maxLength:
+    title: Max Length
+    description: The maximum length of the column
+    dtype: int
+    nullable: false
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+checks:
+  check_record_count_ge:
+    value: 953
+    options:
+      raise_warning: false
+      ignore_na: true
+index: null
+dtype: null
+coerce: false
+strict: false
+name: null
+ordered: false
+unique: null
+report_duplicates: all
+unique_column_names: false
+add_missing_columns: false
+title: Transformed Column Pandera Schema
+description: Pandera schema definition for the transformed column output

@@ -1,0 +1,41 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# Documentation for Atlan Apps
+
+Detailed instructions and examples for creating high-quality Atlan app documentation. This expanded ruleset provides concrete templates, examples, and best practices for each document type following the Docs-as-Code methodology. Reference this guide when you need specific formatting guidance, document structure templates, or persona-focused writing strategies.
+
+## Document Structure
+Follow Atlan's Docs-as-Code framework when creating documentation for apps:
+
+1. **Content Categories**: Organize content into these types:
+   - How-to guides (task-oriented instructions)
+   - Concepts (explanatory content)
+   - References (technical specifications)
+   - Tutorials (learning-oriented guides)
+   - Troubleshooting (solutions to common issues)
+
+2. **Naming Conventions**:
+   - Use lowercase, hyphen-separated file names
+   - Keep names descriptive and concise
+   - Main intro file should be named `intro.md`
+
+3. **Metadata**:
+   - Include title and description in front matter
+   - Add relevant tags for search optimization
+   - Define custom slugs only when necessary
+
+4. **User-Centric Approach**:
+   - Target specific user personas (Builders, Installers, Source System Admins, Consumers, App Users)
+   - Focus on tasks relevant to the targeted persona
+   - Structure content to match user workflow
+
+5. **Format**:
+   - Write in Markdown (.md)
+   - Use sections with clear headings
+   - Include prerequisites and next steps where appropriate
+   - Follow consistent formatting for code blocks, notes, and warnings
+
+Use this rule as your foundation for all documentation. More detailed guidelines are available in the documentation-guidelines.mdc file.

@@ -1,0 +1,23 @@
+name: PR Label Check
+run-name: ${{ github.actor }} added testing labels
+
+on:
+  pull_request:
+    types: [opened, labeled, unlabeled, synchronize]
+
+jobs:
+  check-labels:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for required labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = context.payload.pull_request.labels.map(label => label.name);
+            // TODO: Add more labels here like e2e-test, scale-test, etc.
+            const requiredLabels = ['e2e-test']; // customize these labels
+            const missingLabels = requiredLabels.filter(label => !labels.includes(label));
+
+            if (missingLabels.length > 0) {
+              core.setFailed(`PR is missing required labels: ${missingLabels.join(', ')}`);
+            }

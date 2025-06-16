@@ -1,0 +1,294 @@
+---
+description: Detailed instructions and examples for creating high-quality Atlan app documentation. This expanded ruleset provides concrete templates, examples, and best practices for each document type following the Docs-as-Code methodology. Reference this guide when you need specific formatting guidance, document structure templates, or persona-focused writing strategies.
+globs:
+alwaysApply: false
+---
+# Comprehensive Documentation Guidelines
+
+This guide provides detailed instructions on creating documentation for Atlan apps following the Docs-as-Code framework.
+
+## Information Architecture
+
+### Directory Structure
+```
+/docs
+│── /apps
+│   │── /connectors
+│   │   │── /data-ingestion
+│   │   │   │── /[connector-name]
+│   │   │   │   │── [connector-name]-overview.md
+│   │   │   │   │── /how-to-guides
+│   │   │   │   │── /concepts
+│   │   │   │   │── /references
+│   │   │   │   │── /tutorials
+│   │   │   │   │── /troubleshooting
+│   │── /data-export
+│   │   │── /[connector-name]
+│   │   │   │── [similar structure as above]
+│── intro.md
+```
+
+### Naming Conventions
+- **Directories**: Use lowercase, hyphen-separated names (e.g., `how-to-guides`, `concepts`)
+- **Files**: Use lowercase, hyphen-separated names that clearly describe content
+  - ✅ `crawl-salesforce.md`
+  - ✅ `configure-authentication.md`
+  - ❌ `howTo` or `reference-docs`
+
+### Slugs and URLs
+- Keep slugs concise and descriptive
+- Use hyphens as separators
+- Include relevant keywords for SEO
+- Example: File `crawl-salesforce-data.md` would have URL `/connectors/data-ingestion/salesforce/how-to-guides/crawl-salesforce-data`
+
+## Document Types and Structure
+
+### How-to Guide Structure
+```markdown
+# [Task Name]
+
+[Brief introduction to the task, explaining why it's needed and what the user will achieve.]
+
+## Compatibility (Optional)
+* List any platform-specific compatibility.
+
+## System requirements (Optional)
+* Include hardware, software, or network requirements.
+
+## Prerequisites
+* Required configurations.
+* Dependencies.
+
+## Permissions required (Optional)
+* Specify any role-based access or permissions needed.
+
+## [Task Execution Steps]
+1. First step with detailed instructions.
+2. Second step with screenshots if relevant.
+3. Additional steps as needed.
+
+## Validate task outcome
+* How to confirm successful completion.
+* Expected results or status indicators.
+
+## Troubleshooting (Optional)
+* Common errors and resolutions.
+
+## See also (Optional)
+* Links to related documentation.
+
+## Next steps (Optional)
+* What to do after completing this task.
+```
+
+### Reference Structure
+```markdown
+# [Connector/Feature Name]
+
+This document provides configuration details for [Name] in Atlan.
+
+## Credentials
+- **Authentication Method**: [Options]
+- **API Key / Secret**: [Details]
+- [Other credential fields]
+
+## Connection
+- **Connection Name**: [Description]
+- **Connection Admins**: [Details]
+- [Other connection fields]
+
+## Metadata
+- **Include/Exclude Assets**: [Options]
+- **Metadata Types**: [Options]
+- [Other metadata fields]
+
+## See Also (Optional)
+* Links to related documentation.
+```
+
+### Explanation Structure
+```markdown
+# [Concept Name]
+
+High-level introduction to the concept.
+
+## Core components (Optional)
+* Description of key components and their interactions.
+
+## How it works (Optional)
+* Detailed explanation of processes or mechanisms.
+* Diagrams or visual aids.
+
+## [Custom sections as needed]
+* Content specific to the concept.
+
+## Next steps (Optional)
+* Related guides or concepts.
+
+## See also (Optional)
+* Additional resources.
+```
+
+## User Personas and Their Documentation Needs
+
+### Builders
+- API documentation
+- SDK guides
+- Architecture explanations
+- Development tutorials
+
+### Installers
+- System requirements
+- Installation guides
+- Configuration references
+- Upgrade procedures
+
+### Source System Admins
+- Authentication setup
+- Permission configuration
+- Network setup
+- Troubleshooting connection issues
+
+### Consumers
+- Configuration guides
+- Monitoring references
+- Troubleshooting guides
+- Maintenance procedures
+
+### App Users
+- User interface guides
+- Feature tutorials
+- Use case examples
+
+## Metadata Requirements
+
+Every markdown file should include front matter with these fields:
+```yaml
+---
+title: [Clear, descriptive title]
+description: [Brief summary of the content, 1-2 sentences]
+tags: [Relevant keywords for search]
+slug: [Custom URL path, optional]
+---
+```
+
+## Examples
+
+### Example How-to Guide
+
+```markdown
+---
+title: Crawl Salesforce data
+description: Learn how to crawl Salesforce data efficiently using Atlan connectors.
+tags:
+  - connectors
+  - crawl
+  - data crawling
+  - salesforce
+---
+
+# Crawl Salesforce data
+
+This guide walks you through setting up and running a metadata crawl for your Salesforce instance. Properly configured crawls ensure accurate and comprehensive metadata in your Atlan catalog.
+
+## Prerequisites
+
+Before you begin, complete the following steps:
+* [Configure Salesforce connector](mdc:configure-salesforce-connector.md)
+* Ensure you have admin access to the Atlan platform
+* Verify your Salesforce API access is properly configured
+
+## Permissions required
+
+To successfully run a Salesforce crawl, confirm that your user role has the following permissions:
+* Connector Administrator role in Atlan
+* API access enabled in your Salesforce account
+
+## Configure and run the crawl
+
+1. Navigate to the Connectors section in Atlan
+2. Select your configured Salesforce connector
+3. Click on the "Crawl" tab
+4. Select which objects to include in your crawl:
+   * Standard objects (Accounts, Contacts, etc.)
+   * Custom objects
+   * Reports and Dashboards
+5. Set crawl schedule (one-time or recurring)
+6. Click "Start Crawl"
+
+## Validate crawl outcome
+
+After the crawl completes, verify success by:
+* Checking the "Assets" tab to see imported Salesforce metadata
+* Reviewing the crawl logs for any warnings or errors
+* Confirming that the expected number of objects were imported
+
+## Troubleshooting
+
+| Problem | Possible Cause | Solution |
+|---------|---------------|----------|
+| Crawl fails with authentication error | API token expired | Refresh your Salesforce credentials in connector settings |
+| Missing custom objects | Insufficient permissions | Ensure your Salesforce API user has access to custom objects |
+| Timeout during large crawls | Too many objects selected | Break down your crawl into smaller batches |
+
+## Next steps
+
+* [Classify Salesforce metadata](mdc:classify-salesforce-metadata.md)
+* [Set up automated lineage](mdc:configure-salesforce-lineage.md)
+```
+
+### Example Reference Document
+
+```markdown
+---
+title: Salesforce Connector Reference
+description: Complete reference for all configuration options in the Atlan Salesforce connector.
+tags:
+  - connectors
+  - salesforce
+  - reference
+  - configuration
+---
+
+# Salesforce Connector Reference
+
+This document provides details on all configuration options available for setting up the Salesforce connector in Atlan.
+
+## Credentials
+
+- **Authentication Method**: OAuth 2.0 or Username & Password
+- **Consumer Key**: Your Salesforce Connected App's consumer key
+- **Consumer Secret**: Your Salesforce Connected App's consumer secret
+- **Username** (if using password auth): Admin user email address
+- **Password** (if using password auth): Admin user password + security token
+- **Login URL**: Standard or custom domain (e.g., https://login.salesforce.com)
+
+## Connection
+
+- **Connection Name**: Unique identifier for this connection in Atlan
+- **Connection Admins**: Users who can modify this connection
+- **Salesforce Environment**: Production or Sandbox
+- **API Version**: Salesforce API version to use (e.g., v56.0)
+
+## Metadata
+
+- **Include Objects**: Select which standard and custom objects to crawl
+- **Include Reports & Dashboards**: Toggle to include these assets
+- **Exclude Patterns**: Regex patterns to exclude certain objects
+- **Extract Field-level Descriptions**: Toggle to include field descriptions
+- **Extract Object Relationships**: Toggle to generate relationship links
+- **Maximum Concurrency**: Number of parallel API requests (1-10)
+
+## Best Practices
+
+1. **User Focus**: Always write with your target persona in mind
+2. **Task Orientation**: Structure how-to guides around specific tasks
+3. **Clarity**: Use simple, direct language with consistent terminology
+4. **Visuals**: Include screenshots for complex UI interactions
+5. **Updates**: Keep reference documentation synchronized with the latest product features
+6. **SEO**: Optimize content with relevant keywords in titles, headings, and body text
+7. **Linking**: Cross-reference related documentation to create a cohesive experience
+8. **Versioning**: Clearly mark content with applicable version information
+9. **Feedback Loop**: Include mechanisms for users to provide feedback on documentation
+
+This comprehensive guide aligns with Atlan's Docs-as-Code framework. Use these guidelines to create consistent, user-focused documentation that supports all personas throughout the app lifecycle.

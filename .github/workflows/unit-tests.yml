@@ -15,50 +15,56 @@ on:
 jobs:
   unit-tests:
     runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+    timeout-minutes: 10
     permissions:
       pull-requests: write
       contents: write
+      id-token: write # Required for AWS credentials
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v3.0.0
         with:
           fetch-depth: 0
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v1
+        uses: actions/setup-python@v4.9.1
         with:
           python-version: "3.11"
 
-      #----------------------------------------------
-      #  -----  install & configure poetry  -----
-      #----------------------------------------------
-      - name: Install Poetry
-        uses: snok/install-poetry@v1
+      - name: Setup AWS Credentials
+        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0 https://github.com/aws-actions/configure-aws-credentials/releases/tag/v4.1.0
         with:
-          version: 1.8.5
-          virtualenvs-create: true
-          virtualenvs-in-project: true
-          virtualenvs-path: .venv
-          installer-parallel: true
+          aws-region: ap-south-1
+          role-to-assume: arn:aws:iam::733936409301:role/kryptonite-store_FullAccess
 
-      #----------------------------------------------
-      #       set up system git client for poetry
-      #       known to be available only in poetry 1.8.5
-      #----------------------------------------------
-      - name: Set up system git client for poetry
-        run: |
-          poetry config experimental.system-git-client true
+      - name: Get branch name
+        run: echo "branch=$(echo ${GITHUB_REF#refs/heads/})" >> $GITHUB_OUTPUT
+        id: get_branch
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          version: "0.7.3"
+
+      - name: Install dependencies
+        run: uv sync --all-extras
 
       - name: Run Tests with Coverage
         run: |
-          git config --global url."https://${{ secrets.ORG_PAT_GITHUB }}@github.com/".insteadOf "git@github.com:"
-          poetry install -vv
-          poetry run coverage run -m pytest tests/unit
-          poetry run coverage xml
-          poetry run coverage report
+          uv run coverage run -m pytest tests/unit
+          uv run coverage xml
+          uv run coverage html
+          uv run coverage report --fail-under=60
 
       - name: Comment Coverage Report on PR
-        uses: orgoro/coverage@v3.2
+        uses: orgoro/coverage@3f13a558c5af7376496aa4848bf0224aead366ac # v3.2 https://github.com/orgoro/coverage/releases/tag/v3.2
         with:
           coverageFile: coverage.xml
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Coverage Report to S3
+        run: |
+          aws s3 sync ./htmlcov s3://kryptonite-store/coverage/atlan-postgres-app/${{ steps.get_branch.outputs.branch }} --delete
