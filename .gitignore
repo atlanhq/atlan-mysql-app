@@ -6,6 +6,7 @@
 .vscode
 __pycache__
 .pytest_cache
+.hypothesis/
 htmlcov
 dist
 site
@@ -38,3 +39,10 @@ archive.zip
 **/frontend/dist/**
 **/frontend/.nuxt/**
 dist/
+
+gh_secret
+
+# env
+.env.dev
+
+components

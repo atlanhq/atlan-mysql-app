@@ -1,0 +1,474 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# Task Management System
+
+## Overview
+This rule defines how to convert PRDs into a structured task management system, with integration for Application SDK references and support tasks. The system creates and maintains ALL task files automatically.
+
+## File Structure
+```/tasks
+   ├── task.json           # Master task tracking file
+   ├── README.md          # Project overview and status
+   ├── CHANGELOG.md       # Track major task status changes
+   └── tasks/            # Individual task markdown files
+       ├── task_100.md   # Parent task
+       ├── task_101.md   # Subtask
+       ├── task_102.md   # Subtask
+       └── ...
+```
+
+## Guidelines
+
+- Explicitly mention the rules and docs you are referencing to get the job done
+- Always provide next steps at the end of your response
+- Explicitly mention the SDK docs you are referencing
+    - Only refer to the docs that exist
+- Create files only according to the rules in this file
+- Use thinking mode for planning
+- The master task.json file should be created first, then prompt the user to create files in batches instead of one go.
+
+!! IMPORTANT
+
+- Lay out a plan first and then ask for permission to create files
+- Propose task.json structure (High-Level i.e describe in comments instead of creating actual objects) before creating any files
+
+
+
+## Automated File Creation Rules
+1. **ALL files must be created simultaneously**
+   - When task.json is created/updated, ALL corresponding .md files must be generated
+   - No partial file creation is allowed
+   - System must maintain file synchronization
+
+2. **File Creation Triggers**
+   - Initial project setup
+   - New task addition
+   - Task structure changes
+   - Status updates requiring new files
+
+3. **File Validation**
+   - System must verify all required files exist
+   - Missing files must be automatically created
+   - Orphaned files must be flagged for review
+
+## Task JSON Structure
+```json
+{
+  "project": {
+    "name": string,
+    "description": string,
+    "startDate": "YYYY-MM-DD",
+    "targetEndDate": "YYYY-MM-DD",
+    "status": "not_started" | "in_progress" | "completed" | "blocked",
+    "lastUpdated": "YYYY-MM-DD HH:MM:SS"
+  },
+  "tasks": [
+    {
+      "id": number,
+      "title": string,
+      "description": string,
+      "status": "pending" | "in_progress" | "completed" | "blocked" | "deferred" | "cancelled",
+      "priority": "high" | "medium" | "low",
+      "dependencies": number[],
+      "relationships": {
+        "parent": number | null,
+        "children": number[],
+        "dependents": number[]
+      },
+      "progress": {
+        "total_subtasks": number,
+        "completed_subtasks": number,
+        "percent_complete": number,
+        "status_summary": {
+          "pending": number,
+          "in_progress": number,
+          "completed": number,
+          "blocked": number
+        }
+      },
+      "sdk_references": {
+        "components": string[],
+        "docs": string[],
+        "requires_sdk_changes": boolean,
+        "sdk_tasks": string[]
+      },
+      "change_propagation": {
+        "impacted_layers": {
+          "database": {
+            "impact_level": "none" | "low" | "medium" | "high",
+            "components": ["sql_queries", "connection_params", "auth_methods"],
+            "validation_status": "pending" | "validated" | "failed"
+          },
+          "transformer": {
+            "impact_level": "none" | "low" | "medium" | "high",
+            "components": ["entity_classes", "attribute_mapping", "validation_rules"],
+            "validation_status": "pending" | "validated" | "failed"
+          },
+          "workflow": {
+            "impact_level": "none" | "low" | "medium" | "high",
+            "components": ["activity_sequence", "error_handling", "configuration"],
+            "validation_status": "pending" | "validated" | "failed"
+          }
+        },
+        "security_impact": {
+          "authentication": boolean,
+          "authorization": boolean,
+          "data_privacy": boolean,
+          "audit_trail": boolean,
+          "validation_status": "pending" | "validated" | "failed"
+        },
+        "performance_impact": {
+          "query_optimization": boolean,
+          "connection_pooling": boolean,
+          "resource_utilization": boolean,
+          "batch_processing": boolean,
+          "validation_status": "pending" | "validated" | "failed"
+        },
+        "validation_summary": {
+          "status": "pending" | "in_progress" | "completed" | "failed",
+          "last_validated": "YYYY-MM-DD HH:MM:SS",
+          "validation_errors": string[]
+        }
+      },
+      "subtasks": [
+        {
+          // Same structure as parent task
+          // Nested subtasks allowed
+        }
+      ],
+      "metadata": {
+        "createdAt": "YYYY-MM-DD HH:MM:SS",
+        "lastUpdated": "YYYY-MM-DD HH:MM:SS",
+        "lastUpdatedBy": string
+      }
+    }
+  ]
+}
+```
+
+
+## Task Templates
+
+### Parent Task Template
+```markdown
+# Task ID: ${taskId}
+# Title: ${taskTitle}
+# Status: ${status}
+# Priority: ${priority}
+# Dependencies: ${dependencies}
+
+## Description
+${description}
+
+## Change Impact Analysis
+### Component Dependencies
+- Database Layer Impact: [None/Low/Medium/High]
+  - [ ] SQL Queries
+  - [ ] Connection Parameters
+  - [ ] Authentication Methods
+
+- Transformer Layer Impact: [None/Low/Medium/High]
+  - [ ] Entity Classes
+  - [ ] Attribute Mapping
+  - [ ] Validation Rules
+
+- Workflow Layer Impact: [None/Low/Medium/High]
+  - [ ] Activity Sequence
+  - [ ] Error Handling
+  - [ ] Configuration
+
+### Security Considerations
+- [ ] Authentication changes required
+- [ ] Authorization rules affected
+- [ ] Data privacy impact
+- [ ] Audit trail requirements
+
+### Performance Impact
+- [ ] Query optimization needed
+- [ ] Connection pooling affected
+- [ ] Resource utilization changes
+- [ ] Batch processing impact
+
+## Progress Summary
+- Total Subtasks: ${progress.total_subtasks}
+- Completed: ${progress.completed_subtasks}
+- Completion: ${progress.percent_complete}%
+
+Status Breakdown:
+- Pending: ${progress.status_summary.pending}
+- In Progress: ${progress.status_summary.in_progress}
+- Completed: ${progress.status_summary.completed}
+- Blocked: ${progress.status_summary.blocked}
+
+## SDK References
+Components:
+${sdk_references.components.map(comp => `- ${comp}`).join('\n')}
+
+Documentation:
+${sdk_references.docs.map(doc => `- @${doc}`).join('\n')}
+
+SDK Changes Required: ${sdk_references.requires_sdk_changes ? 'Yes' : 'No'}
+${sdk_references.requires_sdk_changes ? `Related SDK Tasks:\n${sdk_references.sdk_tasks.map(task => `- ${task}`).join('\n')}` : ''}
+
+## Implementation Details
+${details}
+
+## Subtasks Overview
+${subtasks.map(task => `
+### ${task.id}: ${task.title}
+- Status: ${task.status}
+- Priority: ${task.priority}
+- Progress: ${task.progress.percent_complete}%
+`).join('\n')}
+
+## Progress Tracking
+- [ ] Implementation Started
+- [ ] Core Implementation Complete
+- [ ] Tests Written
+- [ ] Code Review
+- [ ] Documentation Updated
+- [ ] Task Complete
+
+## Notes & Updates
+<!-- Add updates as needed -->
+- ${metadata.createdAt}: Initial task created
+
+### Subtask Template
+```markdown
+# Task ID: ${taskId}
+# Parent Task: ${relationships.parent}
+# Title: ${taskTitle}
+# Status: ${status}
+# Priority: ${priority}
+# Dependencies: ${dependencies}
+
+## Description
+${description}
+
+## Change Impact Analysis
+### Component Dependencies
+- Primary Component: [Database/Transformer/Workflow]
+- Direct Dependencies:
+  - [ ] Component 1 [Impact: None/Low/Medium/High]
+  - [ ] Component 2 [Impact: None/Low/Medium/High]
+
+### Implementation Impact
+- [ ] Schema changes required
+- [ ] API changes needed
+- [ ] Configuration updates
+- [ ] Documentation updates
+
+### Testing Requirements
+- [ ] Unit test updates
+- [ ] Integration test changes
+- [ ] Performance test adjustments
+- [ ] Security test modifications
+
+## Progress
+- Completion: ${progress.percent_complete}%
+- Status: ${status}
+
+## SDK References
+Components:
+${sdk_references.components.map(comp => `- ${comp}`).join('\n')}
+
+Documentation:
+${sdk_references.docs.map(doc => `- @${doc}`).join('\n')}
+
+## Implementation Details
+${details}
+
+## Acceptance Criteria
+- [ ] Criteria 1
+- [ ] Criteria 2
+
+## Progress Tracking
+- [ ] Implementation Started
+- [ ] Core Implementation Complete
+- [ ] Tests Written
+- [ ] Code Review
+- [ ] Documentation Updated
+- [ ] Task Complete
+
+## Notes & Updates
+<!-- Add updates as needed -->
+- ${metadata.createdAt}: Initial subtask created
+```
+
+## Task Types
+
+1. **Parent Tasks**
+   - IDs: Multiples of 100 (e.g., 100, 200, 300)
+   - Must have their own markdown file
+   - Must track all subtask progress
+   - Must maintain relationships
+
+2. **Subtasks**
+   - IDs: Sequential numbers after parent (e.g., 101, 102)
+   - Must have their own markdown file
+   - Must link back to parent task
+   - Can have nested subtasks
+
+3. **SDK-Related Tasks**
+   - Can be either parent or subtask
+   - Must include SDK references
+   - Must track SDK dependencies
+   - Must document SDK version requirements
+
+## File Maintenance Rules
+
+1. **Synchronization**
+   - All files must be kept in sync with task.json
+   - Changes to task.json must trigger file updates
+   - File deletions must be tracked in CHANGELOG.md
+
+2. **Progress Updates**
+   - Parent task progress must reflect subtask status
+   - Progress calculations must be automatic
+   - Status changes must update all related files
+
+3. **Relationship Management**
+   - Parent-child relationships must be maintained
+   - Dependencies must be validated
+   - Circular dependencies must be prevented
+
+4. **Documentation**
+   - All status changes must be logged
+   - Major changes must be reflected in CHANGELOG.md
+   - SDK reference links must be validated
+
+## Automation Requirements
+
+1. **File Generation**
+   - Must create ALL required files on system initialization
+   - Must create new files when tasks are added
+   - Must update existing files when tasks are modified
+   - Must handle file deletions gracefully
+
+2. **Progress Tracking**
+   - Must automatically calculate progress percentages
+   - Must update parent task status based on subtasks
+   - Must maintain accurate status summaries
+
+3. **Validation**
+   - Must validate task relationships
+   - Must check for missing files
+   - Must verify SDK references
+   - Must prevent invalid status transitions
+
+4. **Error Handling**
+   - Must log all file operation errors
+   - Must maintain system consistency
+   - Must provide error recovery mechanisms
+   - Must prevent partial updates
+
+5. **Change Propagation Verification**
+
+   1. **Automated Impact Analysis**
+      - Must analyze code changes for component dependencies
+      - Must identify affected layers (Database, Transformer, Workflow)
+      - Must calculate impact levels based on change scope
+      - Must track cascading effects across components
+
+   2. **Dependency Validation Rules**
+   ```python
+   class DependencyValidator:
+       """
+       Validates task dependencies and change propagation.
+       Rules:
+       1. Cross-layer impact detection
+       2. Security implication analysis
+       3. Performance impact assessment
+       4. Documentation requirements
+       """
+       def validate_dependencies(self):
+           # Check component dependencies
+           self._validate_component_dependencies()
+
+           # Validate security implications
+           self._validate_security_impact()
+
+           # Assess performance impact
+           self._validate_performance_impact()
+
+           # Verify documentation requirements
+           self._validate_documentation_needs()
+   ```
+
+   3. **Automated Checks**
+      - Pre-commit validation
+      - Continuous integration checks
+      - Deployment gate validation
+      - Post-deployment verification
+
+   4. **Validation Workflow**
+   ```mermaid
+   graph TD
+       A[Code Change] --> B{Impact Analysis}
+       B --> C[Component Check]
+       B --> D[Security Check]
+       B --> E[Performance Check]
+
+       C --> F[Update Task Status]
+       D --> F
+       E --> F
+
+       F --> G{Validation Gate}
+       G --> H[Proceed]
+       G --> I[Block]
+   ```
+
+   5. **Error Handling**
+      - Validation failure notifications
+      - Detailed error reporting
+      - Remediation suggestions
+      - Override mechanisms for approved exceptions
+
+   6. **Integration Points**
+      - Version control hooks
+      - CI/CD pipeline integration
+      - Task management system integration
+      - Documentation system integration
+
+
+
+### Response Format
+
+The LLM will respond with:
+1. Confirmation of understanding
+2. Created task details
+3. Suggested breakdowns or dependencies
+4. Recommendations for additional considerations
+
+### Best Practices
+
+1. Be specific and detailed in your requirements
+2. Provide context when describing features
+3. Mention if SDK changes might be needed
+4. Ask for task breakdowns if something seems complex
+5. Request estimates when needed for planning
+
+### Tips for Better Results
+
+1. When creating tasks from a PRD:
+   - Include the complete context
+   - Mention any technical constraints
+   - Specify if it involves SDK changes
+
+2. When breaking down tasks:
+   - Mention the desired granularity
+   - Specify if you want test tasks included
+   - Indicate if you need documentation tasks
+
+3. For SDK-related changes:
+   - Describe the feature's impact
+   - Mention affected components
+   - Include any compatibility requirements
+
+4. For status updates:
+   - Provide specific progress information
+   - Include any blockers or issues
+   - Mention related tasks that might be affected

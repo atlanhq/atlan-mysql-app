@@ -1,0 +1,92 @@
+---
+description: Frontend application architecture, components, and interaction with the backend API.
+globs:
+alwaysApply: false
+---
+# SQL App Frontend Structure
+
+This document covers the frontend structure of SQL metadata extraction applications built with the Atlan app framework.
+
+## Overview
+
+The frontend is a web-based interface that allows users to:
+1. Configure database connections to any SQL database type
+2. Select schemas and tables for metadata extraction
+3. Run preflight checks to validate connections
+4. Execute extraction workflows
+5. Monitor extraction progress
+
+## Directory Structure
+
+The frontend code is organized in the `frontend/` directory:
+
+- `frontend/static/` - Static assets
+  - `frontend/static/script.js` - JavaScript functionality
+  - `frontend/static/styles.css` - CSS styling
+- `frontend/templates/` - HTML templates
+  - `frontend/templates/index.html` - Main application interface
+
+## Key Components
+
+### Connection Configuration
+The connection form handles different authentication methods for SQL databases:
+- Basic authentication (username/password)
+- IAM authentication for cloud databases
+- Service principal authentication
+- Token-based authentication
+
+### Metadata Selection
+The interface provides controls for:
+- Including/excluding specific databases
+- Including/excluding specific schemas
+- Filtering tables using regex patterns
+- Setting extraction options
+
+### Preflight Checks
+Before running a full extraction, the app performs checks for:
+- Database connectivity
+- User permissions
+- Schema accessibility
+- Estimated metadata volume
+
+### Workflow Execution
+The interface provides:
+- Start/stop controls for workflows
+- Progress indicators
+- Status messages
+- Links to view extracted metadata
+
+## JavaScript Architecture
+
+The frontend JavaScript (`script.js`) follows a component-based approach:
+
+1. **Form Handling** - Manages form inputs and validation
+2. **Authentication** - Handles different authentication methods
+3. **Metadata Selection** - Manages database/schema selection UI
+4. **Preflight Execution** - Runs and displays preflight check results
+5. **Workflow Management** - Starts, monitors, and manages extraction workflows
+
+## Styling
+
+The CSS (`styles.css`) uses a modular approach with components for:
+- Forms and inputs
+- Navigation elements
+- Status indicators
+- Multi-step workflow UI
+- Responsive layouts
+
+## Frontend-Backend Integration
+
+The frontend communicates with the backend through RESTful API endpoints:
+- `/workflows/v1/auth` - Authentication endpoint
+- `/workflows/v1/metadata` - Metadata discovery endpoint
+- `/workflows/v1/check` - Preflight check endpoint
+- `/workflows/v1/start` - Workflow execution endpoint
+
+## Extending the Frontend
+
+To add support for new SQL database types:
+1. Add new authentication method components
+2. Update connection forms with database-specific parameters
+3. Add database-specific validation rules
+4. Ensure compatibility with the backend client implementations

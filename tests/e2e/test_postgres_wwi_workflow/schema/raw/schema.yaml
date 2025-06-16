@@ -1,0 +1,66 @@
+schema_type: dataframe
+version: 0.22.1
+columns:
+  catalog_name:
+    title: Catalog Name
+    description: Check the name of the catalog
+    dtype: str
+    nullable: false
+    checks:
+      str_matches:
+        value: wwi
+        options:
+          raise_warning: false
+          ignore_na: true
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  schema_name:
+    title: Schema Name
+    description: Check the name of the schema
+    dtype: str
+    nullable: false
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  schema_owner:
+    title: Schema Owner
+    description: Check the name of the schema owner
+    dtype: str
+    nullable: false
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  table_count:
+    title: Table Count
+    description: Check for total number of tables for this schema
+    dtype: float64
+    nullable: true
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  views_count:
+    title: null
+    description: null
+    dtype: float64
+    nullable: true
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+index: null
+dtype: null
+coerce: false
+strict: false
+name: null
+ordered: false
+unique: null
+report_duplicates: all
+unique_column_names: false
+add_missing_columns: false
+title: Raw Schema Pandera Schema
+description: Pandera schema definition for the raw schema output

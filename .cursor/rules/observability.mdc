@@ -1,0 +1,204 @@
+---
+description:
+globs:
+alwaysApply: false
+---
+# Observability Guidelines for Atlan Apps
+
+## Overview
+
+This document outlines the observability patterns and best practices for applications built with the Atlan Application SDK. It covers logging, metrics, and tracing, ensuring consistent, secure, and effective observability across all components. Adhering to these guidelines facilitates debugging, monitoring, and performance analysis.
+
+## Core Principles
+
+1.  **Security First**:
+    *   NEVER log sensitive data (PII, passwords, tokens, connection strings) in plaintext.
+    *   Use masking or hashing for sensitive fields required for context.
+    *   Audit security-relevant events separately, if necessary.
+2.  **Structured Data**:
+    *   Utilize structured logging (e.g., JSON format) for easier querying and analysis.
+    *   Include relevant context (workflow IDs, activity names, request IDs) in logs, metrics, and traces.
+3.  **Correlation**:
+    *   Ensure logs, metrics, and traces can be correlated using common identifiers (e.g., `workflow_id`, `workflow_run_id`, trace IDs).
+    *   Maintain context propagation throughout workflow executions and activity calls.
+4.  **Signal vs Noise**:
+    *   Log errors appropriately, avoiding redundant messages. Log once per error instance unless additional context is vital.
+    *   Keep logs concise and actionable. Avoid excessive verbosity (DEBUG level) in production unless actively debugging.
+    *   Focus metrics on key performance indicators (KPIs) and system health.
+
+## Core Components
+
+Observability in the SDK context primarily revolves around structured logging, with standard practices recommended for metrics and tracing.
+
+### 1. Logging
+
+The SDK provides helpers for standardized logging integrated with Temporal workflows and activities.
+
+- **Logger Configuration**
+    - Use `AtlanLoggerAdapter` for all logging
+    - Configure loggers using `get_logger(__name__)`
+    - Use structured logging with context
+    - Include request IDs in logs
+    - Use appropriate log levels:
+        - DEBUG: Detailed information for debugging
+        - INFO: General operational information
+        - WARNING: Warning messages for potential issues
+        - ERROR: Error messages for recoverable errors
+        - CRITICAL: Critical errors that may cause system failure
+        - ACTIVITY: Activity-specific logging
+
+- **Log Format**
+    ```python
+    "<green>{time:YYYY-MM-DD HH:mm:ss}</green> <blue>[{level}]</blue> <cyan>{extra[logger_name]}</cyan> - <level>{message}</level>"
+    ```
+
+- **Logging Best Practices**
+    - Include relevant context in log messages
+    - Use structured logging for machine processing
+    - Log exceptions with stack traces
+    - Include request IDs in distributed systems
+    - Use appropriate log levels
+    - Avoid logging sensitive information
+    - Include workflow and activity context in Temporal workflows
+
+- **Example Usage**
+    ```python
+    from application_sdk.observability.logger_adaptor import get_logger
+
+    logger = get_logger(__name__)
+
+    # Basic logging
+    logger.info("Operation completed successfully")
+
+    # Logging with context
+    logger.info("Processing request", extra={"request_id": "123", "user": "john"})
+
+    # Error logging
+    try:
+        # Some operation
+        pass
+    except Exception as e:
+        logger.error("Operation failed", exc_info=True)
+    ```
+
+
+#### Security Considerations
+
+*   Review logs regularly for accidentally logged sensitive data.
+*   Implement masking or filtering if sensitive data might appear in logs. The `logger_adaptors` may offer features or require custom wrappers for this.
+
+### 2. Metrics (Standard Practices)
+
+While the SDK doesn't provide a dedicated metrics component, follow standard practices using libraries like OpenTelemetry Metrics
+
+## Best Practices
+
+*   **Instrument Early**: Integrate logging, metrics, and tracing from the start.
+*   **Correlate Everything**: Use common IDs (`workflow_id`, `trace_id`) across all signals.
+*   **Focus on SLIs/SLOs**: Define Service Level Indicators and Objectives, and build dashboards around them.
+*   **Alerting**: Set up meaningful alerts based on error rates, latency spikes, and resource saturation, but avoid alert fatigue.
+*   **Regular Review**: Periodically review logs, metrics dashboards, and traces to understand system behavior and identify potential issues.
+*   **Security Audits**: Ensure observability configurations and data do not expose sensitive information.
+
+
+# Logging Guidelines
+
+## Rule: use-error-logging
+
+**Description:** Use ERROR level for unrecoverable errors and critical failures
+**Severity:** error
+
+**When to use:**
+- For application crashes
+- For unhandled exceptions
+- For critical business logic failures
+- For configuration errors that prevent startup
+
+**Examples:**
+- correct :  `logging.error("Failed to initialize critical component", exc_info=True)`
+- correct :  `logging.error(f"Database connection failed after {retries} retries: {error}")`
+- wrong : `logging.info("Database connection failed")` — Critical errors should not be INFO
+
+---
+
+## Rule: use-warning-logging
+
+**Description:** Use WARNING level for potentially harmful situations
+**Severity:** warning
+
+**When to use:**
+- For deprecated feature usage
+- For runtime issues that can be recovered from
+- For unexpected but handled conditions
+
+**Examples:**
+- correct : `logging.warning(f"Unexpected branch '{branch}'. Using fallback.")`
+- correct : `logging.warning("API rate limit reached, retrying in 60 seconds")`
+- wrong : `logging.error("API rate limit reached")` — Not severe enough for ERROR
+
+---
+
+## Rule: use-info-logging
+
+**Description:** Use INFO level for general operational events
+**Severity:** info
+
+**When to use:**
+- For application startup/shutdown
+- For significant state changes
+- For important business events
+
+**Examples:**
+- correct : `logging.info(f"Starting version update process")`
+- correct : `logging.info(f"Successfully processed {count} items")`
+- wrong : `logging.debug("Starting version update")` — Too important for DEBUG
+
+---
+
+## Rule: use-debug-logging
+
+**Description:** Use DEBUG level for detailed troubleshooting information
+**Severity:** info
+
+**When to use:**
+- For detailed flow information
+- For variable values during development
+- For step-by-step execution details
+
+**Examples:**
+- correct :  `logging.debug(f"Processing item {item_id} with parameters: {params}")`
+- correct : `logging.debug("Entering method with args: %s", args)`
+- wrong : `logging.info("Variable x = 5")` — Too detailed for INFO
+
+---
+
+## Rule: include-context-in-logs
+
+**Description:** Include relevant context in log messages
+**Severity:** warning
+
+**When to use:**
+- Always include relevant identifiers
+- Include state information for errors
+- Include timing for performance-related logs
+
+**Examples:**
+- correct : `logging.error(f"Failed to process order {order_id}: {error}", exc_info=True)`
+- correct :`logging.info(f"Request completed in {duration}ms [request_id={request_id}]")`
+- wrong : `logging.error("Operation failed")` — Missing context
+
+---
+
+## Rule: use-exception-info
+
+**Description:** Include exception information for errors
+**Severity:** error
+
+**When to use:**
+- Always include `exc_info=True` for exceptions
+- Include stack traces for errors
+
+**Examples:**
+- correct : `logging.error("Failed to process request", exc_info=True)`
+- correct : `logging.exception("Unexpected error occurred")`
+- wrong : `logging.error(str(e))` — Missing stack trace

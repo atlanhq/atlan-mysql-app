@@ -1,0 +1,42 @@
+---
+description: This rule is triggered when the app developer requests to setup the project environment
+globs:
+alwaysApply: false
+---
+# Project Setup Rule
+
+This guide automatically detects your operating system and provides the appropriate setup instructions to get the Atlan PostgreSQL App running.
+
+
+## Guidelines (IMPORTANT)
+
+- Before installing anything new, make sure to check if the specific version for the component already exists.
+    - Example: Start by installing the correct version of python via pyenv if the version of python doesn't exist in system.
+    - Versions must match the exact semver. Also mention this while laying out the plan.
+- Always check what part of the setup step is already done (example: if the required version of python already exists, inform and proceed.)
+- You must not perform any other operation than the ones mentioned in the guides (eg: brew install python@3.11, follow pyenv installation instead), unless you are troubleshooting an issue.
+
+
+## Manual Selection
+
+If the automatic detection doesn't work, please open the appropriate guide based on your operating system:
+
+- [MAC.md](mdc:docs/setup/MAC.md)
+- [LINUX.md](mdc:docs/setup/LINUX.md)
+- [WINDOWS.md](mdc:docs/setup/WINDOWS.md)
+
+## Setup Overview
+
+The Atlan PostgreSQL App requires the following components regardless of operating system:
+
+1. Python 3.11.10
+2. uv 0.7.3
+3. Temporal CLI
+4. DAPR CLI 1.14.1
+5. Project dependencies
+
+The OS-specific guides provide detailed instructions for installing these components and running the application.
+
+## Need Help?
+
+If you encounter any issues during setup, please reach out to us on the Slack channel #pod-app-framework or email apps@atlan.com.
