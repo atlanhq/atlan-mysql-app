@@ -10,165 +10,352 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'e2e-test') }}
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+    timeout-minutes: 30
+    if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || contains(github.event.pull_request.labels.*.name, 'e2e-test-1m') || contains(github.event.pull_request.labels.*.name, 'e2e-test') }}
 
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v4.0.0
+        with:
+          token: ${{ secrets.ORG_PAT_GITHUB }}
 
-    # Install Dapr
-    - name: Install Dapr CLI
-      run: |
-        wget -q https://raw.githubusercontent.com/dapr/cli/master/install/install.sh -O - | /bin/bash
-        dapr init --slim
+      # Install Dapr
+      - name: Install Dapr CLI
+        run: |
+          wget -q https://raw.githubusercontent.com/dapr/cli/master/install/install.sh -O - | /bin/bash -s 1.14.1
+          dapr init --runtime-version 1.13.6 --slim
 
-    # Install Temporal
-    - name: Install Temporal CLI and Start Server
-      run: |
-        curl -sSf https://temporal.download/cli.sh | sh
-        export PATH="$HOME/.temporalio/bin:$PATH"
-        temporal server start-dev --db-filename /tmp/temporal.db &
-        sleep 10  # Give some time for Temporal to start
+      # Install Temporal
+      - name: Install Temporal CLI and Start Server
+        run: |
+          curl -sSf https://temporal.download/cli.sh | sh
+          export PATH="$HOME/.temporalio/bin:$PATH"
+          temporal server start-dev --db-filename /tmp/temporal.db &
+          sleep 5
 
-    - name: Set up Python 3.11
-      uses: actions/setup-python@v1
-      with:
-        python-version: "3.11"
+      - uses: atlanhq/application-sdk/.github/actions/setup-deps@main
 
-     #----------------------------------------------
-      #  -----  install & configure poetry  -----
-      #----------------------------------------------
-    - name: Install Poetry
-      uses: snok/install-poetry@v1
-      with:
-        version: 1.8.5
-        virtualenvs-create: true
-        virtualenvs-in-project: true
-        virtualenvs-path: .venv
-        installer-parallel: true
+      # Download components and start dapr and temporal services
+      - name: Start Platform Services
+        run: |
+          uv run poe download-components
+          uv run poe start-deps
+          # Wait for Dapr sidecar to be ready
+          sleep 5
 
-    #----------------------------------------------
-    #       set up system git client for poetry
-    #       known to be available only in poetry 1.8.5
-    #----------------------------------------------
-    - name: Set up system git client for poetry
-      run: |
-        poetry config experimental.system-git-client true
+      # Start the application
+      - name: Start the application
+        id: start_app
+        run: |
+          uv run scalene --profile-all --cli --outfile ./.github/scalene.json --json main.py &
+          sleep 20
 
-    - name: Install Dependencies
-      run: |
-        git config --global url."https://${{ secrets.ORG_PAT_GITHUB }}@github.com/".insteadOf "git@github.com:"
-        # Configure poetry to use project-specific virtualenv
-        poetry config virtualenvs.in-project true
+      - name: Start the 1M workflow
+        if: ${{ contains(github.event.pull_request.labels.*.name, 'e2e-test-1m') }}
+        id: workflow_info_1m
+        run: |
+          # Start the curl request in the background and capture its PID
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -d '{
+              "credentials": {
+                "authType": "basic",
+                "host": "${{ secrets.POSTGRES_DB_HOST }}",
+                "port": 5432,
+                "extra": {
+                  "database": "assets_1m"
+                },
+                "username": "postgres",
+                "password": "${{ secrets.POSTGRES_DB_PASSWORD }}",
+                "region": "ap-south-1"
+              },
+              "connection": {
+                "connection_name": "postgres",
+                "connection_qualified_name": "default/postgres/0"
+              },
+              "metadata": {
+                "exclude-filter": "{}",
+                "include-filter": "{}",
+                "temp-table-regex": "",
+                "extraction-method": "direct"
+              }
+            }' \
+            http://0.0.0.0:8000/workflows/v1/start > response.json &
+          CURL_PID=$!
 
-        # Install the dependencies
-        poetry install -vv
-        poetry update application-sdk --dry-run
+          # Wait for the curl request to complete
+          wait $CURL_PID
 
-    # Start dapr and temporal services
-    - name: Start Platform Services
-      run: |
-        make start-deps
-        sleep 10  # Give services time to start up
+          # Parse the response
+          RESPONSE=$(cat response.json)
+          # Extract workflow_id and run_id
+          WORKFLOW_ID=$(echo $RESPONSE | jq -r '.data.workflow_id')
+          RUN_ID=$(echo $RESPONSE | jq -r '.data.run_id')
 
-    # Start the application
-    - name: Start the application
-      run: |
-        make run-app &
-        sleep 10  # Give the app time to start
+          echo "workflow_id=$WORKFLOW_ID" >> $GITHUB_OUTPUT
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          echo "assets_size=1m" >> $GITHUB_OUTPUT
 
-    # Make API call and capture workflow/run IDs
-    - name: Start the workflow
-      id: workflow_info
-      run: |
-        RESPONSE=$(curl -X POST \
-          -H "Content-Type: application/json" \
-          -d '{
-            "credentials": {
-              "host": "${{ secrets.MYSQL_DB_HOST }}",
-              "port": 3306,
-              "user": "atlan",
-              "password": "${{ secrets.MYSQL_DB_PASSWORD }}",
-              "database": "atlan"
-            },
-            "connection": {
-              "connection": "development"
-            },
-            "metadata": {
-              "exclude_filter": "{}",
-              "include_filter": "{}",
-              "temp_table_regex": "",
-              "advanced_config_strategy": "default",
-              "use_source_schema_filtering": "false",
-              "use_jdbc_internal_methods": "true",
-              "authentication": "BASIC",
-              "extraction_method": "direct"
-            }
-          }' \
-          http://0.0.0.0:8000/workflows/v1/start)
+      - name: Start the 100k workflow
+        if: ${{ contains(github.event.pull_request.labels.*.name, 'e2e-test') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' }}
+        id: workflow_info_100k
+        run: |
+          # Start the curl request in the background and capture its PID
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -d '{
+              "credentials": {
+                "authType": "basic",
+                "host": "${{ secrets.POSTGRES_DB_HOST }}",
+                "port": 5432,
+                "extra": {
+                  "database": "assets_100k"
+                },
+                "username": "postgres",
+                "password": "${{ secrets.POSTGRES_DB_PASSWORD }}",
+                "region": "ap-south-1"
+              },
+              "connection": {
+                "connection_name": "postgres",
+                "connection_qualified_name": "default/postgres/0"
+              },
+              "metadata": {
+                "exclude-filter": "{}",
+                "include-filter": "{}",
+                "temp-table-regex": "",
+                "extraction-method": "direct"
+              }
+            }' \
+            http://0.0.0.0:8000/workflows/v1/start > response.json &
+          CURL_PID=$!
 
-        # Extract workflow_id and run_id
-        WORKFLOW_ID=$(echo $RESPONSE | jq -r '.data.workflow_id')
-        RUN_ID=$(echo $RESPONSE | jq -r '.data.run_id')
+          # Wait for the curl request to complete
+          wait $CURL_PID
 
-        # Set outputs for next step
-        echo "workflow_id=$WORKFLOW_ID" >> $GITHUB_OUTPUT
-        echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          # Parse the response
+          RESPONSE=$(cat response.json)
+          # Extract workflow_id and run_id
+          WORKFLOW_ID=$(echo $RESPONSE | jq -r '.data.workflow_id')
+          RUN_ID=$(echo $RESPONSE | jq -r '.data.run_id')
 
-    # Check Temporal workflows status
-    - name: Check workflow status
-      run: |
-        sleep 60  # Give the workflow time to complete
-        export PATH="$HOME/.temporalio/bin:$PATH"
+          echo "workflow_id=$WORKFLOW_ID" >> $GITHUB_OUTPUT
+          echo "run_id=$RUN_ID" >> $GITHUB_OUTPUT
+          echo "assets_size=100k" >> $GITHUB_OUTPUT
 
-        # Get workflow details and extract status and duration
-        WORKFLOW_DETAILS=$(temporal workflow describe \
-          --workflow-id=${{ steps.workflow_info.outputs.workflow_id }} \
-          --run-id=${{ steps.workflow_info.outputs.run_id }} \
-          --output=json)
+      - name: Check workflow status and collect performance metrics for 100k
+        if: ${{ contains(github.event.pull_request.labels.*.name, 'e2e-test') || github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' }}
+        id: workflow_status_100k
+        run: |
+          export PATH="$HOME/.temporalio/bin:$PATH"
+          # Poll workflow status with timeout
+          MAX_ATTEMPTS=300
+          ATTEMPT=0
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            WORKFLOW_DETAILS=$(temporal workflow describe \
+              --workflow-id=${{ steps.workflow_info_100k.outputs.workflow_id }} \
+              --run-id=${{ steps.workflow_info_100k.outputs.run_id }} \
+              --output=json)
+            STATUS=$(echo $WORKFLOW_DETAILS | jq -r '.workflowExecutionInfo.status')
+            if [ "$STATUS" != "WORKFLOW_EXECUTION_STATUS_RUNNING" ]; then
+              break
+            fi
+            echo "Workflow still running... (Attempt $((ATTEMPT+1))/$MAX_ATTEMPTS)"
+            sleep 10
+            ATTEMPT=$((ATTEMPT+1))
+          done
+          WORKFLOW_DETAILS=$(temporal workflow describe \
+            --workflow-id=${{ steps.workflow_info_100k.outputs.workflow_id }} \
+            --run-id=${{ steps.workflow_info_100k.outputs.run_id }} \
+            --output=json)
+          STATUS=$(echo $WORKFLOW_DETAILS | jq -r '.workflowExecutionInfo.status')
+          DURATION=$(echo $WORKFLOW_DETAILS | jq -r '.workflowExecutionInfo.executionDuration | rtrimstr("s") | tonumber | (. * 100 | round | . / 100) | tostring + "s"')
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          echo "duration=$DURATION" >> $GITHUB_OUTPUT
 
-        echo $WORKFLOW_DETAILS
-        STATUS=$(echo $WORKFLOW_DETAILS | jq -r '.workflowExecutionInfo.status')
-        DURATION=$(echo $WORKFLOW_DETAILS | jq -r '.workflowExecutionInfo.executionDuration | rtrimstr("s") | tonumber | (. * 100 | round | . / 100) | tostring + "s"')
+      - name: Check workflow status and collect performance metrics for 1m
+        if: ${{ contains(github.event.pull_request.labels.*.name, 'e2e-test-1m') }}
+        id: workflow_status_1m
+        run: |
+          export PATH="$HOME/.temporalio/bin:$PATH"
+          # Poll workflow status with timeout
+          MAX_ATTEMPTS=300
+          ATTEMPT=0
+          while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
+            WORKFLOW_DETAILS=$(temporal workflow describe \
+              --workflow-id=${{ steps.workflow_info_1m.outputs.workflow_id }} \
+              --run-id=${{ steps.workflow_info_1m.outputs.run_id }} \
+              --output=json)
+            STATUS=$(echo $WORKFLOW_DETAILS | jq -r '.workflowExecutionInfo.status')
+            if [ "$STATUS" != "WORKFLOW_EXECUTION_STATUS_RUNNING" ]; then
+              break
+            fi
+            echo "Workflow still running... (Attempt $((ATTEMPT+1))/$MAX_ATTEMPTS)"
+            sleep 10
+            ATTEMPT=$((ATTEMPT+1))
+          done
+          WORKFLOW_DETAILS=$(temporal workflow describe \
+            --workflow-id=${{ steps.workflow_info_1m.outputs.workflow_id }} \
+            --run-id=${{ steps.workflow_info_1m.outputs.run_id }} \
+            --output=json)
+          STATUS=$(echo $WORKFLOW_DETAILS | jq -r '.workflowExecutionInfo.status')
+          DURATION=$(echo $WORKFLOW_DETAILS | jq -r '.workflowExecutionInfo.executionDuration | rtrimstr("s") | tonumber | (. * 100 | round | . / 100) | tostring + "s"')
+          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          echo "duration=$DURATION" >> $GITHUB_OUTPUT
 
-        # Convert status to a more readable format with emojis
-        case $STATUS in
-          "WORKFLOW_EXECUTION_STATUS_COMPLETED")
-            DISPLAY_STATUS="🟢 Completed"
-            EXIT_CODE=0
-            ;;
-          "WORKFLOW_EXECUTION_STATUS_FAILED")
-            DISPLAY_STATUS="🔴 Failed"
-            EXIT_CODE=1
-            ;;
-          "WORKFLOW_EXECUTION_STATUS_RUNNING")
-            DISPLAY_STATUS="🟠 Running"
-            EXIT_CODE=1
-            ;;
-          *)
-            DISPLAY_STATUS="❓ ${STATUS}"
-            EXIT_CODE=1
-            ;;
-        esac
+      - name: Get scalene metrics and output
+        run: |
+          export PATH="$HOME/.temporalio/bin:$PATH"
+          kill $(lsof -t -i :8000)
+          sleep 10
 
-        # Create metrics file if it doesn't exist
-        echo "## 📦 MySQL App Test Metrics" > metrics.md
-        echo "| Database | Status | Duration |" >> metrics.md
-        echo "|--------------|--------|-----------|" >> metrics.md
-        echo "| atlan | $DISPLAY_STATUS | $DURATION |" >> metrics.md
+          # First calculate metrics from current run's scalene.json
+          if [ -f .github/scalene.json ]; then
+            # Calculate Average CPU Usage upto 2 decimal places
+            AVG_CPU=$(jq -r '
+              [
+                .files |
+                to_entries[] |
+                .value.functions[] |
+                select(.n_cpu_percent_c != null and .n_cpu_percent_python != null and .n_sys_percent != null) |
+                (.n_cpu_percent_c + .n_cpu_percent_python + .n_sys_percent)
+              ] |
+              add / length
+            ' .github/scalene.json | awk '{printf "%.2f\n", $1}')
 
-        exit $EXIT_CODE
+            # Max CPU Usage upto 2 decimal places
+            MAX_CPU=$(jq -r '
+              .files |
+              to_entries[] |
+              .value.functions[] |
+              select(.n_cpu_percent_c != null and .n_cpu_percent_python != null and .n_sys_percent != null) |
+              (.n_cpu_percent_c + .n_cpu_percent_python + .n_sys_percent)
+            ' .github/scalene.json | sort -rn | head -n1 | awk '{printf "%.2f\n", $1}')
 
-    - name: Comment workflow status on Pull Request
-      if: ${{ github.event_name == 'pull_request' }}
-      uses: mshick/add-pr-comment@v2
-      with:
-        message-id: 'workflow_status'
-        message-path: metrics.md
+            MEMORY_USAGE=$(jq -r '
+              .max_footprint_mb
+            ' .github/scalene.json | awk '{printf "%.2f\n", $1}')
+          else
+            echo "Current scalene.json does not exist"
+            AVG_CPU="N/A"
+            MAX_CPU="N/A"
+            MEMORY_USAGE="N/A"
+          fi
 
-    # Stop all services
-    - name: Stop all services
-      continue-on-error: true
-      run: |
-        make stop-all
-        sleep 10  # Give services time to stop
+          # Now fetch Main branch and calculate its metrics
+          git fetch origin main
+          if git cat-file -e origin/main:.github/scalene.json 2>/dev/null && \
+              git show origin/main:.github/scalene.json > main_scalene.json; then
+            # Calculate metrics for the main branch
+            MAIN_AVG_CPU=$(jq -r '
+              [
+                .files |
+                to_entries[] |
+                .value.functions[] |
+                select(.n_cpu_percent_c != null and .n_cpu_percent_python != null and .n_sys_percent != null) |
+                (.n_cpu_percent_c + .n_cpu_percent_python + .n_sys_percent)
+              ] |
+              add / length
+            ' main_scalene.json | awk '{printf "%.2f\n", $1}')
+
+            MAIN_MAX_CPU=$(jq -r '
+              .files |
+              to_entries[] |
+              .value.functions[] |
+              select(.n_cpu_percent_c != null and .n_cpu_percent_python != null and .n_sys_percent != null) |
+              (.n_cpu_percent_c + .n_cpu_percent_python + .n_sys_percent)
+            ' main_scalene.json | sort -rn | head -n1 | awk '{printf "%.2f\n", $1}')
+
+            MAIN_MEMORY_USAGE=$(jq -r '
+              .max_footprint_mb
+            ' main_scalene.json | awk '{printf "%.2f\n", $1}')
+          else
+            echo ".github/scalene.json does not exist in the main branch"
+            MAIN_AVG_CPU="N/A"
+            MAIN_MAX_CPU="N/A"
+            MAIN_MEMORY_USAGE="N/A"
+          fi
+
+          # Get final workflow details and status
+          if [ "${{ contains(github.event.pull_request.labels.*.name, 'e2e-test-1m') }}" = "true" ]; then
+            STATUS=${{ steps.workflow_status_1m.outputs.status }}
+            DURATION=${{ steps.workflow_status_1m.outputs.duration }}
+          else
+            STATUS=${{ steps.workflow_status_100k.outputs.status }}
+            DURATION=${{ steps.workflow_status_100k.outputs.duration }}
+          fi
+          case $STATUS in
+            "WORKFLOW_EXECUTION_STATUS_COMPLETED")
+              DISPLAY_STATUS="🟢 Completed"
+              EXIT_CODE=0
+              ;;
+            "WORKFLOW_EXECUTION_STATUS_FAILED")
+              DISPLAY_STATUS="🔴 Failed"
+              EXIT_CODE=1
+              ;;
+            "WORKFLOW_EXECUTION_STATUS_RUNNING")
+              DISPLAY_STATUS="🟠 Running"
+              EXIT_CODE=1
+              ;;
+            *)
+              DISPLAY_STATUS="❓ ${STATUS}"
+              EXIT_CODE=1
+              ;;
+          esac
+          echo "Finished Calculating Metrics"
+
+
+          # Generate comprehensive report
+          echo "## 📊 Postgres App E2E Test Results and Performance Metrics" >> metrics.md
+          echo "### Runner Environment Details" >> metrics.md
+          echo "$(mpstat 1 1 | awk 'NR == 1')" >> metrics.md
+          echo "Total Memory: $(free -m | awk 'NR == 2 {print $2}')" MB >> metrics.md
+
+          echo "### 🎯 Test Summary" >> metrics.md
+          echo "| Metric | Value |" >> metrics.md
+          echo "|--------|-------|" >> metrics.md
+          echo "| Database | assets_${{ steps.workflow_info_1m.outputs.assets_size || steps.workflow_info_100k.outputs.assets_size }} |" >> metrics.md
+          echo "| Status | $DISPLAY_STATUS |" >> metrics.md
+          echo "| Workflow Duration | $DURATION |" >> metrics.md
+
+          # Update metrics report to include both current and main branch summaries
+          echo "## 📊 Usage Summary" >> metrics.md
+          echo "| Metric | Current Branch | Main Branch |" >> metrics.md
+          echo "|--------|----------------|-------------|" >> metrics.md
+          echo "| Average CPU Usage | $AVG_CPU% | $MAIN_AVG_CPU% |" >> metrics.md
+          echo "| Max CPU Usage | $MAX_CPU% | $MAIN_MAX_CPU% |" >> metrics.md
+          echo "| Memory Usage | $MEMORY_USAGE MB | $MAIN_MEMORY_USAGE MB |" >> metrics.md
+
+          echo "---" >> metrics.md
+
+          cat metrics.md
+          exit $EXIT_CODE
+
+      - name: Comment workflow status on Pull Request
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: mshick/add-pr-comment@b8f338c590a895d50bcbfa6c5859251edc8952fc # v2.8.2 https://github.com/mshick/add-pr-comment/releases/tag/v2.8.2
+        with:
+          message-id: "workflow_status"
+          message-path: metrics.md
+        continue-on-error: true
+
+      # Stop all services
+      - name: Stop all services and monitoring
+        if: always()
+        run: |
+          # Kill monitoring process first
+          pkill -f "mpstat" || true
+
+          # Stop the application and services gracefully
+          uv run poe stop-deps
+
+      - name: Commit scalene.json file
+        if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' }}
+        uses: stefanzweifel/git-auto-commit-action@b863ae1933cb653a53c021fe36dbb774e1fb9403 # v5.2.0 https://github.com/stefanzweifel/git-auto-commit-action/releases/tag/v5.2.0
+        with:
+          commit_message: "[skip ci] chore: update scalene.json with latest performance metrics"
+          file_pattern: "scalene.json"
+          commit_author: GitHub Actions <actions@github.com>
+          skip_dirty_check: false
+          push_options: "--force"

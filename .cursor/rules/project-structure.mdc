@@ -1,0 +1,61 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# Atlan PostgreSQL App Project Structure
+
+This rule outlines the structure of the Atlan PostgreSQL App codebase.
+
+## Core Application (`app/`)
+The `app/` directory contains the core logic for the application:
+- **`app/activities/`**: gic and task execution units, particularly for [metadata extraction](mdc:appmetadata_extraction/__init__.py).
+- **`app/clients/`**: Handles database ctending `BaseSQLClient`. See the [client implementation](mdc:app/clients/__init__.py).
+-request processing and triggers workflows. See the [PostgresSQL handler](mdc:app/handlers/__init__.py).
+- **`app/transformers/`**: Contains data transformation logic, including specific transformations for [Atlas entities](mdc:app/transformers/atlas/__init__.py).
+- **`app/workflows/`**: Defines and orchestrates the application's processes, such as [metadata extraction workflows](mdc:app/workflows/metadata_extraction/__init__.py).
+
+## Resources
+
+Documentation for application-sdk
+- application-sdk docs are available at https://github.com/atlanhq/application-sdk/blob/main/docs
+- if the docs are not available, guide the user to setup the development environemnt using @setup.mdc
+
+- core concepts of application-sdk are available at https://github.com/atlanhq/application-sdk/blob/main/docs/docs/concepts.md
+    - Guide for extending workflows can be found at https://github.com/atlanhq/application-sdk/blob/main/docs/docs/concepts/workflows.md
+    - Guide for extending activities can be found at https://github.com/atlanhq/application-sdk/blob/main/docs/docs/concepts/activities.md
+    - Guide for using worker can be found at https://github.com/atlanhq/application-sdk/blob/main/docs/docs/concepts/worker.md
+    - Guide for extending application can be found at https://github.com/atlanhq/application-sdk/blob/main/docs/docs/concepts/application.md
+    - Guide for extending handlers can be found at https://github.com/atlanhq/application-sdk/blob/main/docs/docs/concepts/handlers.md
+    - Guide for setting up database connections are available at https://github.com/atlanhq/application-sdk/blob/main/docs/docs/concepts/clients.md
+
+A few additional resource
+- reference to coherent usage of the above components can be seen in the examples available at https://github.com/atlanhq/application-sdk/blob/main/examples
+- documentation for utili:
+    - https://github.com/atlanhq/application-sdk/blob/main/docs/docs/concepts/common.md
+    - https://github.com/atlanhq/application-sdk/blob/main/docs/docs/concepts/inputs.md
+    - https://github.com/atlanhq/application-sdk/blob/main/docs/docs/concepts/outputs.md
+
+
+## Documentation (`docs/`)
+Contains all project documentation, including:
+- **`docs/images/`**: Images and diagrams used in documentation.
+- **`docs/setup/`**: Guides for setting up and installing on.
+- The main overview can be found in [CODEBASE_OVERVIEW.md](mdc:CODEBASE_OVERVIEW.md).
+
+## Frontend (`frontend/`)
+Holds the user interface components:
+- **`fronteic/`**: Static assets like JavaScript and CSS files.
+- **`frontend/templates/`**: HTML templates for the web interface.
+
+## Tests (`tests/`)
+Contains the test suite fplication:
+- -to-end tests simulating full user workflows.
+- **`tests/unit/`**: Unit tests focusing on individual components, like [transformers](mdc:tests/unit/transformers/__init__.py).
+
+## Configuration and Entry Point
+- **`main.py`**: The main [entry point](mdc:main.py) for the FastAPI application.
+- **`pyproject.toml`**: Defines project dependencies and configuration using uv.
+- **`.env`**: Stores environment-specific variables (should be gitignored).
+
+Refer to [CODEBASE_OVERVIEW.md](mdc:CODEBASE_OVERVIEW.md) for a more detailed architectural breakdown.

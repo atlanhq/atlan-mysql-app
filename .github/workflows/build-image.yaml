@@ -1,4 +1,4 @@
-name: Publish Docker Image
+name: Publish App Docker Image
 
 on:
   push:
@@ -14,9 +14,13 @@ on:
 
 jobs:
   build:
-    runs-on: [self-hosted, phoenix]
+    runs-on: ubuntu-latest
+    concurrency:
+      group: ${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.0.0
         with:
           fetch-depth: 0
 
@@ -28,31 +32,77 @@ jobs:
         shell: bash
 
       - name: Get version tag
-        run: echo "version=$(echo `git ls-remote https://${{ secrets.ORG_PAT_GITHUB }}@github.com/atlanhq/${REPOSITORY_NAME}.git ${{ steps.get_branch.outputs.branch }} | awk '{ print $1}' | cut -c1-7`)abcd" >> $GITHUB_OUTPUT
+        run: echo "version=$(echo `git ls-remote https://github.com/atlanhq/${REPOSITORY_NAME}.git ${{ steps.get_branch.outputs.branch }} | awk '{ print $1}' | cut -c1-7`)abcd" >> $GITHUB_OUTPUT
         id: get_version
+
+      - name: Lowercase branch name
+        run: echo "lowercase_branch=$(echo '${{ steps.get_branch.outputs.branch }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+        id: get_lowercase_branch
 
       - name: Set up Buildx
         id: buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 # v3.10.0 https://github.com/docker/setup-buildx-action/releases/tag/v3.10.0
 
-      - name: Login to Harbor Registry
-        run: |
-          bash ./.github/scripts/registry-login.sh "${{ secrets.HARBOR_URL }}" '${{ secrets.HARBOR_USERNAME }}' "${{ secrets.HARBOR_PASSWORD }}"
-        shell: bash
+      - name: Login to GitHub Registry
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3.4.0 https://github.com/docker/login-action/releases/tag/v3.4.0
+        with:
+          registry: ghcr.io
+          username: $GITHUB_ACTOR
+          password: ${{ secrets.ORG_PAT_GITHUB }}
 
       - name: Build and push core docker image
-        id: docker_build
-        uses: docker/build-push-action@v6
+        id: ghcr_docker_build
+        uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0 https://github.com/docker/build-push-action/releases/tag/v6.17.0
         with:
           context: .
-          file: ./Dockerfile
+          file: ./install/Dockerfile
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ${{ secrets.HARBOR_URL }}/applications/${{ github.event.repository.name }}:${{ steps.get_branch.outputs.branch }}-${{ steps.get_version.outputs.version }}
-            ${{ secrets.HARBOR_URL }}/applications/${{ github.event.repository.name }}:${{ steps.get_branch.outputs.branch }}-latest
-          secrets: |
-            PRIVATE_REPO_ACCESS_TOKEN=${{ secrets.ORG_PAT_GITHUB }}
+            ghcr.io/atlanhq/${{ github.event.repository.name }}-${{ steps.get_lowercase_branch.outputs.lowercase_branch }}:latest
+            ghcr.io/atlanhq/${{ github.event.repository.name }}-${{ steps.get_lowercase_branch.outputs.lowercase_branch }}:${{ steps.get_version.outputs.version }}
+          build-args: |
+            ACCESS_TOKEN_USR=$GITHUB_ACTOR
+            ACCESS_TOKEN_PWD=${{ secrets.ORG_PAT_GITHUB }}
         env:
-          DOCKER_CLIENT_TIMEOUT: 300
-          COMPOSE_HTTP_TIMEOUT: 300
+          DOCKER_CLIENT_TIMEOUT: 600
+          COMPOSE_HTTP_TIMEOUT: 600
+
+      - name: Build and push argo docker image
+        id: ghcr_docker_build_argo
+        uses: docker/build-push-action@1dc73863535b631f98b2378be8619f83b136f4a0 # v6.17.0 https://github.com/docker/build-push-action/releases/tag/v6.17.0
+        with:
+          context: .
+          file: ./install/Dockerfile.Argo
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: |
+            ghcr.io/atlanhq/${{ github.event.repository.name }}-argo-${{ steps.get_lowercase_branch.outputs.lowercase_branch }}:latest
+            ghcr.io/atlanhq/${{ github.event.repository.name }}-argo-${{ steps.get_lowercase_branch.outputs.lowercase_branch }}:${{ steps.get_version.outputs.version }}
+          build-args: |
+            BASE_IMAGE=ghcr.io/atlanhq/${{ github.event.repository.name }}-${{ steps.get_lowercase_branch.outputs.lowercase_branch }}:latest
+            ACCESS_TOKEN_USR=$GITHUB_ACTOR
+            ACCESS_TOKEN_PWD=${{ secrets.ORG_PAT_GITHUB }}
+        env:
+          DOCKER_CLIENT_TIMEOUT: 600
+          COMPOSE_HTTP_TIMEOUT: 600
+
+      # - name: Login to Harbor Registry
+      #   run: |
+      #     bash ./.github/scripts/registry-login.sh "${{ secrets.HARBOR_URL }}" '${{ secrets.HARBOR_USERNAME }}' "${{ secrets.HARBOR_PASSWORD }}"
+      #   shell: bash
+
+      # - name: Build and push core docker image
+      #   id: harbor_docker_build
+      #   uses: docker/build-push-action@v6
+      #   with:
+      #     context: .
+      #     file: ./Dockerfile
+      #     push: true
+      #     platforms: linux/amd64
+      #     tags: |
+      #       ${{ secrets.HARBOR_URL }}/applications/${{ github.event.repository.name }}:${{ steps.get_branch.outputs.branch }}-${{ steps.get_version.outputs.version }}
+      #       ${{ secrets.HARBOR_URL }}/applications/${{ github.event.repository.name }}:${{ steps.get_branch.outputs.branch }}-latest
+      #   env:
+      #     DOCKER_CLIENT_TIMEOUT: 300
+      #     COMPOSE_HTTP_TIMEOUT: 300

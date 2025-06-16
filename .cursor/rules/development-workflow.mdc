@@ -1,0 +1,57 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+# Development Workflow
+
+This rule outlines the standard workflow to follow when implementing features or fixing bugs in this project.
+
+## Workflow Steps
+
+1.  **Implement Code**:
+    *   Write the necessary code changes to implement the feature or fix the bug.
+    *   Include comprehensive logging using the project's standard logging practices.
+    *   Implement robust error handling for expected and unexpected scenarios.
+    *   Add clear and concise comments where the code's purpose is not immediately obvious.
+
+2.  **Add Unit Tests**:
+    *   Create unit tests for the new or modified code.
+    *   Place unit tests under the [tests/unit](mdc:tests/unit) directory, mirroring the structure of the `app/` directory where applicable.
+    *   Ensure tests cover relevant success cases, edge cases, and failure scenarios.
+
+3.  **Run Tests & Iterate**:
+    *   Execute the unit test suite using the command:
+        ```bash
+        uv run pytest tests/unit
+        ```
+    *   Review any test failures or errors.
+    *   Iterate on steps 1-3 (code implementation, test creation/update, test execution) until all unit tests pass successfully.
+
+4.  **Run Pre-commit Hooks**:
+    *   Run the pre-commit hooks to ensure code style, formatting, and static analysis checks pass.
+    *   Execute the command:
+        ```bash
+        uv run pre-commit run --all-files
+        ```
+    *   Fix any errors reported by the pre-commit hooks. Re-run the command until it passes without errors.
+
+5.  **Update Documentation**:
+    *   If the changes affect user guides, setup instructions, API documentation, or the [CODEBASE_OVERVIEW.md](mdc:CODEBASE_OVERVIEW.md), update the relevant documents.
+    *   Ensure documentation is clear, accurate, and reflects the latest changes. Reference the [documentation guidelines](mdc:.cursor/rules/documentation-guidelines.mdc) if available.
+
+6.  **Update Cursor Rules**:
+    *   Review existing Cursor rules (in `.cursor/rules/`).
+    *   If your changes impact the project structure, core components, workflows, or other aspects documented in the rules, update the relevant `.mdc` files (e.g., [project-structure.mdc](mdc:.cursor/rules/project-structure.mdc)).
+
+7.  **Quality Checks & Review**:
+    *   **Security:** Manually review the changes for potential security vulnerabilities (e.g., injection risks, improper credential handling, data exposure). Consider using security scanning tools if available in the CI/CD pipeline.
+    *   **Performance/Memory:** Analyze the potential performance and memory impact of the changes. For significant changes or performance-critical sections, consider using profiling tools like `scalene` or performing load tests. Suggest optimizations if bottlenecks are identified.
+    *   **Suggest Edits:** Based on the checks, suggest any necessary refactoring, optimizations, or security improvements.
+
+8.  **Summarize Changes**:
+    *   Prepare a concise summary of the implemented feature or bug fix, including the key changes made and rationale. This is often used for commit messages or pull request descriptions.
+
+9.  **Commit Changes**:
+    *   Stage the relevant changes.
+    *   Commit the changes using a clear and descriptive commit message, following conventional commit standards if applicable. Example: `feat: Add user authentication endpoint` or `fix: Resolve database connection leak`.

@@ -1,0 +1,62 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+
+# Description
+
+This guide talks about how to navigate the request for supporting a new SQL source and the resources to refer for the same.
+
+## Points to consider
+- An app's responsibility is just to extract metadata, transform and dump on the object store - refer to this example https://github.com/atlanhq/application-sdk/blob/main/examples/application_sql.py
+
+
+## Key Components
+- `application_sdk/`: Core SDK implementation
+- `components/`: Reusable components
+- `examples/`: Example implementations and usage patterns
+- `tests/`: Test suite
+- `docs/`: Documentation
+
+## Technology Stack
+- **Language**: Python
+- **Package Management**: uv
+- **Testing Framework**: Pytest
+- **Code Quality**: Pre-commit hooks
+- **Documentation**: Markdown
+
+## Application-SDK Project Structure
+```
+application-sdk/
+├── application_sdk/    # Core SDK implementation
+├── components/         # Reusable components
+├── docs/               # Documentation
+├── examples/           # Example implementations
+├── tests/              # Test suite
+├── .github/            # GitHub workflows and configurations
+├── uv.lock             # Lock file for dependencies
+├── pyproject.toml      # Project configuration and dependencies
+└── README.md           # Project readme
+```
+
+Documentation for application-sdk
+- application-sdk docs are available at https://github.com/atlanhq/application-sdk/blob/main/docs
+- if the docs are not available, guide the user to setup the development environemnt using @setup.mdc
+
+- core concepts of application-sdk are available at @https://github.com/atlanhq/application-sdk/blob/main/docs/docs/
+    - Guide for extending workflows can be found at @https://github.com/atlanhq/application-sdk/blob/main/docs/docs/concepts/workflows.md
+    - Guide for extending activities can be found at @https://github.com/atlanhq/application-sdk/blob/main/docs/docs/activities.md
+    - Guide for using worker can be found at @https://github.com/atlanhq/application-sdk/blob/main/docs/docs/worker.md
+    - Guide for extending application can be found at @https://github.com/atlanhq/application-sdk/blob/main/docs/docs/application.md
+    - Guide for extending handlers can be found at @https://github.com/atlanhq/application-sdk/blob/main/docs/docs/handlers.md
+    - Guide for setting up database connections are available at @https://github.com/atlanhq/application-sdk/blob/main/docs/docs/clients.md
+
+A few additional resource
+- reference to coherent usage of the above components can be seen in the examples available at https://github.com/atlanhq/application-sdk/blob/main/examples
+- documentation for utilities are available at:
+    - https://github.com/atlanhq/application-sdk/blob/main/docs/docs/concepts/common.md
+    - https://github.com/atlanhq/application-sdk/blob/main/docs/docs/concepts/inputs.md
+    - https://github.com/atlanhq/application-sdk/blob/main/docs/docs/concepts/outputs.md
+
+
