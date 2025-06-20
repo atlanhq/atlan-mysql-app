@@ -192,4 +192,4 @@ report_duplicates: all
 unique_column_names: false
 add_missing_columns: false
 title: Transformed MySQL Table Pandera Schema
-description: Pandera schema definition for the transformed MySQL table output 
+description: Pandera schema definition for the transformed MySQL table output

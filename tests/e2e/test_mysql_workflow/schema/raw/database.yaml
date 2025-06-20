@@ -74,4 +74,4 @@ report_duplicates: all
 unique_column_names: false
 add_missing_columns: false
 title: Raw MySQL Database Pandera Schema
-description: Pandera schema definition for the raw MySQL database output 
+description: Pandera schema definition for the raw MySQL database output

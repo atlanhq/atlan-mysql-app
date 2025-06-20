@@ -55,4 +55,4 @@ expected_api_responses:
             "successMessage": "Client version 8.0 meets minimum required version $ATLAN_SQL_SERVER_MIN_VERSION",
             "failureMessage": "",
           },
-      } 
+      }
