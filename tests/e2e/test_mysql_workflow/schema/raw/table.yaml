@@ -8,22 +8,7 @@ columns:
     nullable: false
     checks:
       str_matches:
-        value: assets_100k
-        options:
-          raise_warning: false
-          ignore_na: true
-    unique: false
-    coerce: false
-    required: true
-    regex:
-  table_schema:
-    title: Table Schema Name Check
-    description: Check if the schema name of records in the raw data is matched as expected
-    dtype: str
-    nullable: false
-    checks:
-      str_matches:
-        value: schema_1
+        value: mysql_assets_100k
         options:
           raise_warning: false
           ignore_na: true
@@ -31,6 +16,35 @@ columns:
     coerce: false
     required: true
     regex: false
+  table_schema:
+    title: Table Schema Name Check
+    description: Check if the schema name of records in the raw data is matched as expected
+    dtype: str
+    nullable: false
+    checks:
+      str_matches:
+        value: mysql_assets_100k
+        options:
+          raise_warning: false
+          ignore_na: true
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  table_name:
+    title: Table Name Check
+    description: Check if table name is present
+    dtype: str
+    nullable: false
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  table_type:
+    title: Table Type Check
+    description: Check if table type is present (BASE TABLE or VIEW)
+    dtype: str
+    nullable: false
     unique: false
     coerce: false
     required: true
@@ -39,7 +53,7 @@ columns:
 # We are not checking the table names here since tests will start failing if any adds/removes a table from the database/schema
 checks:
   check_record_count_ge:
-    value: 100
+    value: 10
     options:
       raise_warning: false
       ignore_na: true
@@ -53,5 +67,5 @@ unique: null
 report_duplicates: all
 unique_column_names: false
 add_missing_columns: false
-title: Raw Table Pandera Schema
-description: Pandera schema definition for the raw table output
+title: Raw MySQL Table Pandera Schema
+description: Pandera schema definition for the raw MySQL table output

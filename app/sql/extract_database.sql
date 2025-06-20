@@ -11,11 +11,11 @@
  * Notes:
  *   - Scoped to the current database (DATABASE())
  */
-SELECT 
+SELECT
     SCHEMA_NAME as database_name,
     SCHEMA_NAME as datname,
     DEFAULT_CHARACTER_SET_NAME as charset,
     DEFAULT_COLLATION_NAME as collation,
     0 as schema_count
-FROM information_schema.SCHEMATA 
+FROM information_schema.SCHEMATA
 WHERE SCHEMA_NAME = DATABASE();

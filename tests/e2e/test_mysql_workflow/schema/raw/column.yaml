@@ -1,29 +1,29 @@
 schema_type: dataframe
 version: 0.22.1
 columns:
-  datname:
+  table_catalog:
     title: Table Catalog Name Check
     description: Check if the catalog name of records in the raw data is matched as expected
     dtype: str
     nullable: false
     checks:
       str_matches:
-        value: wwi
+        value: mysql_assets_100k
         options:
           raise_warning: false
           ignore_na: true
     unique: false
     coerce: false
     required: true
-    regex:
-  database_name:
+    regex: false
+  table_schema:
     title: Table Schema Name Check
     description: Check if the schema name of records in the raw data is matched as expected
     dtype: str
     nullable: false
     checks:
       str_matches:
-        value: wwi
+        value: mysql_assets_100k
         options:
           raise_warning: false
           ignore_na: true
@@ -31,13 +31,45 @@ columns:
     coerce: false
     required: true
     regex: false
+  table_name:
+    title: Check Table Names
+    description: Check if table names are present
+    dtype: str
+    nullable: false
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  column_name:
+    title: Column Name Check
+    description: Check if column names are present
+    dtype: str
+    nullable: false
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  data_type:
+    title: Data Type Check
+    description: Check if data types are present
+    dtype: str
+    nullable: false
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  is_nullable:
+    title: Nullable Check
+    description: Check if nullable information is present
+    dtype: str
+    nullable: false
     unique: false
     coerce: false
     required: true
     regex: false
 checks:
   check_record_count_ge:
-    value: 1
+    value: 50
     options:
       raise_warning: false
       ignore_na: true
@@ -51,5 +83,5 @@ unique: null
 report_duplicates: all
 unique_column_names: false
 add_missing_columns: false
-title: Raw Database Pandera Schema
-description: Pandera schema definition for the raw database output
+title: Raw MySQL Column Pandera Schema
+description: Pandera schema definition for the raw MySQL column output

@@ -18,14 +18,14 @@ from app.clients import SQLClient
 T = TypeVar("T")
 ActivityResult = List[Dict[str, str]]
 
-# Custom strategies for PostgreSQL testing
-postgres_auth_types = st.sampled_from(["basic", "iam_user", "iam_role"])
+# Custom strategies for MySQL testing
+mysql_auth_types = st.sampled_from(["basic", "iam_user", "iam_role"])
 
 # Read queries from SQL files
 queries = read_sql_files(queries_prefix="app/sql")
 
 # Strategy for extra fields in credentials
-postgres_extra_strategy = st.one_of(
+mysql_extra_strategy = st.one_of(
     st.fixed_dictionaries({"database": st.text()}),  # Basic auth
     st.fixed_dictionaries(
         {  # IAM user auth
@@ -43,38 +43,38 @@ postgres_extra_strategy = st.one_of(
     ),
 )
 
-postgres_credentials_strategy = st.fixed_dictionaries(
+mysql_credentials_strategy = st.fixed_dictionaries(
     {
         "username": st.text(),
         "password": st.text(),
         "host": st.text(),
         "port": st.integers(min_value=1, max_value=65535).map(str),
-        "extra": postgres_extra_strategy,
-        "authType": postgres_auth_types,
+        "extra": mysql_extra_strategy,
+        "authType": mysql_auth_types,
     }
 )
 
-postgres_table_types = st.sampled_from(["BASE TABLE", "VIEW", "MATERIALIZED VIEW"])
-postgres_table_strategy = st.fixed_dictionaries(
+mysql_table_types = st.sampled_from(["BASE TABLE", "VIEW"])
+mysql_table_strategy = st.fixed_dictionaries(
     {
-        "table_type": postgres_table_types,
+        "table_type": mysql_table_types,
         "table_name": st.text(),
         "table_schema": st.text(),
         "table_catalog": st.text(),
-        "connection_qualified_name": st.just("default/postgres/test-connection"),
+        "connection_qualified_name": st.just("default/mysql/test-connection"),
         "view_definition": st.text(),
     }
 )
 
 
-def test_postgres_client_connection_string():
+def test_mysql_client_connection_string():
     """Test SQLClient connection string generation for different auth types"""
     # Test basic auth
     basic_credentials: Dict[str, Any] = {
         "username": "test_user",
         "password": "test@pass!123",
         "host": "localhost",
-        "port": "5432",
+        "port": "3306",
         "extra": {"database": "test_db"},
         "authType": "basic",
     }
@@ -86,7 +86,7 @@ def test_postgres_client_connection_string():
 
     # Generate the connection strings
     result = client.get_sqlalchemy_connection_string()
-    expected = f"postgresql+psycopg://{basic_credentials['username']}:{encoded_password}@{basic_credentials['host']}:{basic_credentials['port']}/{basic_credentials['extra'].get('database')}?application_name=Atlan&connect_timeout=5"
+    expected = f"mysql+aiomysql://{basic_credentials['username']}:{encoded_password}@{basic_credentials['host']}:{basic_credentials['port']}/{basic_credentials['extra'].get('database')}?connect_timeout=5&charset=utf8mb4"
 
     # Parse URLs to compare parts separately
     result_parts = urlparse(result)
@@ -114,7 +114,7 @@ def test_postgres_client_connection_string():
         "username": "test_user",
         "password": "test_pass",
         "host": "localhost",
-        "port": "5432",
+        "port": "3306",
         "extra": {"database": "test_db"},
     }
     client.credentials = invalid_credentials
@@ -129,7 +129,7 @@ def test_postgres_client_connection_string():
     incomplete_iam_user = {
         "username": "test_user",
         "host": "localhost",
-        "port": "5432",
+        "port": "3306",
         "extra": {"database": "test_db"},
         "authType": "iam_user",
     }
@@ -145,7 +145,7 @@ def test_postgres_client_connection_string():
     iam_role_credentials = {
         "username": "test_user",
         "host": "localhost",
-        "port": "5432",
+        "port": "3306",
         "extra": {
             "database": "test_db",
             "role_arn": "arn:aws:iam::123456789012:role/test-role",
@@ -161,11 +161,11 @@ def test_postgres_client_connection_string():
         client.get_sqlalchemy_connection_string()
 
 
-@given(credentials=postgres_credentials_strategy)
+@given(credentials=mysql_credentials_strategy)
 @pytest.mark.skip(
     reason="Skipping test due to the following failure : ExceptionGroup: Hypothesis found 3 distinct failures. (3 sub-exceptions)"
 )
-def test_postgres_client_connection_string_with_hypothesis(credentials: Dict[str, Any]):
+def test_mysql_client_connection_string_with_hypothesis(credentials: Dict[str, Any]):
     """Test SQLClient connection string generation for different auth types"""
     client = SQLClient()
     client.credentials = credentials
@@ -174,7 +174,7 @@ def test_postgres_client_connection_string_with_hypothesis(credentials: Dict[str
         encoded_password = quote_plus(str(credentials["password"]))
         database = credentials["extra"].get("database", "")
         db_part = f"/{database}" if database else "/"
-        expected = f"postgresql+psycopg://{credentials['username']}:{encoded_password}@{credentials['host']}:{credentials['port']}{db_part}?application_name=Atlan&connect_timeout=5"
+        expected = f"mysql+aiomysql://{credentials['username']}:{encoded_password}@{credentials['host']}:{credentials['port']}{db_part}?connect_timeout=5&charset=utf8mb4"
         result = client.get_sqlalchemy_connection_string()
         assert result == expected
     elif credentials["authType"] == "iam_user":
@@ -216,7 +216,7 @@ def test_postgres_client_connection_string_with_hypothesis(credentials: Dict[str
         ),
     )
 )
-def test_postgres_client_connection_string_errors(invalid_credentials: Dict[str, Any]):
+def test_mysql_client_connection_string_errors(invalid_credentials: Dict[str, Any]):
     """Test error cases for SQLClient connection string generation"""
     client = SQLClient()
     client.credentials = invalid_credentials
@@ -252,7 +252,7 @@ async def fetch_tables() -> ActivityResult:
             "table_name": "test_table",
             "table_schema": "public",
             "table_catalog": "test_db",
-            "connection_qualified_name": "default/postgres/test-connection",
+            "connection_qualified_name": "default/mysql/test-connection",
         }
     ]
 
@@ -295,7 +295,7 @@ class MockExtractionWorkflow:
         }
 
 
-class TestPostgresWorkflow:
+class TestMySQLWorkflow:
     @pytest.fixture
     async def workflow_env(self) -> AsyncGenerator[Client, None]:
         """Create a test workflow environment."""
@@ -310,7 +310,7 @@ class TestPostgresWorkflow:
         """Test the complete extraction workflow execution"""
         # Setup workflow config
         workflow_config = {
-            "connection_qualified_name": "default/postgres/test-connection",
+            "connection_qualified_name": "default/mysql/test-connection",
             "output_path": "/tmp/test_output",
             "tenant_id": "test-tenant",
         }

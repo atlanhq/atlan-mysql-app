@@ -1,0 +1,58 @@
+credentials:
+  username: $E2E_MYSQL_USERNAME
+  password: $E2E_MYSQL_PASSWORD
+  host: $E2E_MYSQL_HOST
+  port: $E2E_MYSQL_PORT
+  extra:
+    database: "mysql_assets_100k"
+  authType: "basic"
+  type: "all"
+  database: "mysql_assets_100k"
+test_name: "test_mysql_workflow"
+metadata:
+  exclude-filter: "{}"
+  include-filter: '{"^mysql_assets_100k$":["^schema_1$"]}'
+  temp-table-regex: ""
+  extraction-method: "direct"
+connection:
+  connection_name: "dev"
+  connection_qualified_name: "default/mysql/1738930739"
+server_config:
+  server_host: "http://localhost:8000"
+  server_version: "workflows/v1"
+expected_api_responses:
+  auth:
+    success: true
+    message: "Authentication successful"
+  metadata:
+    success: true
+    data:
+      [
+        { "SCHEMA_NAME": "mysql_assets_100k" },
+        { "SCHEMA_NAME": "information_schema" },
+        { "SCHEMA_NAME": "performance_schema" },
+        { "SCHEMA_NAME": "sys" },
+      ]
+  preflight_check:
+    success: true
+    data:
+      {
+        "databaseSchemaCheck":
+          {
+            "success": True,
+            "successMessage": "Schemas and Databases check successful",
+            "failureMessage": "",
+          },
+        "tablesCheck":
+          {
+            "success": True,
+            "successMessage": "Tables check successful. Table count: 100",
+            "failureMessage": "",
+          },
+        "versionCheck":
+          {
+            "success": true,
+            "successMessage": "Client version 8.0 meets minimum required version $ATLAN_SQL_SERVER_MIN_VERSION",
+            "failureMessage": "",
+          },
+      }

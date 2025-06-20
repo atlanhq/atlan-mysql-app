@@ -1,0 +1,77 @@
+schema_type: dataframe
+version: 0.22.1
+columns:
+  database_name:
+    title: Database Name Check
+    description: Check if the database name of records in the raw data is matched as expected
+    dtype: str
+    nullable: false
+    checks:
+      str_matches:
+        value: mysql_assets_100k
+        options:
+          raise_warning: false
+          ignore_na: true
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  datname:
+    title: Database Name Check (Alternative)
+    description: Check if the database name of records in the raw data is matched as expected
+    dtype: str
+    nullable: false
+    checks:
+      str_matches:
+        value: mysql_assets_100k
+        options:
+          raise_warning: false
+          ignore_na: true
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  charset:
+    title: Character Set Check
+    description: Check if the character set is present
+    dtype: str
+    nullable: true
+    unique: false
+    coerce: false
+    required: false
+    regex: false
+  collation:
+    title: Collation Check
+    description: Check if the collation is present
+    dtype: str
+    nullable: true
+    unique: false
+    coerce: false
+    required: false
+    regex: false
+  schema_count:
+    title: Schema Count Check
+    description: Check if the schema count is present
+    dtype: int
+    nullable: true
+    unique: false
+    coerce: false
+    required: false
+checks:
+  check_record_count_ge:
+    value: 1
+    options:
+      raise_warning: false
+      ignore_na: true
+index: null
+dtype: null
+coerce: false
+strict: false
+name: null
+ordered: false
+unique: null
+report_duplicates: all
+unique_column_names: false
+add_missing_columns: false
+title: Raw MySQL Database Pandera Schema
+description: Pandera schema definition for the raw MySQL database output

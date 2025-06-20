@@ -62,18 +62,18 @@ jobs:
             -d '{
               "credentials": {
                 "authType": "basic",
-                "host": "${{ secrets.POSTGRES_DB_HOST }}",
-                "port": 5432,
+                "host": "${{ secrets.MYSQL_DB_HOST }}",
+                "port": 3306,
                 "extra": {
-                  "database": "assets_1m"
+                  "database": "atlan"
                 },
-                "username": "postgres",
-                "password": "${{ secrets.POSTGRES_DB_PASSWORD }}",
+                "username": "mysql",
+                "password": "${{ secrets.MYSQL_DB_PASSWORD }}",
                 "region": "ap-south-1"
               },
               "connection": {
-                "connection_name": "postgres",
-                "connection_qualified_name": "default/postgres/0"
+                "connection_name": "mysql",
+                "connection_qualified_name": "default/mysql/0"
               },
               "metadata": {
                 "exclude-filter": "{}",
@@ -108,18 +108,18 @@ jobs:
             -d '{
               "credentials": {
                 "authType": "basic",
-                "host": "${{ secrets.POSTGRES_DB_HOST }}",
-                "port": 5432,
+                "host": "${{ secrets.MYSQL_DB_HOST }}",
+                "port": 3306,
                 "extra": {
-                  "database": "assets_100k"
+                  "database": "atlan"
                 },
-                "username": "postgres",
-                "password": "${{ secrets.POSTGRES_DB_PASSWORD }}",
+                "username": "atlan",
+                "password": "${{ secrets.MYSQL_DB_PASSWORD }}",
                 "region": "ap-south-1"
               },
               "connection": {
-                "connection_name": "postgres",
-                "connection_qualified_name": "default/postgres/0"
+                "connection_name": "mysql",
+                "connection_qualified_name": "default/mysql/0"
               },
               "metadata": {
                 "exclude-filter": "{}",
@@ -205,6 +205,7 @@ jobs:
           echo "duration=$DURATION" >> $GITHUB_OUTPUT
 
       - name: Get scalene metrics and output
+        continue-on-error: true
         run: |
           export PATH="$HOME/.temporalio/bin:$PATH"
           kill $(lsof -t -i :8000)
@@ -307,7 +308,7 @@ jobs:
 
 
           # Generate comprehensive report
-          echo "## 📊 Postgres App E2E Test Results and Performance Metrics" >> metrics.md
+          echo "## 📊 MySQL App E2E Test Results and Performance Metrics" >> metrics.md
           echo "### Runner Environment Details" >> metrics.md
           echo "$(mpstat 1 1 | awk 'NR == 1')" >> metrics.md
           echo "Total Memory: $(free -m | awk 'NR == 2 {print $2}')" MB >> metrics.md

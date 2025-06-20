@@ -7,8 +7,6 @@
 [![Checked with pyright](https://microsoft.github.io/pyright/img/pyright_badge.svg)](https://microsoft.github.io/pyright/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![Tests](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/unit-tests.yml)
-[![Image 1](https://drive.google.com/uc?export=view&id=132GfsP8_dnVR7LyNf24SCrapN1tULeTJ)](https://drive.google.com/file/d/132GfsP8_dnVR7LyNf24SCrapN1tULeTJ/view?usp=sharing)
-[![Image 2](https://drive.google.com/uc?export=view&id=1MbmhFnTXugIUFdjvMzX6Tr5O_ewTzP92)](https://drive.google.com/file/d/1MbmhFnTXugIUFdjvMzX6Tr5O_ewTzP92/view?usp=sharing)
 
 MySQL application is designed to interact with a MySQL database and perform actions on it. The application is built using the [Atlan Python Application SDK](https://github.com/atlanhq/application-sdk) and is intended to run on the Atlan Platform.
 
@@ -16,8 +14,6 @@ This application has two components:
 
 - FastAPI server that exposes REST API to interact with the application.
 - A workflow that runs on the Atlan platform that extracts metadata from a MySQL database, transforms it and pushes it to an object store.
-
-https://github.com/user-attachments/assets/0ce63557-7c62-4491-96b9-1134a1ceadd6
 
 ## Table of contents
 
@@ -45,7 +41,7 @@ https://github.com/user-attachments/assets/0ce63557-7c62-4491-96b9-1134a1ceadd6
 
 3. Install dependencies:
    ```bash
-   uv sync --all-groups
+   uv sync --all-groups --all-extras
    ```
 
 4. Download required components:
@@ -67,18 +63,6 @@ https://github.com/user-attachments/assets/0ce63557-7c62-4491-96b9-1134a1ceadd6
    ```bash
    uv run main.py
    ```
-
-### MySQL Connection Details
-
-When the Docker container is running, you can connect to MySQL using these credentials:
-
-- **Host**: `localhost`
-- **Port**: `3306`
-- **Username**: `atlan_user`
-- **Password**: `atlan_password`
-- **Database**: `test_db`
-
-The container also includes sample data with tables, views, and stored procedures for testing.
 
 ## Component Structure
 
@@ -104,7 +88,7 @@ The container also includes sample data with tables, views, and stored procedure
 ### Example: From PostgreSQL to MySQL
 
 This application was converted from PostgreSQL to MySQL by:
-- Changing the connection template from `postgresql+psycopg://` to `mysql+pymysql://`
+- Changing the connection template from `postgresql+psycopg://` to `mysql+aiomysql:://`
 - Converting PostgreSQL system catalog queries (pg_class, pg_namespace) to MySQL information_schema queries
 - Updating regex syntax from PostgreSQL (`!~`) to MySQL (`NOT REGEXP`)
 - Replacing PostgreSQL-specific functions with MySQL equivalents
@@ -114,3 +98,8 @@ This application was converted from PostgreSQL to MySQL by:
 - [Development and Quickstart Guide](./docs/DEVELOPMENT.md)
 - This application is just an SQL application implementation of Atlan's [Python Application SDK](https://github.com/atlanhq/application-sdk)
   - Please refer to the [examples](https://github.com/atlanhq/application-sdk/tree/main/examples) in the SDK to see how to use the SDK to build different applications on the Atlan Platform.
+
+## Images
+
+[![Image 1](https://drive.google.com/uc?export=view&id=132GfsP8_dnVR7LyNf24SCrapN1tULeTJ)](https://drive.google.com/file/d/132GfsP8_dnVR7LyNf24SCrapN1tULeTJ/view?usp=sharing)
+[![Image 2](https://drive.google.com/uc?export=view&id=1MbmhFnTXugIUFdjvMzX6Tr5O_ewTzP92)](https://drive.google.com/file/d/1MbmhFnTXugIUFdjvMzX6Tr5O_ewTzP92/view?usp=sharing)

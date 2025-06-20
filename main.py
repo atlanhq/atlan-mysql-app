@@ -21,7 +21,7 @@ traces = get_traces()
 
 @observability(logger=logger, metrics=metrics, traces=traces)
 async def main():
-    # Initialize the application
+    # Initialize the application with MySQL-specific implementations
     application = BaseSQLMetadataExtractionApplication(
         name=APPLICATION_NAME,
         client_class=SQLClient,

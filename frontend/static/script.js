@@ -201,7 +201,7 @@ async function performConnectionTest() {
 
   let extra = { database };
   if (sqlalchemyUrl) {
-    extra.compiled_url = `postgresql+psycopg://${sqlalchemyUrl}`;
+    extra.compiled_url = `mysql+aiomysql://${sqlalchemyUrl}`;
   }
 
   let payload = {
@@ -318,7 +318,7 @@ async function fetchMetadata() {
 
     let extra = { database };
     if (sqlalchemyUrl) {
-      extra.compiled_url = `postgresql+psycopg://${sqlalchemyUrl}`;
+      extra.compiled_url = `mysql+aiomysql://${sqlalchemyUrl}`;
     }
 
     let payload = {
@@ -692,7 +692,7 @@ async function runPreflightChecks() {
 
     let extra = { database };
     if (sqlalchemyUrl) {
-      extra.compiled_url = `postgresql+psycopg://${sqlalchemyUrl}`;
+      extra.compiled_url = `mysql+aiomysql://${sqlalchemyUrl}`;
     }
 
     let credentials = {
@@ -830,7 +830,7 @@ async function handleRunWorkflow() {
 
       let extra = { database };
       if (sqlalchemyUrl) {
-        extra.compiled_url = `postgresql+psycopg://${sqlalchemyUrl}`;
+        extra.compiled_url = `mysql+aiomysql://${sqlalchemyUrl}`;
       }
 
       let credentials = {
@@ -871,7 +871,7 @@ async function handleRunWorkflow() {
 
       const connectionName = document.getElementById("connectionName").value;
       const tenantId = window.env.TENANT_ID || "default";
-      const appName = window.env.APP_NAME || "postgres";
+      const appName = window.env.APP_NAME || "mysql";
       //get epoch in milliseconds
       const currentEpoch = Math.floor(Date.now() / 1000);
       const connection = {
