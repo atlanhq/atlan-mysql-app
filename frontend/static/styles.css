@@ -31,18 +31,64 @@ body {
     justify-content: space-between;
     align-items: center;
     margin-bottom: 2rem;
-    padding: 0.5rem 0;
+    padding: 1.25rem 1.5rem;
+    background-color: white;
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
 .logo-container {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 1.25rem;
+}
+
+.logo-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.logo {
+    width: 56px;
+    height: 56px;
+    object-fit: contain;
+}
+
+.logo-badge {
+    position: absolute;
+    right: -12px;
+    bottom: -6px;
+    background-color: var(--primary-color);
+    color: white;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.025em;
+    text-transform: uppercase;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.title-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
 }
 
 .logo-container h1 {
-    font-size: 1.5rem;
+    font-size: 1.75rem;
     font-weight: 600;
+    color: #111827;
+    letter-spacing: -0.025em;
+    line-height: 1.2;
+    margin: 0;
+}
+
+.subtitle {
+    font-size: 0.875rem;
+    color: var(--secondary-color);
+    font-weight: 500;
 }
 
 .main-content {
@@ -339,10 +385,13 @@ input[type="password"] {
     transform: translateX(-50%);
     background: white;
     padding: 1rem 2rem;
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+    box-shadow: 0 8px 16px -4px rgba(0, 0, 0, 0.1), 
+                0 4px 6px -2px rgba(0, 0, 0, 0.05);
     z-index: 100;
-    width: 800px; /* Match exactly with form-container max-width */
-    border-radius: 0.5rem;
+    width: 800px;
+    border-radius: 0.75rem;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    backdrop-filter: blur(8px);
 }
 
 /* Style for the error message */
@@ -365,6 +414,38 @@ input[type="password"] {
     justify-content: space-between;
     width: 100%;
     margin: 0 auto;
+    gap: 1rem;
+}
+
+.nav-buttons .btn {
+    min-width: 120px;
+    padding: 0.75rem 1.5rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.nav-buttons .btn-primary {
+    background-color: var(--primary-color);
+    color: white;
+    border: none;
+}
+
+.nav-buttons .btn-primary:hover {
+    background-color: var(--primary-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+                0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.nav-buttons .btn-secondary {
+    background-color: white;
+    border: 1px solid var(--border-color);
+    color: var(--secondary-color);
+}
+
+.nav-buttons .btn-secondary:hover {
+    background-color: var(--background-color);
+    transform: translateY(-1px);
 }
 
 /* Add these new styles */
@@ -463,23 +544,35 @@ input[type="password"] {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 16px;
-    border-radius: 6px;
+    padding: 0.75rem 1.25rem;
+    border-radius: 0.5rem;
     cursor: pointer;
     color: var(--secondary-color);
-    transition: all 0.2s;
+    transition: all 0.2s ease;
     border: 1px solid var(--border-color);
     background-color: white;
+    text-decoration: none;
 }
 
 .doc-link:hover {
     color: var(--primary-color);
     border-color: var(--primary-color);
-    background-color: #f0f7ff;  /* Light blue background on hover */
+    background-color: rgba(30, 38, 223, 0.05);
+    transform: translateY(-1px);
+}
+
+.doc-link svg {
+    width: 20px;
+    height: 20px;
+    transition: transform 0.2s ease;
+}
+
+.doc-link:hover svg {
+    transform: translateX(2px);
 }
 
 .doc-link span {
-    font-size: 14px;
+    font-size: 0.875rem;
     font-weight: 500;
 }
 
