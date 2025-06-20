@@ -15,10 +15,6 @@ This application has two components:
 - FastAPI server that exposes REST API to interact with the application.
 - A workflow that runs on the Atlan platform that extracts metadata from a MySQL database, transforms it and pushes it to an object store.
 
-## Demo video
-
-Loom video - [Link](https://www.loom.com/share/5357a91650e8490786ecfc62c09af819?sid=67128223-303b-4640-be4c-76709e61cc5c)
-
 ## Table of contents
 
 - [Usage](#usage)
@@ -92,7 +88,7 @@ Loom video - [Link](https://www.loom.com/share/5357a91650e8490786ecfc62c09af819?
 ### Example: From PostgreSQL to MySQL
 
 This application was converted from PostgreSQL to MySQL by:
-- Changing the connection template from `postgresql+psycopg://` to `mysql+pymysql://`
+- Changing the connection template from `postgresql+psycopg://` to `mysql+aiomysql:://`
 - Converting PostgreSQL system catalog queries (pg_class, pg_namespace) to MySQL information_schema queries
 - Updating regex syntax from PostgreSQL (`!~`) to MySQL (`NOT REGEXP`)
 - Replacing PostgreSQL-specific functions with MySQL equivalents

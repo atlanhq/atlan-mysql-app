@@ -79,7 +79,7 @@ jobs:
       env:
         E2E_MYSQL_HOST: ${{ secrets.MYSQL_DB_HOST }}
         E2E_MYSQL_PORT: 3306
-        E2E_MYSQL_USERNAME: "mysql"
+        E2E_MYSQL_USERNAME: "atlan"
         E2E_MYSQL_PASSWORD: ${{ secrets.MYSQL_DB_PASSWORD }}
         ATLAN_SQL_SERVER_MIN_VERSION: "8.0"
       run: |

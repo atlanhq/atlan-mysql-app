@@ -65,7 +65,7 @@ jobs:
                 "host": "${{ secrets.MYSQL_DB_HOST }}",
                 "port": 3306,
                 "extra": {
-                  "database": "mysql_assets_1m"
+                  "database": "atlan"
                 },
                 "username": "mysql",
                 "password": "${{ secrets.MYSQL_DB_PASSWORD }}",
@@ -111,9 +111,9 @@ jobs:
                 "host": "${{ secrets.MYSQL_DB_HOST }}",
                 "port": 3306,
                 "extra": {
-                  "database": "mysql_assets_100k"
+                  "database": "atlan"
                 },
-                "username": "mysql",
+                "username": "atlan",
                 "password": "${{ secrets.MYSQL_DB_PASSWORD }}",
                 "region": "ap-south-1"
               },
