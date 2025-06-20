@@ -236,7 +236,7 @@ def test_prepare_template_and_attributes(
     mock_generate.return_value = ("SELECT * FROM dataframe", None)
     workflow_id = "test_workflow"
     workflow_run_id = "test_run"
-    connection_qualified_name = "default/postgres/1746717318"
+    connection_qualified_name = "default/mysql/1746717318"
     connection_name = "test_conn"
 
     result_df, _ = sql_transformer.prepare_template_and_attributes(

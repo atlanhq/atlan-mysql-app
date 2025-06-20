@@ -58,7 +58,7 @@ Currently supports basic authentication with username and password. The client e
 ```python
 credentials = {
     "username": "database_username",
-    "password": "database_password", 
+    "password": "database_password",
     "host": "database_host",
     "port": "database_port",
     "extra": {
@@ -78,4 +78,4 @@ credentials = {
 
 - The client uses UTF-8 encoding by default for proper handling of international characters
 - Connection timeout is set to 5 seconds to prevent hanging connections
-- The aiomysql driver is chosen for its asynchronous capabilities and MySQL compatibility 
+- The aiomysql driver is chosen for its asynchronous capabilities and MySQL compatibility

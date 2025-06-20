@@ -67,4 +67,4 @@ jobs:
 
       - name: Upload Coverage Report to S3
         run: |
-          aws s3 sync ./htmlcov s3://kryptonite-store/coverage/atlan-postgres-app/${{ steps.get_branch.outputs.branch }} --delete
+          aws s3 sync ./htmlcov s3://kryptonite-store/coverage/atlan-mysql-app/${{ steps.get_branch.outputs.branch }} --delete

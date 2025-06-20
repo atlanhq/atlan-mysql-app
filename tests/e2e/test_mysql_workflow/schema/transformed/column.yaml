@@ -7,8 +7,8 @@ columns:
     dtype: str
     nullable: false
     checks:
-      isin:
-        value: ['Table', 'View', 'MaterialisedView', 'TablePartition']
+      str_matches:
+        value: Column
         options:
           raise_warning: false
           ignore_na: true
@@ -17,8 +17,8 @@ columns:
     required: true
     regex: false
   attributes.name:
-    title: Table Name
-    description: The name of the table
+    title: Column Name
+    description: The name of the column
     dtype: str
     nullable: false
     unique: false
@@ -47,7 +47,7 @@ columns:
     nullable: false
     checks:
       str_matches:
-        value: postgres
+        value: mysql
         options:
           raise_warning: false
           ignore_na: true
@@ -77,29 +77,14 @@ columns:
     nullable: false
     checks:
       str_matches:
-        value: default/postgres/[0-9]{10}
+        value: default/mysql/1738930739
         options:
           raise_warning: false
           ignore_na: true
     unique: false
     coerce: false
     required: true
-    regex: true
-  attributes.qualifiedName:
-    title: Qualified Name
-    description: The qualified name of the attribute
-    dtype: str
-    nullable: false
-    checks:
-      str_matches:
-        value: default/postgres/[0-9]{10}/wwi/.*
-        options:
-          raise_warning: false
-          ignore_na: true
-    unique: false
-    coerce: false
-    required: true
-    regex: true
+    regex: false
   attributes.databaseName:
     title: Database Name
     description: The name of the database
@@ -107,7 +92,7 @@ columns:
     nullable: false
     checks:
       str_matches:
-        value: wwi
+        value: mysql_assets_100k
         options:
           raise_warning: false
           ignore_na: true
@@ -122,19 +107,25 @@ columns:
     nullable: false
     checks:
       str_matches:
-        value: default/postgres/[0-9]{10}/wwi
+        value: default/mysql/1738930739/mysql_assets_100k
         options:
           raise_warning: false
           ignore_na: true
     unique: false
     coerce: false
     required: true
-    regex: true
+    regex: false
   attributes.schemaName:
     title: Schema Name
     description: The name of the schema
     dtype: str
     nullable: false
+    checks:
+      str_matches:
+        value: mysql_assets_100k
+        options:
+          raise_warning: false
+          ignore_na: true
     unique: false
     coerce: false
     required: true
@@ -146,44 +137,59 @@ columns:
     nullable: false
     checks:
       str_matches:
-        value: default/postgres/[0-9]{10}/wwi/.*
+        value: default/mysql/1738930739/mysql_assets_100k/mysql_assets_100k
         options:
           raise_warning: false
           ignore_na: true
     unique: false
     coerce: false
     required: true
-    regex: true
-  attributes.columnCount:
-    title: Table Count
-    description: The count of tables in the schema
-    dtype: int64
+    regex: false
+  attributes.tableName:
+    title: Table Name
+    description: The name of the table
+    dtype: str
     nullable: false
     unique: false
     coerce: false
     required: true
     regex: false
-  attributes.isPartitioned:
-    title: Is table partitioned
-    description: Indicates if the table is partitioned
-    dtype: object
-    nullable: true
+  attributes.dataType:
+    title: Data Type
+    description: The data type of the column
+    dtype: str
+    nullable: false
     unique: false
     coerce: false
     required: true
     regex: false
-  attributes.rowCount:
-    title: Row Count
-    description: The number of rows in the table
-    dtype: float64
-    nullable: true
+  attributes.isNullable:
+    title: Is Nullable
+    description: Whether the column is nullable
+    dtype: bool
+    nullable: false
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  attributes.order:
+    title: Column Order
+    description: The order of the column
+    dtype: int64
+    nullable: false
+    checks:
+      greater_than_or_equal_to:
+        value: 1
+        options:
+          raise_warning: false
+          ignore_na: true
     unique: false
     coerce: false
     required: true
     regex: false
   status:
     title: Status
-    description: The status of the schema
+    description: The status of the column
     dtype: str
     nullable: false
     checks:
@@ -196,18 +202,9 @@ columns:
     coerce: false
     required: true
     regex: false
-  customAttributes.table_type:
-    title: Table type
-    description: Type of the table [Table or View]
-    dtype: str
-    nullable: false
-    unique: false
-    coerce: false
-    required: true
-    regex: false
 checks:
   check_record_count_ge:
-    value: 100
+    value: 50
     options:
       raise_warning: false
       ignore_na: true
@@ -221,5 +218,5 @@ unique: null
 report_duplicates: all
 unique_column_names: false
 add_missing_columns: false
-title: Transformed Table Pandera Schema
-description: Pandera schema definition for the transformed table output
+title: Transformed MySQL Column Pandera Schema
+description: Pandera schema definition for the transformed MySQL column output
