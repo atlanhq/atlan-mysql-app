@@ -63,39 +63,38 @@
       <!-- Header -->
       <header class="header">
         <div class="logo-container">
-          <img
-            src="https://labs.mysql.com/common/logos/mysql-logo.svg"
-            alt="MySQL Logo"
-            class="logo"
-            width="100"
-            height="100"
-          />
-          <h1>MySQL App</h1>
+          <div class="logo-wrapper">
+            <img
+              src="https://www.mysql.com/common/logos/mysql-logo.svg"
+              alt="MySQL Logo"
+              class="logo"
+            />
+          </div>
+          <div class="title-container">
+            <h1>MySQL App</h1>
+            <span class="subtitle">Database Metadata Extraction</span>
+          </div>
         </div>
-        <div class="doc-link">
-          <a
-            href="https://dev.mysql.com/doc/"
-            target="_blank"
-            class="doc-link-button"
+        <a
+          href="https://dev.mysql.com/doc/"
+          target="_blank"
+          class="doc-link"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke-width="1.75"
+            stroke="currentColor"
           >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke-width="1.5"
-              stroke="currentColor"
-              width="24"
-              height="24"
-            >
-              <path
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"
-              />
-            </svg>
-            <span>Documentation</span>
-          </a>
-        </div>
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"
+            />
+          </svg>
+          <span>Documentation</span>
+        </a>
       </header>
 
       <div class="main-content">
@@ -266,12 +265,7 @@
             <div class="bottom-bar">
               <div id="page1-nav" class="nav-buttons">
                 <div></div>
-                <!-- Empty div for spacing -->
-                <button
-                  onclick="nextPage()"
-                  class="btn btn-primary"
-                  id="nextButton"
-                >
+                <button onclick="nextPage()" class="btn btn-primary" id="nextButton">
                   Next
                 </button>
               </div>
