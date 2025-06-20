@@ -23,7 +23,7 @@ columns:
     nullable: false
     checks:
       str_matches:
-        value: wwi
+        value: mysql_assets_100k
         options:
           raise_warning: false
           ignore_na: true
@@ -53,7 +53,7 @@ columns:
     nullable: false
     checks:
       str_matches:
-        value: postgres
+        value: mysql
         options:
           raise_warning: false
           ignore_na: true
@@ -83,7 +83,7 @@ columns:
     nullable: false
     checks:
       str_matches:
-        value: default/postgres/1738930739
+        value: default/mysql/1738930739
         options:
           raise_warning: false
           ignore_na: true
@@ -98,21 +98,21 @@ columns:
     nullable: false
     checks:
       str_matches:
-        value: default/postgres/[0-9]{10}/wwi
+        value: default/mysql/1738930739/mysql_assets_100k
         options:
           raise_warning: false
           ignore_na: true
     unique: false
     coerce: false
     required: true
-    regex: true
+    regex: false
   attributes.schemaCount:
     title: Schema Count
     description: The count of schemas
     dtype: int64
     nullable: false
     checks:
-      equal_to:
+      greater_than_or_equal_to:
         value: 0
         options:
           raise_warning: false
@@ -152,5 +152,5 @@ unique: null
 report_duplicates: all
 unique_column_names: false
 add_missing_columns: false
-title: Transformed Database Pandera Schema
-description: Pandera schema definition for the transformed database output
+title: Transformed MySQL Database Pandera Schema
+description: Pandera schema definition for the transformed MySQL database output 

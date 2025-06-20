@@ -8,7 +8,7 @@ columns:
     nullable: false
     checks:
       str_matches:
-        value: Schema
+        value: Table
         options:
           raise_warning: false
           ignore_na: true
@@ -17,16 +17,10 @@ columns:
     required: true
     regex: false
   attributes.name:
-    title: Schema Name
-    description: The name of the schema
+    title: Table Name
+    description: The name of the table
     dtype: str
     nullable: false
-    checks:
-      str_matches:
-        value: schema_1
-        options:
-          raise_warning: false
-          ignore_na: true
     unique: false
     coerce: false
     required: true
@@ -53,7 +47,7 @@ columns:
     nullable: false
     checks:
       str_matches:
-        value: postgres
+        value: mysql
         options:
           raise_warning: false
           ignore_na: true
@@ -83,22 +77,7 @@ columns:
     nullable: false
     checks:
       str_matches:
-        value: default/postgres/1738930739
-        options:
-          raise_warning: false
-          ignore_na: true
-    unique: false
-    coerce: false
-    required: true
-    regex: false
-  attributes.qualifiedName:
-    title: Qualified Name
-    description: The qualified name of the attribute
-    dtype: str
-    nullable: false
-    checks:
-      str_matches:
-        value: default/postgres/1738930739/assets_100k/schema_1
+        value: default/mysql/1738930739
         options:
           raise_warning: false
           ignore_na: true
@@ -113,7 +92,7 @@ columns:
     nullable: false
     checks:
       str_matches:
-        value: assets_100k
+        value: mysql_assets_100k
         options:
           raise_warning: false
           ignore_na: true
@@ -128,7 +107,7 @@ columns:
     nullable: false
     checks:
       str_matches:
-        value: default/postgres/1738930739/assets_100k
+        value: default/mysql/1738930739/mysql_assets_100k
         options:
           raise_warning: false
           ignore_na: true
@@ -136,14 +115,14 @@ columns:
     coerce: false
     required: true
     regex: false
-  attributes.tableCount:
-    title: Table Count
-    description: The count of tables in the schema
-    dtype: int64
+  attributes.schemaName:
+    title: Schema Name
+    description: The name of the schema
+    dtype: str
     nullable: false
     checks:
-      equal_to:
-        value: 100
+      str_matches:
+        value: mysql_assets_100k
         options:
           raise_warning: false
           ignore_na: true
@@ -151,14 +130,29 @@ columns:
     coerce: false
     required: true
     regex: false
-  attributes.viewsCount:
-    title: View Count
-    description: The count of views in the schema
+  attributes.schemaQualifiedName:
+    title: Schema Qualified Name
+    description: The qualified name of the schema
+    dtype: str
+    nullable: false
+    checks:
+      str_matches:
+        value: default/mysql/1738930739/mysql_assets_100k/mysql_assets_100k
+        options:
+          raise_warning: false
+          ignore_na: true
+    unique: false
+    coerce: false
+    required: true
+    regex: false
+  attributes.columnCount:
+    title: Column Count
+    description: The count of columns
     dtype: int64
     nullable: false
     checks:
-      equal_to:
-        value: 0
+      greater_than_or_equal_to:
+        value: 1
         options:
           raise_warning: false
           ignore_na: true
@@ -168,7 +162,7 @@ columns:
     regex: false
   status:
     title: Status
-    description: The status of the schema
+    description: The status of the table
     dtype: str
     nullable: false
     checks:
@@ -183,7 +177,7 @@ columns:
     regex: false
 checks:
   check_record_count_ge:
-    value: 1
+    value: 10
     options:
       raise_warning: false
       ignore_na: true
@@ -197,5 +191,5 @@ unique: null
 report_duplicates: all
 unique_column_names: false
 add_missing_columns: false
-title: Transformed Schema Pandera Schema
-description: Pandera schema definition for the transformed schema output
+title: Transformed MySQL Table Pandera Schema
+description: Pandera schema definition for the transformed MySQL table output 

@@ -13,6 +13,7 @@ from application_sdk.observability.traces_adaptor import get_traces
 from application_sdk.transformers.query import QueryBasedTransformer
 
 from app.clients import SQLClient
+from app.handlers import MySQLHandler
 
 logger = get_logger(__name__)
 metrics = get_metrics()
@@ -21,10 +22,11 @@ traces = get_traces()
 
 @observability(logger=logger, metrics=metrics, traces=traces)
 async def main():
-    # Initialize the application
+    # Initialize the application with MySQL-specific implementations
     application = BaseSQLMetadataExtractionApplication(
         name=APPLICATION_NAME,
         client_class=SQLClient,
+        handler_class=MySQLHandler,
         transformer_class=QueryBasedTransformer,  # type: ignore
     )
 

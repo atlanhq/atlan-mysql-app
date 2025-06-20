@@ -70,18 +70,18 @@ jobs:
     - name: Start the application
       id: start_app
       env:
-        ATLAN_SQL_SERVER_MIN_VERSION: "10.0"
+        ATLAN_SQL_SERVER_MIN_VERSION: "8.0"
       run: |
         uv run scalene --profile-all --cli --outfile ./.github/scalene.json --json main.py &
         sleep 20
 
     - name: Run the end-to-end integration tests
       env:
-        E2E_POSTGRES_HOST: ${{ secrets.POSTGRES_DB_HOST }}
-        E2E_POSTGRES_PORT: 5432
-        E2E_POSTGRES_USERNAME: "postgres"
-        E2E_POSTGRES_PASSWORD: ${{ secrets.POSTGRES_DB_PASSWORD }}
-        ATLAN_SQL_SERVER_MIN_VERSION: "10.0"
+        E2E_MYSQL_HOST: ${{ secrets.MYSQL_DB_HOST }}
+        E2E_MYSQL_PORT: 3306
+        E2E_MYSQL_USERNAME: "mysql"
+        E2E_MYSQL_PASSWORD: ${{ secrets.MYSQL_DB_PASSWORD }}
+        ATLAN_SQL_SERVER_MIN_VERSION: "8.0"
       run: |
         uv run coverage run -m pytest tests/e2e
 
@@ -127,7 +127,7 @@ jobs:
         echo "Finished Calculating Metrics"
 
         # Generate comprehensive report
-        echo "## 📊 Postgres App Integration Test Results and Performance Metrics" >> metrics.md
+        echo "## 📊 MySQL App Integration Test Results and Performance Metrics" >> metrics.md
         echo "### Runner Environment Details" >> metrics.md
         echo "$(mpstat 1 1 | awk 'NR == 1')" >> metrics.md
         echo "Total Memory: $(free -m | awk 'NR == 2 {print $2}') MB" >> metrics.md

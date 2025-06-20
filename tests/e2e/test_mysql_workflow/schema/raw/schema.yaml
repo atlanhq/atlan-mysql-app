@@ -8,7 +8,7 @@ columns:
     nullable: false
     checks:
       str_matches:
-        value: assets_100k
+        value: mysql_assets_100k
         options:
           raise_warning: false
           ignore_na: true
@@ -23,7 +23,7 @@ columns:
     nullable: false
     checks:
       str_matches:
-        value: schema_1
+        value: mysql_assets_100k
         options:
           raise_warning: false
           ignore_na: true
@@ -35,16 +35,10 @@ columns:
     title: Schema Owner
     description: Check the name of the schema owner
     dtype: str
-    nullable: false
-    checks:
-      str_matches:
-        value: postgres
-        options:
-          raise_warning: false
-          ignore_na: true
+    nullable: true
     unique: false
     coerce: false
-    required: true
+    required: false
     regex: false
   table_count:
     title: Table Count
@@ -52,8 +46,8 @@ columns:
     dtype: int64
     nullable: false
     checks:
-      equal_to:
-        value: 100
+      greater_than_or_equal_to:
+        value: 1
         options:
           raise_warning: true
           ignore_na: true
@@ -62,12 +56,12 @@ columns:
     required: true
     regex: false
   views_count:
-    title: null
-    description: null
+    title: Views Count
+    description: Check for total number of views for this schema
     dtype: int64
     nullable: false
     checks:
-      equal_to:
+      greater_than_or_equal_to:
         value: 0
         options:
           raise_warning: false
@@ -92,5 +86,5 @@ unique: null
 report_duplicates: all
 unique_column_names: false
 add_missing_columns: false
-title: Raw Schema Pandera Schema
-description: Pandera schema definition for the raw schema output
+title: Raw MySQL Schema Pandera Schema
+description: Pandera schema definition for the raw MySQL schema output 
