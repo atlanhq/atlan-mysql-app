@@ -205,6 +205,7 @@ jobs:
           echo "duration=$DURATION" >> $GITHUB_OUTPUT
 
       - name: Get scalene metrics and output
+        continue-on-error: true
         run: |
           export PATH="$HOME/.temporalio/bin:$PATH"
           kill $(lsof -t -i :8000)
