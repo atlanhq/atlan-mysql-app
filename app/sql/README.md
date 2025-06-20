@@ -59,7 +59,7 @@ This directory contains MySQL-specific SQL queries for metadata extraction. Thes
 All queries support template parameters for filtering:
 
 - `{normalized_exclude_regex}`: Regex pattern for schemas to exclude
-- `{normalized_include_regex}`: Regex pattern for schemas to include  
+- `{normalized_include_regex}`: Regex pattern for schemas to include
 - `{temp_table_regex_sql}`: Optional SQL fragment for temporary table filtering
 - `{exclude_table_regex}`: Regex pattern for table names to exclude
 
@@ -75,7 +75,7 @@ All queries support template parameters for filtering:
 ```sql
 -- Get all tables in current database excluding system schemas
 SELECT TABLE_SCHEMA, TABLE_NAME, TABLE_TYPE
-FROM information_schema.TABLES 
+FROM information_schema.TABLES
 WHERE TABLE_SCHEMA NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')
 AND TABLE_SCHEMA = DATABASE();
-``` 
+```
