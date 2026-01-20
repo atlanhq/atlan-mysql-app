@@ -16,11 +16,11 @@
  *   - Ordered by schema name
  */
 SELECT
-    DATABASE() AS CATALOG_NAME,
-    S.SCHEMA_NAME,
-    'mysql' as schema_owner,
-    COALESCE(table_counts.table_count, 0) as table_count,
-    COALESCE(table_counts.views_count, 0) as views_count
+    DATABASE() AS catalog_name,
+    S.SCHEMA_NAME AS schema_name,
+    'mysql' AS schema_owner,
+    COALESCE(table_counts.table_count, 0) AS table_count,
+    COALESCE(table_counts.views_count, 0) AS views_count
 FROM information_schema.SCHEMATA S
 LEFT JOIN
 	(

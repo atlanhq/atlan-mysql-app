@@ -22,36 +22,36 @@
  *   - Results ordered by schema, table, and column position
  */
 SELECT
-    C.TABLE_CATALOG,
-    C.TABLE_SCHEMA,
-    C.TABLE_NAME,
-    C.COLUMN_NAME,
-    C.ORDINAL_POSITION,
-    C.COLUMN_DEFAULT AS COLUMN_DEF,
-    C.IS_NULLABLE,
-    C.DATA_TYPE,
+    C.TABLE_CATALOG AS table_catalog,
+    C.TABLE_SCHEMA AS table_schema,
+    C.TABLE_NAME AS table_name,
+    C.COLUMN_NAME AS column_name,
+    C.ORDINAL_POSITION AS ordinal_position,
+    C.COLUMN_DEFAULT AS column_def,
+    C.IS_NULLABLE AS is_nullable,
+    C.DATA_TYPE AS data_type,
     CASE
         WHEN C.EXTRA LIKE '%auto_increment%' THEN 'YES'
         ELSE 'NO'
-    END AS IS_AUTO_INCREMENT,
-    C.NUMERIC_PRECISION,
-    C.CHARACTER_OCTET_LENGTH,
+    END AS is_auto_increment,
+    C.NUMERIC_PRECISION AS numeric_precision,
+    C.CHARACTER_OCTET_LENGTH AS character_octet_length,
     CASE
         WHEN C.GENERATION_EXPRESSION IS NOT NULL THEN 'YES'
         ELSE 'NO'
-    END AS IS_GENERATED,
-    'NO' AS IS_IDENTITY,
-    NULL AS IDENTITY_CYCLE,
+    END AS is_generated,
+    'NO' AS is_identity,
+    NULL AS identity_cycle,
     CASE
         WHEN C.CHARACTER_MAXIMUM_LENGTH IS NOT NULL THEN C.CHARACTER_MAXIMUM_LENGTH
         WHEN C.NUMERIC_PRECISION IS NOT NULL THEN C.NUMERIC_PRECISION
         ELSE NULL
-    END AS COLUMN_SIZE,
-    C.NUMERIC_SCALE AS NUM_PREC_RADIX,
-    C.NUMERIC_SCALE AS DECIMAL_DIGITS,
-    T.TABLE_TYPE,
-    'NO' AS BELONGS_TO_PARTITION,
-    'NO' AS PARTITIONED_TABLE,
+    END AS column_size,
+    C.NUMERIC_SCALE AS num_prec_radix,
+    C.NUMERIC_SCALE AS decimal_digits,
+    T.TABLE_TYPE AS table_type,
+    'NO' AS belongs_to_partition,
+    'NO' AS partitioned_table,
     CASE
         WHEN KC.CONSTRAINT_NAME IS NOT NULL THEN
             CASE
@@ -62,17 +62,17 @@ SELECT
                 ELSE TC.CONSTRAINT_TYPE
             END
         ELSE NULL
-    END AS CONSTRAINT_TYPE,
-    KC.CONSTRAINT_NAME,
-    C.COLUMN_COMMENT AS REMARKS,
-    NULL AS PARTITION_ORDER,
-    NULL AS IS_PARTITION,
-    C.NUMERIC_SCALE,
+    END AS constraint_type,
+    KC.CONSTRAINT_NAME AS constraint_name,
+    C.COLUMN_COMMENT AS remarks,
+    NULL AS partition_order,
+    NULL AS is_partition,
+    C.NUMERIC_SCALE AS numeric_scale,
     CASE
         WHEN C.CHARACTER_MAXIMUM_LENGTH IS NOT NULL THEN C.CHARACTER_MAXIMUM_LENGTH
         ELSE 0
-    END AS MAX_LENGTH,
-    NULL AS IS_SELF_REFERENCING
+    END AS max_length,
+    NULL AS is_self_referencing
 
 FROM
     information_schema.COLUMNS C

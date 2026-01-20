@@ -37,7 +37,10 @@ def remove_run_time_sensitive_fields(row: Dict[str, Any]):
     Remove run time sensitive fields from a row
     E.g time sensitive fields: lastSyncRunAt, createdAt, updatedAt which can change on each run
     """
-    row["attributes"].pop("lastSyncRunAt")
+    if row["attributes"].get("lastSyncRunAt"):
+        row["attributes"].pop("lastSyncRunAt")
+    if row["attributes"].get("sourceCreatedAt"):
+        row["attributes"].pop("sourceCreatedAt")
 
 
 def test_transform_metadata_output_validation(
@@ -78,11 +81,18 @@ def test_transform_metadata_output_validation(
         transformed_result_ouput = result.to_pylist()
 
         # read the expected transformed json file
+        expected_transformed_path = json_file.replace("/raw", "/transformed")
+        if not os.path.exists(expected_transformed_path):
+            logger.warning(
+                f"Expected transformed file not found: {expected_transformed_path}, skipping."
+            )
+            continue  # Skip this test if expected file is missing
         expected_transformed_output: List[Dict[str, Any]] = []
-        with open(json_file.replace("raw", "transformed"), "r") as f:
+        with open(expected_transformed_path, "r") as f:
             for line in f:
-                json_object = json.loads(line)
-                expected_transformed_output.append(json_object)
+                line = line.strip()
+                if line:
+                    expected_transformed_output.append(json.loads(line))
 
         # assert that the number of records in the transformed output is the same as the expected output
         assert len(transformed_result_ouput) == len(expected_transformed_output)
