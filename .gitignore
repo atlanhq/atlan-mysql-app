@@ -46,3 +46,6 @@ gh_secret
 .env.dev
 
 components
+local
+
+test-scripts/
