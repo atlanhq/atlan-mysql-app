@@ -62,13 +62,11 @@ jobs:
             -d '{
               "credentials": {
                 "authType": "basic",
-                "host": "${{ secrets.MYSQL_DB_HOST }}",
+                "host": "${{ secrets.E2E_MYSQL_HOST }}",
                 "port": 3306,
-                "extra": {
-                  "database": "atlan"
-                },
-                "username": "mysql",
-                "password": "${{ secrets.MYSQL_DB_PASSWORD }}",
+                "extra": {},
+                "username": "${{ secrets.E2E_MYSQL_USERNAME }}",
+                "password": "${{ secrets.E2E_MYSQL_PASSWORD }}",
                 "region": "ap-south-1"
               },
               "connection": {
@@ -108,13 +106,11 @@ jobs:
             -d '{
               "credentials": {
                 "authType": "basic",
-                "host": "${{ secrets.MYSQL_DB_HOST }}",
+                "host": "${{ secrets.E2E_MYSQL_HOST }}",
                 "port": 3306,
-                "extra": {
-                  "database": "atlan"
-                },
-                "username": "atlan",
-                "password": "${{ secrets.MYSQL_DB_PASSWORD }}",
+                "extra": {},
+                "username": "${{ secrets.E2E_MYSQL_USERNAME }}",
+                "password": "${{ secrets.E2E_MYSQL_PASSWORD }}",
                 "region": "ap-south-1"
               },
               "connection": {

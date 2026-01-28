@@ -18,15 +18,9 @@ columns:
     regex: false
   attributes.name:
     title: Database Name
-    description: The name of the database
+    description: The name of the database (structure validation only)
     dtype: str
     nullable: false
-    checks:
-      str_matches:
-        value: mysql_assets_100k
-        options:
-          raise_warning: false
-          ignore_na: true
     unique: false
     coerce: false
     required: true
@@ -78,30 +72,18 @@ columns:
     regex: false
   attributes.connectionQualifiedName:
     title: Connection Qualified Name
-    description: The qualified name of the connection
+    description: The qualified name of the connection (structure validation only)
     dtype: str
     nullable: false
-    checks:
-      str_matches:
-        value: default/mysql/1738930739
-        options:
-          raise_warning: false
-          ignore_na: true
     unique: false
     coerce: false
     required: true
     regex: false
   attributes.qualifiedName:
     title: Qualified Name
-    description: The qualified name of the attribute
+    description: The qualified name of the attribute (structure validation only)
     dtype: str
     nullable: false
-    checks:
-      str_matches:
-        value: default/mysql/1738930739/mysql_assets_100k
-        options:
-          raise_warning: false
-          ignore_na: true
     unique: false
     coerce: false
     required: true

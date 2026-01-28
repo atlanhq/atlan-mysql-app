@@ -1,0 +1,77 @@
+# procedure.yaml
+table: Procedure
+columns:
+  attributes:
+    name:
+      source_query: procedure_name
+    qualifiedName:
+      source_query: concat(connection_qualified_name, '/', procedure_catalog, '/', procedure_schema, '/', '_procedures_', '/', procedure_name)
+      source_columns: [connection_qualified_name, procedure_catalog, procedure_schema, procedure_name]
+    connectionQualifiedName:
+      source_query: connection_qualified_name
+    connectionName:
+      source_query: connection_name
+    description:
+      source_query: |
+        CASE
+          WHEN remarks IS NOT NULL THEN
+            REGEXP_REPLACE(REGEXP_REPLACE(SUBSTRING(COALESCE(remarks, ''), 1, 100000), '<[^>]+>', ''), '\s+', ' ')
+          ELSE
+            NULL
+        END
+      source_columns: [remarks]
+    databaseName:
+      source_query: procedure_catalog
+    databaseQualifiedName:
+      source_query: concat(connection_qualified_name, '/', procedure_catalog)
+      source_columns: [connection_qualified_name, procedure_catalog]
+    schemaName:
+      source_query: procedure_schema
+    schemaQualifiedName:
+      source_query: concat(connection_qualified_name, '/', procedure_catalog, '/', procedure_schema)
+      source_columns: [connection_qualified_name, procedure_catalog, procedure_schema]
+    definition:
+      source_query: procedure_definition
+    subType:
+      source_query: COALESCE(procedure_type, '-1')
+      source_columns: [procedure_type]
+    sourceCreatedBy:
+      source_query: COALESCE(source_owner, NULL)
+      source_columns: [source_owner]
+    sourceCreatedAt:
+      source_query: |
+        CASE
+          WHEN created IS NOT NULL THEN CAST(created AS TIMESTAMP)
+          ELSE NULL
+        END
+      source_columns: [created]
+    sourceUpdatedAt:
+      source_query: |
+        CASE
+          WHEN last_altered IS NOT NULL THEN CAST(last_altered AS TIMESTAMP)
+          ELSE NULL
+        END
+      source_columns: [last_altered]
+    tenantId:
+      source_query: tenant_id
+    lastSyncWorkflowName:
+      source_query: last_sync_workflow_name
+    lastSyncRun:
+      source_query: last_sync_run
+    lastSyncRunAt:
+      source_query: last_sync_run_at
+    connectorName:
+      source_query: connector_name
+    atlanSchema:
+      typeName:
+        source_query: "'Schema'"
+      uniqueAttributes:
+        qualifiedName:
+          source_query: concat(connection_qualified_name, '/', procedure_catalog, '/', procedure_schema)
+          source_columns: [connection_qualified_name, procedure_catalog, procedure_schema]
+  customAttributes:
+    source_query: NULL
+  typeName:
+    source_query: "'Procedure'"
+  status:
+    source_query: "'ACTIVE'"

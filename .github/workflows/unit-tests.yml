@@ -55,7 +55,7 @@ jobs:
           uv run coverage run -m pytest tests/unit
           uv run coverage xml
           uv run coverage html
-          uv run coverage report --fail-under=30
+          uv run coverage report --fail-under=60
 
       - name: Comment Coverage Report on PR
         uses: orgoro/coverage@3f13a558c5af7376496aa4848bf0224aead366ac # v3.2 https://github.com/orgoro/coverage/releases/tag/v3.2

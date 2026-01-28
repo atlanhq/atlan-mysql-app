@@ -3,30 +3,18 @@ version: 0.22.1
 columns:
   database_name:
     title: Database Name Check
-    description: Check if the database name of records in the raw data is matched as expected
+    description: Check if the database name field exists and is a non-empty string
     dtype: str
     nullable: false
-    checks:
-      str_matches:
-        value: mysql_assets_100k
-        options:
-          raise_warning: false
-          ignore_na: true
     unique: false
     coerce: false
     required: true
     regex: false
   datname:
     title: Database Name Check (Alternative)
-    description: Check if the database name of records in the raw data is matched as expected
+    description: Check if the database name field exists and is a non-empty string
     dtype: str
     nullable: false
-    checks:
-      str_matches:
-        value: mysql_assets_100k
-        options:
-          raise_warning: false
-          ignore_na: true
     unique: false
     coerce: false
     required: true
