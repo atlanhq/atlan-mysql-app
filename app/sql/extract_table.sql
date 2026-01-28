@@ -33,10 +33,10 @@ SELECT
     ) AS column_count,
     T.TABLE_TYPE AS table_kind,
     T.TABLE_TYPE AS table_type,
-    FALSE AS is_partition,
-    NULL AS partition_strategy,
-    0 AS partition_count,
-    NULL AS parent_table_name,
+    IF(p.PARTITION_METHOD IS NULL, FALSE, TRUE) AS is_partition,
+    p.PARTITION_METHOD AS partition_strategy,
+    IF(p.PARTITION_METHOD IS NULL, 0, p.partition_count) AS partition_count,
+    T.TABLE_NAME AS parent_table_name,
     NULL AS partitioned_parent_table,
     NULL AS partition_constraint,
     0 AS number_columns_in_part_key,
@@ -56,8 +56,28 @@ SELECT
     NULL AS file_format_type,
     NULL AS stage_region,
     T.ENGINE AS engine,
-    NULL AS ref_generation
+    NULL AS ref_generation,
+    -- MySQL-specific fields
+    T.VERSION AS version,
+    T.ROW_FORMAT AS row_format,
+    T.DATA_LENGTH AS data_length,
+    T.AUTO_INCREMENT AS auto_increment,
+    T.TABLE_COLLATION AS table_collation,
+    T.CREATE_OPTIONS AS create_options,
+    T.CREATE_TIME AS create_time,
+    -- Partition metadata
+    p.PARTITIONS AS partitions
 FROM information_schema.TABLES T
+LEFT JOIN (
+    SELECT
+        TABLE_NAME,
+        TABLE_SCHEMA,
+        PARTITION_METHOD,
+        COUNT(*) AS partition_count,
+        GROUP_CONCAT(PARTITION_NAME ORDER BY PARTITION_NAME) AS PARTITIONS
+    FROM information_schema.PARTITIONS
+    GROUP BY TABLE_NAME, TABLE_SCHEMA, PARTITION_METHOD
+) AS p ON p.TABLE_NAME = T.TABLE_NAME AND p.TABLE_SCHEMA = T.TABLE_SCHEMA
 LEFT JOIN information_schema.VIEWS V ON (T.TABLE_SCHEMA = V.TABLE_SCHEMA AND T.TABLE_NAME = V.TABLE_NAME)
 WHERE T.TABLE_SCHEMA NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')
 AND CONCAT(DATABASE(), CONCAT('.', T.TABLE_SCHEMA)) NOT REGEXP '{normalized_exclude_regex}'

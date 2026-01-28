@@ -36,32 +36,29 @@ def sample_dataframe():
 @pytest.fixture
 def sample_yaml_template():
     return {
-        "columns": [
-            # Direct column example
-            {"name": "attributes.name", "source_query": "table_name"},
-            # SQL Query example with concat method
-            {
-                "name": "attributes.qualifiedName",
-                "source_query": "concat(connection_qualified_name, '/', table_catalog, '/', table_schema, '/', table_name)",
-                "source_columns": [
-                    "connection_qualified_name",
-                    "table_catalog",
-                    "table_schema",
-                    "table_name",
-                ],
-            },
-            # SQL Query example with case when
-            {
-                "name": "attributes.type",
-                "source_query": "case when table_type = 'TABLE' then 'table' when table_type = 'VIEW' then 'view' else table_type end",
-                "source_columns": ["table_type"],
-            },
-            # Literal value example
-            {
-                "name": "attributes.literal",
-                "source_query": "'Database'",
-            },
-        ]
+        "columns": {
+            "attributes": {
+                # Direct column example
+                "name": {"source_query": "table_name"},
+                # SQL Query example with concat method
+                "qualifiedName": {
+                    "source_query": "concat(connection_qualified_name, '/', table_catalog, '/', table_schema, '/', table_name)",
+                    "source_columns": [
+                        "connection_qualified_name",
+                        "table_catalog",
+                        "table_schema",
+                        "table_name",
+                    ],
+                },
+                # SQL Query example with case when
+                "type": {
+                    "source_query": "case when table_type = 'TABLE' then 'table' when table_type = 'VIEW' then 'view' else table_type end",
+                    "source_columns": ["table_type"],
+                },
+                # Literal value example
+                "literal": {"source_query": "'Database'"},
+            }
+        }
     }
 
 
@@ -95,7 +92,13 @@ def test_get_sql_column_expressions(
     sample_yaml_template: Dict[str, Any],
 ):
     """Test the get_sql_column_expressions method"""
+    from application_sdk.transformers.common.utils import flatten_yaml_columns
+
     default_attributes: Dict[str, Any] = {}
+    # Flatten columns before passing to get_sql_column_expressions
+    sample_yaml_template["columns"] = flatten_yaml_columns(
+        sample_yaml_template["columns"]
+    )
     columns, literal_columns = sql_transformer.get_sql_column_expressions(
         sample_yaml_template, sample_dataframe, default_attributes
     )
