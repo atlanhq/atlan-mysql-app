@@ -16,7 +16,7 @@
  *   - Ordered by schema name
  */
 SELECT
-    DATABASE() AS catalog_name,
+    'def' AS catalog_name,
     S.SCHEMA_NAME AS schema_name,
     'mysql' AS schema_owner,
     COALESCE(table_counts.table_count, 0) AS table_count,

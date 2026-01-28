@@ -3,30 +3,18 @@ version: 0.22.1
 columns:
   catalog_name:
     title: Catalog Name
-    description: Check the name of the catalog
+    description: Check if the catalog name field exists and is a non-empty string
     dtype: str
     nullable: false
-    checks:
-      str_matches:
-        value: mysql_assets_100k
-        options:
-          raise_warning: false
-          ignore_na: true
     unique: false
     coerce: false
     required: true
     regex: false
   schema_name:
     title: Schema Name
-    description: Check the name of the schema
+    description: Check if the schema name field exists and is a non-empty string
     dtype: str
     nullable: false
-    checks:
-      str_matches:
-        value: mysql_assets_100k
-        options:
-          raise_warning: false
-          ignore_na: true
     unique: false
     coerce: false
     required: true

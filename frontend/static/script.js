@@ -196,10 +196,9 @@ async function performConnectionTest() {
   // Get common values
   const host = document.getElementById("host").value;
   const port = document.getElementById("port").value;
-  const database = document.getElementById("database").value;
   const sqlalchemyUrl = document.getElementById("sqlalchemy-url").value;
 
-  let extra = { database };
+  let extra = {};
   if (sqlalchemyUrl) {
     extra.compiled_url = `mysql+aiomysql://${sqlalchemyUrl}`;
   }
@@ -313,10 +312,9 @@ async function fetchMetadata() {
     // Get common values
     const host = document.getElementById("host").value;
     const port = document.getElementById("port").value;
-    const database = document.getElementById("database").value;
     const sqlalchemyUrl = document.getElementById("sqlalchemy-url").value;
 
-    let extra = { database };
+    let extra = {};
     if (sqlalchemyUrl) {
       extra.compiled_url = `mysql+aiomysql://${sqlalchemyUrl}`;
     }
@@ -324,7 +322,6 @@ async function fetchMetadata() {
     let payload = {
       host,
       port,
-      database,
       extra,
       authType: currentAuthType,
       type: "all",
@@ -687,10 +684,9 @@ async function runPreflightChecks() {
     // Get common values
     const host = document.getElementById("host").value;
     const port = document.getElementById("port").value;
-    const database = document.getElementById("database").value;
     const sqlalchemyUrl = document.getElementById("sqlalchemy-url").value;
 
-    let extra = { database };
+    let extra = {};
     if (sqlalchemyUrl) {
       extra.compiled_url = `mysql+aiomysql://${sqlalchemyUrl}`;
     }
@@ -825,10 +821,9 @@ async function handleRunWorkflow() {
       // Get common values
       const host = document.getElementById("host").value;
       const port = document.getElementById("port").value;
-      const database = document.getElementById("database").value;
       const sqlalchemyUrl = document.getElementById("sqlalchemy-url").value;
 
-      let extra = { database };
+      let extra = {};
       if (sqlalchemyUrl) {
         extra.compiled_url = `mysql+aiomysql://${sqlalchemyUrl}`;
       }
