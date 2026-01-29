@@ -208,19 +208,21 @@
                       placeholder="Secret Access Key"
                     />
                   </div>
+                </div>
+                <div class="form-group horizontal">
                   <div class="input-wrapper flex-half">
                     <label>Region *</label>
                     <input type="text" id="region" value="ap-south-1" />
                   </div>
+                  <div class="input-wrapper flex-half">
+                    <label>Username (MySQL DB User) *</label>
+                    <input type="text" id="username" value="atlan" />
+                  </div>
                 </div>
-
-                <div class="input-wrapper flex-half"></div>
-                <label>Username *</label>
-                <input type="text" id="username" value="atlan" />
               </div>
               <!-- IAM Role Auth Section -->
               <div id="iam_role-auth" class="auth-section">
-                <div class="form-group">
+                <div class="form-group horizontal">
                   <div class="input-wrapper flex-half">
                     <label>Role ARN *</label>
                     <input
@@ -229,22 +231,24 @@
                       placeholder="arn:aws:iam::123456789012:role/example-role"
                     />
                   </div>
-                  <div class="horizontal">
-                    <div class="input-wrapper flex-half">
-                      <label>External ID *</label>
-                      <input
-                        type="text"
-                        id="external-id"
-                        placeholder="External ID"
-                      />
-                    </div>
+                  <div class="input-wrapper flex-half">
+                    <label>External ID (Optional)</label>
+                    <input
+                      type="text"
+                      id="external-id"
+                      placeholder="External ID"
+                    />
                   </div>
-                  <label>Username *</label>
-                  <input type="text" id="username" value="atlan" />
                 </div>
-                <div class="input-wrapper flex-half">
-                  <label>Region *</label>
-                  <input type="text" id="region" value="ap-south-1" />
+                <div class="form-group horizontal">
+                  <div class="input-wrapper flex-half">
+                    <label>Username (MySQL DB User) *</label>
+                    <input type="text" id="username" value="atlan" />
+                  </div>
+                  <div class="input-wrapper flex-half">
+                    <label>Region *</label>
+                    <input type="text" id="region" value="ap-south-1" />
+                  </div>
                 </div>
               </div>
             </div>
