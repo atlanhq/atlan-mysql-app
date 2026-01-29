@@ -133,8 +133,8 @@ LEFT JOIN
     information_schema.TABLES T ON (C.TABLE_SCHEMA = T.TABLE_SCHEMA AND C.TABLE_NAME = T.TABLE_NAME)
 WHERE
     C.TABLE_SCHEMA NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')
-    AND CONCAT(DATABASE(), CONCAT('.', C.TABLE_SCHEMA)) NOT REGEXP '{normalized_exclude_regex}'
-    AND CONCAT(DATABASE(), CONCAT('.', C.TABLE_SCHEMA)) REGEXP '{normalized_include_regex}'
+    AND CONCAT(COALESCE(DATABASE(), 'def'), CONCAT('.', C.TABLE_SCHEMA)) NOT REGEXP '{normalized_exclude_regex}'
+    AND CONCAT(COALESCE(DATABASE(), 'def'), CONCAT('.', C.TABLE_SCHEMA)) REGEXP '{normalized_include_regex}'
     {temp_table_regex_sql}
 ORDER BY
     C.TABLE_SCHEMA, C.TABLE_NAME, C.ORDINAL_POSITION;
