@@ -41,12 +41,13 @@ class TestMySQLClient:
     def iam_role_credentials(self):
         """IAM role credentials for testing."""
         return {
+            "username": "db_user",  # MySQL database user
             "host": "test-instance.region.rds.amazonaws.com",
             "port": "3306",
             "extra": {
                 "database": "test_db",
-                "role_arn": "arn:aws:iam::123456789012:role/test-role",
-                "external_id": "external-id-123",
+                "aws_role_arn": "arn:aws:iam::123456789012:role/test-role",
+                "aws_external_id": "external-id-123",
                 "aws_region": "us-east-1",
             },
             "authType": "iam_role",
@@ -216,3 +217,66 @@ class TestMySQLClient:
 
         with pytest.raises(ValueError, match="is required"):
             client.get_sqlalchemy_connection_string()
+
+    def test_get_sqlalchemy_connection_string_iam_user(self, iam_user_credentials):
+        """Test connection string generation for IAM user authentication."""
+        client = SQLClient()
+        client.credentials = iam_user_credentials
+
+        with patch.object(client, "get_iam_user_token", return_value="iam_token_12345"):
+            result = client.get_sqlalchemy_connection_string()
+            encoded_token = quote_plus("iam_token_12345")
+
+            # For IAM user, username should be extra.username (MySQL DB user), not credentials.username (AWS access key)
+            expected = (
+                f"mysql+aiomysql://{iam_user_credentials['extra']['username']}:{encoded_token}@"
+                f"{iam_user_credentials['host']}:{iam_user_credentials['port']}?connect_timeout=5&charset=utf8mb4"
+            )
+
+            assert result == expected
+
+    def test_get_sqlalchemy_connection_string_iam_role(self, iam_role_credentials):
+        """Test connection string generation for IAM role authentication."""
+        client = SQLClient()
+        client.credentials = iam_role_credentials
+
+        with patch.object(client, "get_iam_role_token", return_value="iam_token_67890"):
+            result = client.get_sqlalchemy_connection_string()
+            encoded_token = quote_plus("iam_token_67890")
+
+            # For IAM role, username should be credentials.username (MySQL DB user)
+            expected = (
+                f"mysql+aiomysql://{iam_role_credentials['username']}:{encoded_token}@"
+                f"{iam_role_credentials['host']}:{iam_role_credentials['port']}?connect_timeout=5&charset=utf8mb4"
+            )
+
+            assert result == expected
+
+    def test_get_iam_user_token_missing_extra_username(self):
+        """Test IAM user token generation when extra.username is missing."""
+        client = SQLClient()
+        client.credentials = {
+            "username": "aws_access_key",
+            "password": "aws_secret_key",
+            "host": "test-host",
+            "port": "3306",
+            "extra": {},  # Missing username
+            "authType": "iam_user",
+        }
+
+        with pytest.raises(Exception, match="extra.username.*required"):
+            client.get_iam_user_token()
+
+    def test_get_iam_role_token_missing_role_arn(self):
+        """Test IAM role token generation when aws_role_arn is missing."""
+        client = SQLClient()
+        client.credentials = {
+            "username": "db_user",
+            "host": "test-host",
+            "port": "3306",
+            "extra": {},  # Missing aws_role_arn
+            "authType": "iam_role",
+        }
+
+        with pytest.raises(Exception, match="aws_role_arn.*required"):
+            client.get_iam_role_token()
