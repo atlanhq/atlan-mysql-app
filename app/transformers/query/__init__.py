@@ -2,12 +2,11 @@ import os
 from typing import Any, Optional, Tuple
 
 import daft
+from application_sdk.constants import APPLICATION_NAME
 from application_sdk.transformers.common.utils import (
     get_yaml_query_template_path_mappings,
 )
 from application_sdk.transformers.query import QueryBasedTransformer
-
-from app.constants import APPLICATION_NAME
 
 
 class MySQLQueryBasedTransformer(QueryBasedTransformer):
