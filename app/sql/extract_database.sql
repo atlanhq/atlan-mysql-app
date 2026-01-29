@@ -22,4 +22,4 @@ SELECT
         WHERE SCHEMA_NAME NOT IN ('performance_schema', 'information_schema', 'mysql', 'sys')
     ) as schema_count
 FROM information_schema.SCHEMATA
-WHERE SCHEMA_NAME = DATABASE();
+WHERE SCHEMA_NAME = COALESCE(DATABASE(), 'def');
