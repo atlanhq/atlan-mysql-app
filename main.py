@@ -43,8 +43,9 @@ async def main():
 
     # Setup the application server
     # BaseSQLMetadataExtractionWorkflow is the default, but explicitly specified for clarity
+    # has_configmap=True enables playground frontend (reads JSON configs from app/templates/)
     await application.setup_server(
-        workflow_class=BaseSQLMetadataExtractionWorkflow, has_configmap=False
+        workflow_class=BaseSQLMetadataExtractionWorkflow, has_configmap=True
     )
 
     # Start the application server
