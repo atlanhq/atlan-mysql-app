@@ -1,0 +1,115 @@
+{
+    "id": "mysql",
+    "name": "MySQL",
+    "logo": "https://www.mysql.com/common/logos/mysql-logo.svg",
+    "config": {
+        "properties": {
+            "connection": {
+                "type": "string",
+                "required": false,
+                "ui": {
+                    "widget": "connection",
+                    "label": "",
+                    "placeholder": "Connection Name"
+                }
+            },
+            "credential-guid": {
+                "type": "string",
+                "ui": {
+                    "widget": "credential",
+                    "label": "",
+                    "credentialType": "atlan-connectors-mysql",
+                    "placeholder": "Credential Guid",
+                    "hidden": false
+                }
+            },
+            "include-metadata": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "array"
+                },
+                "default": "{}",
+                "ui": {
+                    "widget": "apitree",
+                    "connectorConfigName": "atlan-connectors-mysql",
+                    "credential": "credential-guid",
+                    "label": "Include Metadata",
+                    "description": "Selected databases and schemas will be processed.",
+                    "help": "Selected databases and schemas will be processed.",
+                    "grid": 4
+                }
+            },
+            "exclude-metadata": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "array"
+                },
+                "default": "{}",
+                "ui": {
+                    "widget": "apitree",
+                    "connectorConfigName": "atlan-connectors-mysql",
+                    "credential": "credential-guid",
+                    "label": "Exclude Metadata",
+                    "description": "Selected databases and schemas will not be processed.",
+                    "help": "Selected databases and schemas will not be processed.",
+                    "grid": 4
+                }
+            },
+            "exclude-table-regex": {
+                "type": "string",
+                "required": false,
+                "ui": {
+                    "label": "Exclude regex for tables & views",
+                    "help": "Regular expression to exclude temporary tables and views. Example: .*_TMP|.*_TEMP|TMP:*|TEMP:*",
+                    "placeholder": ".*_TMP|.*_TEMP|TMP:*|TEMP:*",
+                    "grid": 8
+                }
+            },
+            "preflight-check": {
+                "type": "string",
+                "ui": {
+                    "widget": "sage",
+                    "config": [
+                        {
+                            "id": 1,
+                            "name": "preflightCheck",
+                            "extraUrlParam": "",
+                            "optional": false,
+                            "title": "MySQL instance preflight check",
+                            "loaderText": "Checking MySQL instance accessibility and permissions"
+                        }
+                    ]
+                }
+            }
+        },
+        "steps": [
+            {
+                "id": "credential",
+                "title": "Credential",
+                "description": "Credential Details",
+                "properties": [
+                    "credential-guid"
+                ]
+            },
+            {
+                "id": "connection",
+                "title": "Connection",
+                "description": "Connection Details",
+                "properties": [
+                    "connection"
+                ]
+            },
+            {
+                "id": "metadata",
+                "title": "Metadata",
+                "description": "Metadata Filters",
+                "properties": [
+                    "include-metadata",
+                    "exclude-metadata",
+                    "exclude-table-regex",
+                    "preflight-check"
+                ]
+            }
+        ]
+    }
+}
