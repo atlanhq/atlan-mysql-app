@@ -142,8 +142,8 @@ wheels = [
 
 [[package]]
 name = "atlan-application-sdk"
-version = "2.1.1"
-source = { registry = "https://pypi.org/simple" }
+version = "2.2.0"
+source = { git = "https://github.com/atlanhq/application-sdk?rev=931c538f4c05ade8c0c8c5de8c4e8420f0b84657#931c538f4c05ade8c0c8c5de8c4e8420f0b84657" }
 dependencies = [
     { name = "aiohttp" },
     { name = "duckdb" },
@@ -156,10 +156,6 @@ dependencies = [
     { name = "pydantic" },
     { name = "python-dotenv" },
     { name = "uvloop", marker = "sys_platform != 'win32'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/ad/5e/2e35ff55db2f07eaaf23af8da2893eb8e79957826e42673519aeb4b09617/atlan_application_sdk-2.1.1.tar.gz", hash = "sha256:61388c78c87b1c06c064a6b0e7eae46d58fb9992096367aedcc2d3873a651c36", size = 1144230, upload-time = "2026-01-08T19:33:17.694Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f1/83/227680b67b2cd118f7df3244d656d22cff6b953c958174765429bc34997b/atlan_application_sdk-2.1.1-py3-none-any.whl", hash = "sha256:97958b60b954a8270695a27201a4e32c157d35d844594f406916e4ac90af533f", size = 282114, upload-time = "2026-01-08T19:33:16.367Z" },
 ]
 
 [package.optional-dependencies]
@@ -216,7 +212,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "aiomysql", specifier = ">=0.2.0" },
-    { name = "atlan-application-sdk", extras = ["daft", "iam-auth", "sqlalchemy", "tests", "workflows", "pandas"], specifier = "==2.1.1" },
+    { name = "atlan-application-sdk", extras = ["daft", "iam-auth", "sqlalchemy", "tests", "workflows", "pandas"], git = "https://github.com/atlanhq/application-sdk?rev=931c538f4c05ade8c0c8c5de8c4e8420f0b84657" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.6.1" },
     { name = "cryptography", specifier = ">=3.4.0" },
     { name = "hypothesis", marker = "extra == 'test'", specifier = ">=6.98.8" },
