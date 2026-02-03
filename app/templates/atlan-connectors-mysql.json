@@ -143,76 +143,77 @@
             "iam_user": {
                 "type": "object",
                 "properties": {
-                    "aws_access_key_id": {
-                        "type": "string",
-                        "required": true,
-                        "ui": {
-                            "label": "Access Key ID",
-                            "help": "AWS IAM user access key ID",
-                            "placeholder": "AKIAIOSFODNN7EXAMPLE",
-                            "grid": 6,
-                            "rules": [
-                                {
-                                    "required": true,
-                                    "message": "Please enter a valid AWS access key ID"
-                                }
-                            ]
-                        }
-                    },
-                    "aws_secret_access_key": {
-                        "type": "string",
-                        "required": true,
-                        "ui": {
-                            "widget": "password",
-                            "label": "Secret Access Key",
-                            "help": "AWS IAM user secret access key",
-                            "placeholder": "Secret Access Key",
-                            "grid": 6,
-                            "rules": [
-                                {
-                                    "required": true,
-                                    "message": "Please enter a valid AWS secret access key"
-                                }
-                            ]
-                        }
-                    },
                     "username": {
                         "type": "string",
                         "required": true,
                         "ui": {
-                            "label": "Username (MySQL DB User)",
-                            "help": "MySQL database username for IAM authentication",
-                            "placeholder": "iam_admin",
-                            "grid": 6,
+                            "label": "AWS Access Key",
+                            "placeholder": "Access Key",
+                            "help": "AWS Access Key",
+                            "feedback": true,
+                            "message": "Please enter a valid Access Key",
+                            "grid": 4,
                             "rules": [
                                 {
                                     "required": true,
-                                    "message": "Please enter the MySQL database username"
+                                    "message": "Please enter a valid Access Key"
                                 }
                             ]
                         }
                     },
-                    "region": {
+                    "password": {
                         "type": "string",
                         "required": true,
-                        "default": "ap-south-1",
                         "ui": {
-                            "label": "Region",
-                            "help": "AWS region where the RDS MySQL instance is located",
-                            "placeholder": "ap-south-1",
-                            "grid": 6,
+                            "widget": "password",
+                            "label": "AWS Secret Key",
+                            "help": "AWS Secret Key",
+                            "feedback": true,
+                            "placeholder": "Secret Key",
+                            "grid": 4,
                             "rules": [
                                 {
                                     "required": true,
-                                    "message": "Please enter a valid AWS region"
+                                    "message": "Please enter a valid Secret Key"
                                 }
                             ]
+                        }
+                    },
+                    "extra": {
+                        "type": "object",
+                        "properties": {
+                            "username": {
+                                "type": "string",
+                                "required": true,
+                                "default": "",
+                                "ui": {
+                                    "label": "Username",
+                                    "placeholder": "Username",
+                                    "help": "DB Username",
+                                    "feedback": true,
+                                    "message": "Please enter a valid DB username",
+                                    "grid": 4,
+                                    "rules": [
+                                        {
+                                            "required": true,
+                                            "message": "Please enter a valid DB username"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
+                        "ui": {
+                            "widget": "nested",
+                            "label": "",
+                            "header": "Advanced",
+                            "hidden": false
                         }
                     }
                 },
                 "ui": {
                     "widget": "nested",
                     "label": "IAM User Authentication",
+                    "placeholder": "Credential Type",
                     "nestedValue": false,
                     "hidden": true
                 }
@@ -220,84 +221,69 @@
             "iam_role": {
                 "type": "object",
                 "properties": {
-                    "aws_role_arn": {
-                        "type": "string",
-                        "required": true,
-                        "ui": {
-                            "label": "Role ARN",
-                            "help": "AWS IAM role ARN to assume for authentication",
-                            "placeholder": "arn:aws:iam::123456789012:role/example-role",
-                            "grid": 6,
-                            "rules": [
-                                {
-                                    "required": true,
-                                    "message": "Please enter a valid AWS role ARN"
-                                }
-                            ]
-                        }
-                    },
-                    "aws_external_id": {
-                        "type": "string",
-                        "required": false,
-                        "ui": {
-                            "label": "External ID (Optional)",
-                            "help": "Optional external ID for role assumption (if required by your IAM role trust policy)",
-                            "placeholder": "External ID",
-                            "grid": 6
-                        }
-                    },
                     "username": {
                         "type": "string",
                         "required": true,
+                        "default": "",
                         "ui": {
-                            "label": "Username (MySQL DB User)",
-                            "help": "MySQL database username for IAM authentication",
-                            "placeholder": "iam_admin",
-                            "grid": 6,
+                            "label": "Username",
+                            "placeholder": "Username",
+                            "help": "DB Username",
+                            "feedback": true,
+                            "message": "Please enter a valid DB username",
+                            "grid": 4,
                             "rules": [
                                 {
                                     "required": true,
-                                    "message": "Please enter the MySQL database username"
+                                    "message": "Please enter a valid DB username"
                                 }
                             ]
                         }
                     },
-                    "region": {
-                        "type": "string",
-                        "required": true,
-                        "default": "ap-south-1",
-                        "ui": {
-                            "label": "Region",
-                            "help": "AWS region where the RDS MySQL instance is located",
-                            "placeholder": "ap-south-1",
-                            "grid": 6,
-                            "rules": [
-                                {
-                                    "required": true,
-                                    "message": "Please enter a valid AWS region"
+                    "extra": {
+                        "type": "object",
+                        "properties": {
+                            "aws_role_arn": {
+                                "type": "string",
+                                "required": true,
+                                "ui": {
+                                    "label": "AWS Role ARN",
+                                    "hidden": false,
+                                    "placeholder": "arn:aws:iam::123456789012:role/roleName",
+                                    "help": "AWS role to assume for the connection",
+                                    "grid": 4,
+                                    "rules": [
+                                        {
+                                            "pattern": "^arn:aws:iam::\\d{12}:role/.+",
+                                            "message": "Please enter a valid role ARN",
+                                            "trigger": "blur"
+                                        }
+                                    ]
                                 }
-                            ]
-                        }
-                    },
-                    "aws_access_key_id": {
-                        "type": "string",
-                        "required": false,
+                            },
+                            "aws_external_id": {
+                                "type": "string",
+                                "required": false,
+                                "ui": {
+                                    "label": "AWS External ID",
+                                    "hidden": false,
+                                    "placeholder": "12345678-1234-1234-1234",
+                                    "help": "AWS External ID",
+                                    "grid": 4,
+                                    "rules": [
+                                        {
+                                            "message": "Please enter a valid external ID",
+                                            "trigger": "blur"
+                                        }
+                                    ]
+                                }
+                            }
+                        },
                         "ui": {
-                            "label": "AWS Access Key ID (Optional)",
-                            "help": "Optional: AWS access key ID for role assumption. If not provided, uses default credential chain.",
-                            "placeholder": "AKIAIOSFODNN7EXAMPLE",
-                            "grid": 6
-                        }
-                    },
-                    "aws_secret_access_key": {
-                        "type": "string",
-                        "required": false,
-                        "ui": {
-                            "widget": "password",
-                            "label": "AWS Secret Access Key (Optional)",
-                            "help": "Optional: AWS secret access key for role assumption. If not provided, uses default credential chain.",
-                            "placeholder": "Secret Access Key",
-                            "grid": 6
+                            "widget": "nested",
+                            "label": "",
+                            "header": "Advanced",
+                            "hidden": false
                         }
                     }
                 },
