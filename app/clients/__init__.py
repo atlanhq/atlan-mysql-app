@@ -2,7 +2,10 @@ from typing import Any, Dict, Optional
 
 from application_sdk.clients.models import DatabaseConfig
 from application_sdk.clients.sql import AsyncBaseSQLClient
-from application_sdk.common.aws_utils import generate_aws_rds_token_with_iam_user
+from application_sdk.common.aws_utils import (
+    generate_aws_rds_token_with_iam_role,
+    generate_aws_rds_token_with_iam_user,
+)
 from application_sdk.common.error_codes import CommonError
 from application_sdk.common.utils import parse_credentials_extra
 from application_sdk.observability.logger_adaptor import get_logger
@@ -35,13 +38,34 @@ class SQLClient(AsyncBaseSQLClient):
         },
     )
 
+    def _extract_region_from_hostname(self, host: Optional[str]) -> Optional[str]:
+        """Extract AWS region from RDS hostname.
+
+        RDS hostname pattern: [identifier].[unique-id].[region].rds.amazonaws.com
+        Example: dsp-prd-mysql-analytics.c7y4kcieagzd.ap-south-1.rds.amazonaws.com -> ap-south-1
+
+        Args:
+            host: RDS hostname
+
+        Returns:
+            Extracted region or None if pattern doesn't match
+        """
+        if not host:
+            return None
+        import re
+
+        match = re.search(r"\.([a-z0-9-]+)\.rds\.amazonaws\.com", host)
+        if match:
+            return match.group(1)
+        return None
+
     def get_iam_user_token(self) -> str:
         """Get an IAM user token for AWS RDS MySQL authentication.
 
         For MySQL IAM user authentication:
-        - credentials["username"] contains AWS access key ID
-        - credentials["password"] contains AWS secret access key
-        - extra["username"] contains the MySQL database user
+        - credentials["username"] contains AWS access key ID (or extra.iam_user.aws_access_key_id)
+        - credentials["password"] contains AWS secret access key (or extra.iam_user.aws_secret_access_key)
+        - extra["username"] or extra.iam_user["username"] contains the MySQL database user
         - Database is optional for MySQL (unlike other databases)
 
         Returns:
@@ -51,12 +75,19 @@ class SQLClient(AsyncBaseSQLClient):
             CommonError: If required credentials are missing.
         """
         extra = parse_credentials_extra(self.credentials)
-        aws_access_key_id = self.credentials.get("username")
-        aws_secret_access_key = self.credentials.get("password")
-        user = extra.get("username")  # MySQL DB user, not AWS access key
+
+        # Marketplace configmap structure (nestedValue: false flattens iam_user.* to top level):
+        aws_access_key_id = self.credentials.get(
+            "username"
+        )  # AWS access key (from iam_user.username)
+        aws_secret_access_key = self.credentials.get(
+            "password"
+        )  # AWS secret key (from iam_user.password)
+        user = extra.get("username")  # MySQL DB user (from iam_user.extra.username)
         host = self.credentials.get("host")
         port = self.credentials.get("port")
-        region = self.credentials.get("region")
+
+        region = self._extract_region_from_hostname(host)
 
         logger.info(
             f"IAM User Auth - Access Key: {aws_access_key_id[:10] if aws_access_key_id else None}..., "
@@ -82,6 +113,12 @@ class SQLClient(AsyncBaseSQLClient):
         if not port:
             raise CommonError(
                 f"{CommonError.CREDENTIALS_PARSE_ERROR}: port is required for IAM user authentication"
+            )
+        if not region:
+            raise CommonError(
+                f"{CommonError.CREDENTIALS_PARSE_ERROR}: region is required for IAM user authentication. "
+                f"Region could not be extracted from hostname '{host}'. "
+                f"Please ensure the hostname follows the RDS pattern: [identifier].[region].rds.amazonaws.com"
             )
 
         try:
@@ -112,6 +149,8 @@ class SQLClient(AsyncBaseSQLClient):
         - credentials["username"] contains the MySQL database user
         - extra["aws_role_arn"] contains the AWS role ARN
         - extra["aws_external_id"] contains optional external ID
+        - extra["aws_access_key_id"] and extra["aws_secret_access_key"] are optional
+          (if provided, sets environment variables for default credential chain)
         - Database is optional for MySQL (unlike other databases)
 
         Returns:
@@ -122,15 +161,15 @@ class SQLClient(AsyncBaseSQLClient):
         """
         extra = parse_credentials_extra(self.credentials)
         aws_role_arn = extra.get("aws_role_arn")
-        # Convert empty string to None (AWS requires ExternalId to be at least 2 chars if provided)
         external_id = extra.get("aws_external_id") or None
-        # AWS credentials are optional - if not provided, use default credential chain (like Glue)
+        # AWS credentials are optional - if provided, set as environment variables
+        # This allows SDK's generate_aws_rds_token_with_iam_role to use default credential chain
         aws_access_key_id = extra.get("aws_access_key_id")
         aws_secret_access_key = extra.get("aws_secret_access_key")
         username = self.credentials.get("username")  # MySQL DB user
         host = self.credentials.get("host")
         port = self.credentials.get("port")
-        region = self.credentials.get("region")
+        region = self._extract_region_from_hostname(host)
 
         logger.info(
             f"IAM Role Auth - Role ARN: {aws_role_arn}, Host: {host}, Port: {port}, "
@@ -155,60 +194,40 @@ class SQLClient(AsyncBaseSQLClient):
             )
         if not region:
             raise CommonError(
-                f"{CommonError.CREDENTIALS_PARSE_ERROR}: region is required for IAM role authentication"
+                f"{CommonError.CREDENTIALS_PARSE_ERROR}: region is required for IAM role authentication. "
+                f"Region could not be extracted from hostname '{host}'. "
+                f"Please ensure the hostname follows the RDS pattern: [identifier].[region].rds.amazonaws.com"
             )
 
-        from application_sdk.constants import AWS_SESSION_NAME
+        import os
+
+        # Set environment variables from frontend credentials if provided
+        # This allows SDK's generate_aws_rds_token_with_iam_role to use default credential chain
+        # This matches how other apps (Glue, Postgres) handle credentials
+        old_env = {}
+        if aws_access_key_id and aws_secret_access_key:
+            old_env["AWS_ACCESS_KEY_ID"] = os.environ.get("AWS_ACCESS_KEY_ID")
+            old_env["AWS_SECRET_ACCESS_KEY"] = os.environ.get("AWS_SECRET_ACCESS_KEY")
+            os.environ["AWS_ACCESS_KEY_ID"] = aws_access_key_id
+            os.environ["AWS_SECRET_ACCESS_KEY"] = aws_secret_access_key
+            logger.debug(
+                "Set AWS credentials in environment for default credential chain"
+            )
+        else:
+            logger.debug(
+                "Using default AWS credential chain (environment variables, IAM instance profile, etc.)"
+            )
 
         try:
-            # Use boto3 directly to assume role (matching Glue pattern)
-            # This avoids SDK bug where ExternalId="" is always passed to AWS
-            import boto3
-            from application_sdk.common.aws_utils import create_aws_client
-
-            logger.info(f"Assuming IAM role: {aws_role_arn}")
-            # Create base session (uses default credential chain or explicit credentials if provided)
-            # This matches Glue's approach: boto3.Session(region_name=self.region)
-            if aws_access_key_id and aws_secret_access_key:
-                # Use explicit credentials if provided
-                base_session = boto3.Session(
-                    aws_access_key_id=aws_access_key_id,
-                    aws_secret_access_key=aws_secret_access_key,
-                    region_name=region,
-                )
-                logger.debug("Using explicit AWS credentials for role assumption")
-            else:
-                # Use default credential chain (environment variables, IAM instance profile, etc.)
-                base_session = boto3.Session(region_name=region)
-                logger.debug("Using default AWS credential chain for role assumption")
-
-            sts_client = base_session.client("sts")
-
-            assume_role_kwargs = {
-                "RoleArn": aws_role_arn,
-                "RoleSessionName": AWS_SESSION_NAME,
-                "DurationSeconds": 3600,
-            }
-
-            # Only add ExternalId if it has a value (AWS rejects empty strings)
-            if external_id:
-                assume_role_kwargs["ExternalId"] = external_id
-
-            assumed_role = sts_client.assume_role(**assume_role_kwargs)
-            logger.info(f"Successfully assumed role: {aws_role_arn}")
-
-            temp_credentials = assumed_role["Credentials"]
-            rds_client = create_aws_client(
-                service="rds",
+            # Use SDK function directly - it now correctly handles ExternalId (commit 931c538)
+            # SDK function uses boto3's default credential chain, which will pick up our env vars
+            token = generate_aws_rds_token_with_iam_role(
+                role_arn=aws_role_arn,
+                host=host,
+                user=username,
+                external_id=external_id,
+                port=int(port),
                 region=region,
-                temp_credentials=temp_credentials,
-            )
-
-            token = rds_client.generate_db_auth_token(
-                DBHostname=host,
-                Port=int(port),
-                DBUsername=username,
-                Region=region,
             )
 
             if not token:
@@ -217,11 +236,19 @@ class SQLClient(AsyncBaseSQLClient):
                 )
             logger.info(f"IAM token generated successfully (length: {len(token)})")
             return token
-        except Exception as e:
-            logger.error(f"Failed to generate IAM role token: {str(e)}")
-            raise CommonError(
-                f"{CommonError.CREDENTIALS_PARSE_ERROR}: Failed to generate IAM token: {str(e)}"
-            )
+        finally:
+            # Restore original environment variables if we set them
+            if aws_access_key_id and aws_secret_access_key:
+                old_access_key = old_env.get("AWS_ACCESS_KEY_ID")
+                old_secret_key = old_env.get("AWS_SECRET_ACCESS_KEY")
+                if old_access_key is not None:
+                    os.environ["AWS_ACCESS_KEY_ID"] = old_access_key
+                else:
+                    os.environ.pop("AWS_ACCESS_KEY_ID", None)
+                if old_secret_key is not None:
+                    os.environ["AWS_SECRET_ACCESS_KEY"] = old_secret_key
+                else:
+                    os.environ.pop("AWS_SECRET_ACCESS_KEY", None)
 
     async def load(self, credentials: Dict[str, Any]) -> None:
         """Override load to handle IAM authentication.

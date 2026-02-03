@@ -113,6 +113,7 @@ exclude_lines = [
 ]
 fail_under = 60
 
-# [tool.uv.sources]
+[tool.uv.sources]
 # atlan-application-sdk = { path = "../application-sdk", editable = true }
-# atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "5fa0e489cd484a877af9bd0f0fe3f8b230e4a91a" }
+# Using SDK commit with ExternalId and role assumption fixes
+atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "931c538f4c05ade8c0c8c5de8c4e8420f0b84657" }
