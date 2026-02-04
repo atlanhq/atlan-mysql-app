@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - mysql-connector
     paths:
       - '**'
       - '!kurl-installer.yaml'
