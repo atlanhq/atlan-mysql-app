@@ -254,7 +254,7 @@ class TestMySQLClient:
 
         Note: get_sqlalchemy_connection_string() is not used for IAM auth in production
         (we create the engine directly in load()). This test verifies the base class
-        behavior, which uses credentials.username (AWS access key) as expected.
+        behavior, which uses extra.username (DB user) as the username in the connection string.
         """
         client = SQLClient()
         client.credentials = iam_user_credentials
@@ -263,10 +263,11 @@ class TestMySQLClient:
             result = client.get_sqlalchemy_connection_string()
             encoded_token = quote_plus("iam_token_12345")
 
-            # Base class uses credentials.username (AWS access key) - this is expected
+            # Base class uses extra.username (DB user) for IAM user auth
             # In production, IAM auth uses load() which creates engine directly, not this method
+            db_username = iam_user_credentials["extra"]["username"]
             expected = (
-                f"mysql+aiomysql://{iam_user_credentials['username']}:{encoded_token}@"
+                f"mysql+aiomysql://{db_username}:{encoded_token}@"
                 f"{iam_user_credentials['host']}:{iam_user_credentials['port']}?connect_timeout=5&charset=utf8mb4"
             )
 
