@@ -1,4 +1,6 @@
 name: Publish App Docker Image
+permissions:
+  contents: read
 
 on:
   push:
@@ -12,11 +14,6 @@ on:
       - '!images/**'
       - '!**.png'
 
-permissions:
-  contents: read
-  packages: write
-  actions: read
-
 jobs:
   prepare:
     runs-on: ubuntu-latest
@@ -25,6 +22,7 @@ jobs:
       version: ${{ steps.get_version.outputs.version }}
       lowercase_branch: ${{ steps.get_lowercase_branch.outputs.lowercase_branch }}
       repository_name: ${{ steps.get_repo_name.outputs.repository_name }}
+      docker_safe_branch: ${{ steps.sanitize_branch.outputs.docker_safe_branch }}
     steps:
       - uses: actions/checkout@v4.0.0
         with:
@@ -47,13 +45,17 @@ jobs:
         run: echo "lowercase_branch=$(echo '${{ steps.get_branch.outputs.branch }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
         id: get_lowercase_branch
 
+      - name: Sanitize branch name for Docker Hub
+        run: echo "docker_safe_branch=$(echo '${{ steps.get_branch.outputs.branch }}' | tr '/' '-' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
+        id: sanitize_branch
+
   push-to-ghcr:
     runs-on: ubuntu-latest
     needs: prepare
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-ghcr
       cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4.0.0
         with:
@@ -83,10 +85,8 @@ jobs:
           tags: |
             ghcr.io/atlanhq/${{ github.event.repository.name }}-${{ needs.prepare.outputs.lowercase_branch }}:latest
             ghcr.io/atlanhq/${{ github.event.repository.name }}-${{ needs.prepare.outputs.lowercase_branch }}:${{ needs.prepare.outputs.version }}
-          build-args: |
-            ACCESS_TOKEN_USR=$GITHUB_ACTOR
-            ACCESS_TOKEN_PWD=${{ secrets.ORG_PAT_GITHUB }}
-          github-token: ${{ secrets.ORG_PAT_GITHUB }}
+          secrets: |
+            github_token=${{ secrets.ORG_PAT_GITHUB }}
         env:
           DOCKER_CLIENT_TIMEOUT: 600
           COMPOSE_HTTP_TIMEOUT: 600
@@ -97,7 +97,7 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}-dockerhub
       cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4.0.0
         with:
@@ -124,8 +124,10 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            registry-1.docker.io/atlanhq/${{ github.event.repository.name }}:${{ needs.prepare.outputs.branch }}-${{ needs.prepare.outputs.version }}
-            registry-1.docker.io/atlanhq/${{ github.event.repository.name }}:${{ needs.prepare.outputs.branch }}-latest
+            registry-1.docker.io/atlanhq/${{ github.event.repository.name }}:${{ needs.prepare.outputs.docker_safe_branch }}-${{ needs.prepare.outputs.version }}
+            registry-1.docker.io/atlanhq/${{ github.event.repository.name }}:${{ needs.prepare.outputs.docker_safe_branch }}-latest
+          secrets: |
+            github_token=${{ secrets.ORG_PAT_GITHUB }}
         env:
           DOCKER_CLIENT_TIMEOUT: 600
           COMPOSE_HTTP_TIMEOUT: 600
