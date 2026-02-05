@@ -5,7 +5,7 @@ on:
     workflows:
       - "Publish App Docker Image"
     branches:
-      - hackathon_2025
+      - main
     types:
       - completed
 
@@ -74,6 +74,36 @@ jobs:
               "repo": {
                 "name": "${{ steps.extract_repo_name.outputs.repo_name }}",
                 "branch": "${{ steps.extract_branch.outputs.branch }}",
+                "pr_url": "${{ steps.get_pr_url_user.outputs.pr_url }}",
+                "pr_user": "${{ steps.get_pr_url_user.outputs.pr_user }}"
+              }
+            }
+      - name: Repository Dispatch - Beta
+        uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3.0.0 https://github.com/peter-evans/repository-dispatch/releases/tag/v3.0.0
+        with:
+          token: ${{ secrets.ORG_PAT_GITHUB }}
+          repository: ${{ matrix.repo }}
+          event-type: dispatch_chart_release_workflow
+          client-payload: |-
+            {
+              "repo": {
+                "name": "${{ steps.extract_repo_name.outputs.repo_name }}",
+                "branch": "beta",
+                "pr_url": "${{ steps.get_pr_url_user.outputs.pr_url }}",
+                "pr_user": "${{ steps.get_pr_url_user.outputs.pr_user }}"
+              }
+            }
+      - name: Repository Dispatch - Staging
+        uses: peter-evans/repository-dispatch@ff45666b9427631e3450c54a1bcbee4d9ff4d7c0 # v3.0.0 https://github.com/peter-evans/repository-dispatch/releases/tag/v3.0.0
+        with:
+          token: ${{ secrets.ORG_PAT_GITHUB }}
+          repository: ${{ matrix.repo }}
+          event-type: dispatch_chart_release_workflow
+          client-payload: |-
+            {
+              "repo": {
+                "name": "${{ steps.extract_repo_name.outputs.repo_name }}",
+                "branch": "staging",
                 "pr_url": "${{ steps.get_pr_url_user.outputs.pr_url }}",
                 "pr_user": "${{ steps.get_pr_url_user.outputs.pr_user }}"
               }
