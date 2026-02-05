@@ -39,8 +39,8 @@ jobs:
     # Install Dapr
     - name: Install Dapr CLI
       run: |
-        wget -q https://raw.githubusercontent.com/dapr/cli/master/install/install.sh -O - | /bin/bash -s 1.14.1
-        dapr init --runtime-version 1.13.6 --slim
+        wget -q https://raw.githubusercontent.com/dapr/cli/master/install/install.sh -O - | /bin/bash -s 1.16.2
+        dapr init --runtime-version 1.16.0 --slim
 
     # Install Temporal
     - name: Install Temporal CLI and Start Server
@@ -77,10 +77,10 @@ jobs:
 
     - name: Run the end-to-end integration tests
       env:
-        E2E_MYSQL_HOST: ${{ secrets.MYSQL_DB_HOST }}
+        E2E_MYSQL_HOST: ${{ secrets.E2E_MYSQL_HOST }}
         E2E_MYSQL_PORT: 3306
-        E2E_MYSQL_USERNAME: "atlan"
-        E2E_MYSQL_PASSWORD: ${{ secrets.MYSQL_DB_PASSWORD }}
+        E2E_MYSQL_USERNAME: ${{ secrets.E2E_MYSQL_USERNAME }}
+        E2E_MYSQL_PASSWORD: ${{ secrets.E2E_MYSQL_PASSWORD }}
         ATLAN_SQL_SERVER_MIN_VERSION: "8.0"
       run: |
         # Debug environment variables
