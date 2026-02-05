@@ -12,8 +12,8 @@
  *   - Scoped to the current database (DATABASE())
  */
 SELECT
-    'def' as database_name,
-    'def' as datname,
+    '{database_placeholder}' as database_name,
+    '{database_placeholder}' as datname,
     DEFAULT_CHARACTER_SET_NAME as charset,
     DEFAULT_COLLATION_NAME as collation,
     (
@@ -22,4 +22,4 @@ SELECT
         WHERE SCHEMA_NAME NOT IN ('performance_schema', 'information_schema', 'mysql', 'sys')
     ) as schema_count
 FROM information_schema.SCHEMATA
-WHERE SCHEMA_NAME = COALESCE(DATABASE(), 'def');
+WHERE SCHEMA_NAME = COALESCE(DATABASE(), '{database_placeholder}');

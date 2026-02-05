@@ -16,7 +16,7 @@
  *   - Ordered by schema name
  */
 SELECT
-    'def' AS catalog_name,
+    '{database_placeholder}' AS catalog_name,
     S.SCHEMA_NAME AS schema_name,
     'mysql' AS schema_owner,
     COALESCE(table_counts.table_count, 0) AS table_count,
@@ -34,6 +34,6 @@ LEFT JOIN
 ON (table_counts.TABLE_SCHEMA = S.SCHEMA_NAME)
 WHERE
     S.SCHEMA_NAME NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')
-    AND CONCAT(COALESCE(DATABASE(), 'def'), CONCAT('.', S.SCHEMA_NAME)) NOT REGEXP '{normalized_exclude_regex}'
-    AND CONCAT(COALESCE(DATABASE(), 'def'), CONCAT('.', S.SCHEMA_NAME)) REGEXP '{normalized_include_regex}'
+    AND CONCAT(COALESCE(DATABASE(), '{database_placeholder}'), CONCAT('.', S.SCHEMA_NAME)) NOT REGEXP '{normalized_exclude_regex}'
+    AND CONCAT(COALESCE(DATABASE(), '{database_placeholder}'), CONCAT('.', S.SCHEMA_NAME)) REGEXP '{normalized_include_regex}'
 ORDER BY S.SCHEMA_NAME;

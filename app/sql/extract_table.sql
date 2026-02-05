@@ -80,7 +80,7 @@ LEFT JOIN (
 ) AS p ON p.TABLE_NAME = T.TABLE_NAME AND p.TABLE_SCHEMA = T.TABLE_SCHEMA
 LEFT JOIN information_schema.VIEWS V ON (T.TABLE_SCHEMA = V.TABLE_SCHEMA AND T.TABLE_NAME = V.TABLE_NAME)
 WHERE T.TABLE_SCHEMA NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')
-AND CONCAT(COALESCE(DATABASE(), 'def'), CONCAT('.', T.TABLE_SCHEMA)) NOT REGEXP '{normalized_exclude_regex}'
-AND CONCAT(COALESCE(DATABASE(), 'def'), CONCAT('.', T.TABLE_SCHEMA)) REGEXP '{normalized_include_regex}'
+AND CONCAT(COALESCE(DATABASE(), '{database_placeholder}'), CONCAT('.', T.TABLE_SCHEMA)) NOT REGEXP '{normalized_exclude_regex}'
+AND CONCAT(COALESCE(DATABASE(), '{database_placeholder}'), CONCAT('.', T.TABLE_SCHEMA)) REGEXP '{normalized_include_regex}'
 {temp_table_regex_sql}
 AND T.TABLE_TYPE IN ('BASE TABLE', 'VIEW');
