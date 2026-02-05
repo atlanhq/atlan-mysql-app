@@ -18,8 +18,6 @@ from app.transformers.query import MySQLQueryBasedTransformer
 
 async def main():
     # Initialize the application with MySQL-specific implementations
-    # APPLICATION_NAME comes from application_sdk.constants (reads ATLAN_APPLICATION_NAME env var, defaults to "default")
-    # For MySQL, set ATLAN_APPLICATION_NAME=mysql in .env or deployment config
     application = BaseSQLMetadataExtractionApplication(
         name=APPLICATION_NAME,
         client_class=SQLClient,
