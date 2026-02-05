@@ -1,6 +1,3 @@
-import os
-import re
-import ssl
 from typing import Any, Dict, Optional
 
 from application_sdk.clients.models import DatabaseConfig
@@ -12,9 +9,6 @@ from application_sdk.common.aws_utils import (
 from application_sdk.common.error_codes import CommonError
 from application_sdk.common.utils import parse_credentials_extra
 from application_sdk.observability.logger_adaptor import get_logger
-from sqlalchemy import event
-from sqlalchemy.engine import URL
-from sqlalchemy.ext.asyncio import create_async_engine
 
 logger = get_logger(__name__)
 
@@ -58,6 +52,7 @@ class SQLClient(AsyncBaseSQLClient):
         """
         if not host:
             return None
+        import re
 
         match = re.search(r"\.([a-z0-9-]+)\.rds\.amazonaws\.com", host)
         if match:
@@ -204,6 +199,8 @@ class SQLClient(AsyncBaseSQLClient):
                 f"Please ensure the hostname follows the RDS pattern: [identifier].[region].rds.amazonaws.com"
             )
 
+        import os
+
         # Set environment variables from frontend credentials if provided
         # This allows SDK's generate_aws_rds_token_with_iam_role to use default credential chain
         # This matches how other apps (Glue, Postgres) handle credentials
@@ -265,6 +262,11 @@ class SQLClient(AsyncBaseSQLClient):
         if auth_type in ("iam_user", "iam_role"):
             # For IAM auth, use event listener pattern to inject token at connection time
             # This is the recommended approach for SQLAlchemy async engines with IAM auth
+            import ssl
+
+            from sqlalchemy import event
+            from sqlalchemy.engine import URL
+            from sqlalchemy.ext.asyncio import create_async_engine
 
             # Get raw IAM token (not URL-encoded)
             if auth_type == "iam_user":

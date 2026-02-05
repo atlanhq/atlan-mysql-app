@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, cast
+from typing import Any, Dict, Optional, cast
 
 import daft
 from application_sdk.activities.common.models import ActivityStatistics
@@ -15,7 +15,22 @@ from application_sdk.io.utils import is_empty_dataframe
 from temporalio import activity
 
 from app.clients import SQLClient
+from app.constants import DATABASE_PLACEHOLDER
 from app.transformers.query import MySQLQueryBasedTransformer
+
+
+def _replace_database_placeholder(sql: Optional[str]) -> Optional[str]:
+    """Replace {database_placeholder} with the actual constant value.
+
+    Args:
+        sql: SQL query string that may contain {database_placeholder}
+
+    Returns:
+        SQL query with placeholder replaced, or None if input is None
+    """
+    if sql is None:
+        return None
+    return sql.replace("{database_placeholder}", DATABASE_PLACEHOLDER)
 
 
 class MySQLSQLMetadataExtractionActivities(BaseSQLMetadataExtractionActivities):
@@ -25,6 +40,23 @@ class MySQLSQLMetadataExtractionActivities(BaseSQLMetadataExtractionActivities):
 
     sql_client_class = SQLClient
     transformer_class = MySQLQueryBasedTransformer
+
+    # Override SQL queries to replace {database_placeholder} with constant
+    fetch_database_sql = _replace_database_placeholder(
+        BaseSQLMetadataExtractionActivities.fetch_database_sql
+    )
+    fetch_schema_sql = _replace_database_placeholder(
+        BaseSQLMetadataExtractionActivities.fetch_schema_sql
+    )
+    fetch_table_sql = _replace_database_placeholder(
+        BaseSQLMetadataExtractionActivities.fetch_table_sql
+    )
+    fetch_column_sql = _replace_database_placeholder(
+        BaseSQLMetadataExtractionActivities.fetch_column_sql
+    )
+    fetch_procedure_sql = _replace_database_placeholder(
+        BaseSQLMetadataExtractionActivities.fetch_procedure_sql
+    )
 
     @activity.defn
     @auto_heartbeater
