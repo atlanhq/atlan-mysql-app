@@ -4,38 +4,47 @@ from application_sdk.application.metadata_extraction.sql import (
     BaseSQLMetadataExtractionApplication,
 )
 from application_sdk.constants import APPLICATION_NAME
-from application_sdk.observability.decorators.observability_decorator import (
-    observability,
+from application_sdk.workflows.metadata_extraction.sql import (
+    BaseSQLMetadataExtractionWorkflow,
 )
-from application_sdk.observability.logger_adaptor import get_logger
-from application_sdk.observability.metrics_adaptor import get_metrics
-from application_sdk.observability.traces_adaptor import get_traces
-from application_sdk.transformers.query import QueryBasedTransformer
 
+from app.activities.metadata_extraction.mysql import (
+    MySQLSQLMetadataExtractionActivities,
+)
 from app.clients import SQLClient
-
-logger = get_logger(__name__)
-metrics = get_metrics()
-traces = get_traces()
+from app.handlers.mysql import MySQLHandler
+from app.transformers.query import MySQLQueryBasedTransformer
 
 
-@observability(logger=logger, metrics=metrics, traces=traces)
 async def main():
     # Initialize the application with MySQL-specific implementations
     application = BaseSQLMetadataExtractionApplication(
         name=APPLICATION_NAME,
         client_class=SQLClient,
-        transformer_class=QueryBasedTransformer,  # type: ignore
+        handler_class=MySQLHandler,
+        transformer_class=MySQLQueryBasedTransformer,  # type: ignore
     )
 
-    # Setup the workflow
-    await application.setup_workflow()
+    # Setup the workflow with MySQL-specific activities
+    # Using BaseSQLMetadataExtractionWorkflow directly - all customizations are in activities
+    await application.setup_workflow(
+        workflow_and_activities_classes=[
+            (
+                BaseSQLMetadataExtractionWorkflow,
+                MySQLSQLMetadataExtractionActivities,
+            ),
+        ]
+    )
 
     # Start the worker
     await application.start_worker()
 
     # Setup the application server
-    await application.setup_server()
+    # BaseSQLMetadataExtractionWorkflow is the default, but explicitly specified for clarity
+    # has_configmap=True enables playground frontend (reads JSON configs from app/templates/)
+    await application.setup_server(
+        workflow_class=BaseSQLMetadataExtractionWorkflow, has_configmap=True
+    )
 
     # Start the application server
     await application.start_server()

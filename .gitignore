@@ -44,5 +44,9 @@ gh_secret
 
 # env
 .env.dev
+.env
 
 components
+local
+
+test-scripts/
