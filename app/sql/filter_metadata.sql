@@ -13,7 +13,7 @@
  *   - Excludes system schemas (mysql, performance_schema, information_schema, sys)
  */
 SELECT
-    'def' AS catalog_name,
+    '{database_placeholder}' AS catalog_name,
     S.SCHEMA_NAME AS schema_name
 FROM information_schema.SCHEMATA S
 WHERE S.SCHEMA_NAME NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')
