@@ -18,13 +18,17 @@
  *   - Results filtered by include/exclude regex patterns
  */
 SELECT
-    R.ROUTINE_CATALOG AS PROCEDURE_CATALOG,
-    R.ROUTINE_SCHEMA  AS PROCEDURE_SCHEMA,
-    R.ROUTINE_NAME    AS PROCEDURE_NAME,
-    R.DEFINER         AS SOURCE_OWNER,
+    '{database_placeholder}' AS procedure_catalog,
+    R.ROUTINE_SCHEMA AS procedure_schema,
+    R.ROUTINE_NAME AS procedure_name,
+    R.DEFINER AS source_owner,
     R.ROUTINE_DEFINITION AS procedure_definition,
-    R.ROUTINE_TYPE    AS procedure_type
+    R.ROUTINE_TYPE AS procedure_type,
+    R.ROUTINE_COMMENT AS remarks,
+    -- MySQL-specific timestamps
+    R.CREATED AS created,
+    R.LAST_ALTERED AS last_altered
 FROM information_schema.ROUTINES R
 WHERE R.ROUTINE_SCHEMA NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')
-AND CONCAT(DATABASE(), CONCAT('.', R.ROUTINE_SCHEMA)) NOT REGEXP '{normalized_exclude_regex}'
-AND CONCAT(DATABASE(), CONCAT('.', R.ROUTINE_SCHEMA)) REGEXP '{normalized_include_regex}';
+AND CONCAT(COALESCE(DATABASE(), '{database_placeholder}'), CONCAT('.', R.ROUTINE_SCHEMA)) NOT REGEXP '{normalized_exclude_regex}'
+AND CONCAT(COALESCE(DATABASE(), '{database_placeholder}'), CONCAT('.', R.ROUTINE_SCHEMA)) REGEXP '{normalized_include_regex}';

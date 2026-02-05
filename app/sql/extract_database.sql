@@ -12,10 +12,14 @@
  *   - Scoped to the current database (DATABASE())
  */
 SELECT
-    SCHEMA_NAME as database_name,
-    SCHEMA_NAME as datname,
+    '{database_placeholder}' as database_name,
+    '{database_placeholder}' as datname,
     DEFAULT_CHARACTER_SET_NAME as charset,
     DEFAULT_COLLATION_NAME as collation,
-    0 as schema_count
+    (
+        SELECT COUNT(*)
+        FROM information_schema.SCHEMATA
+        WHERE SCHEMA_NAME NOT IN ('performance_schema', 'information_schema', 'mysql', 'sys')
+    ) as schema_count
 FROM information_schema.SCHEMATA
-WHERE SCHEMA_NAME = DATABASE();
+WHERE SCHEMA_NAME = COALESCE(DATABASE(), '{database_placeholder}');
