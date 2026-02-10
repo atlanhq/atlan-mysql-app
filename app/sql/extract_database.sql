@@ -1,25 +1,26 @@
 /*
  * File: extract_database.sql
- * Purpose: Extracts basic database metadata from the current MySQL database
+ * Purpose: Extracts basic database metadata from MySQL
  *
- * This query retrieves fundamental database information including database name
- * and all associated metadata from the information_schema.schemata table.
+ * This query retrieves catalog-level database information including the catalog name
+ * and count of non-system schemas. Matches legacy JDBC extractor behavior.
  *
  * Returns:
- *   - Database metadata including name and system properties
+ *   - Catalog metadata with name 'def' (MySQL's default catalog)
+ *   - Count of non-system schemas
  *
  * Notes:
- *   - Scoped to the current database (DATABASE())
+ *   - Returns exactly 1 row representing the catalog level
+ *   - Uses 'def' as the catalog name (MySQL convention)
+ *   - Counts all non-system schemas in the MySQL instance
  */
 SELECT
     '{database_placeholder}' as database_name,
     '{database_placeholder}' as datname,
-    DEFAULT_CHARACTER_SET_NAME as charset,
-    DEFAULT_COLLATION_NAME as collation,
+    @@character_set_database as charset,
+    @@collation_database as collation,
     (
         SELECT COUNT(*)
         FROM information_schema.SCHEMATA
         WHERE SCHEMA_NAME NOT IN ('performance_schema', 'information_schema', 'mysql', 'sys')
-    ) as schema_count
-FROM information_schema.SCHEMATA
-WHERE SCHEMA_NAME = COALESCE(DATABASE(), '{database_placeholder}');
+    ) as schema_count;
