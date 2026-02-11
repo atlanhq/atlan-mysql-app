@@ -196,10 +196,9 @@ columns:
   typeName:
     source_query: |
       CASE
-        WHEN CAST(is_partition AS BOOLEAN) = TRUE THEN 'TablePartition'
         WHEN table_type IN ('TABLE', 'BASE TABLE') THEN 'Table'
         ELSE 'View'
       END
-    source_columns: [is_partition, table_type]
+    source_columns: [table_type]
   status:
     source_query: "'ACTIVE'"
