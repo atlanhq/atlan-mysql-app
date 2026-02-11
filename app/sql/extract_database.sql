@@ -17,8 +17,6 @@
 SELECT
     '{database_placeholder}' as database_name,
     '{database_placeholder}' as datname,
-    @@character_set_database as charset,
-    @@collation_database as collation,
     (
         SELECT COUNT(*)
         FROM information_schema.SCHEMATA
