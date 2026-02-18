@@ -37,6 +37,7 @@ class MySQLQueryBasedTransformer(QueryBasedTransformer):
         Overrides the base class to fix connection_qualified_name and connector_name:
         - Replaces 'default/default' with 'default/mysql' in connection_qualified_name
         - Uses APPLICATION_NAME ('mysql') for connector_name instead of extracting from connection_qualified_name
+        - Casts Null-typed columns to String to prevent DaftError::TypeError when used in SQL functions
 
         Args:
             dataframe (daft.DataFrame): Input DataFrame
@@ -54,6 +55,24 @@ class MySQLQueryBasedTransformer(QueryBasedTransformer):
             connection_qualified_name = connection_qualified_name.replace(
                 "default/default", f"default/{APPLICATION_NAME}"
             )
+
+        # Cast Null-typed columns to String to prevent DaftError::TypeError
+        # When a column has ALL NULL values, Daft infers type as Null instead of String
+        # SQL functions like SUBSTRING, CONCAT, REGEXP_REPLACE expect utf8 (String) input
+        # This fix ensures all columns are String type before SQL execution
+        schema = dataframe.schema()
+        null_type_columns = {}
+        for col_name in dataframe.column_names:
+            field = schema[col_name]
+            # Check if the column has Null type (not just nullable String)
+            if str(field.dtype) == "Null":
+                # Cast Null type to String, defaulting NULL values to empty string
+                null_type_columns[col_name] = daft.col(col_name).cast(
+                    daft.DataType.string()
+                )
+
+        if null_type_columns:
+            dataframe = dataframe.with_columns(null_type_columns)
 
         # Call parent method with fixed connection_qualified_name
         dataframe, entity_sql_template = super().prepare_template_and_attributes(
