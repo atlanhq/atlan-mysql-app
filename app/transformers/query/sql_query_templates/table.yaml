@@ -52,7 +52,8 @@ columns:
       source_query: |
         CASE
           WHEN table_type = 'VIEW' THEN CONCAT('CREATE OR REPLACE VIEW ', table_name, ' AS ', COALESCE(view_definition, 'None'))
-          ELSE view_definition
+          WHEN view_definition IS NOT NULL THEN view_definition
+          ELSE NULL
         END
       source_columns: [table_type, table_name, view_definition]
     columnCount:
@@ -98,7 +99,11 @@ columns:
         END
       source_columns: [partitions]
     partitionStrategy:
-      source_query: COALESCE(partition_strategy, NULL)
+      source_query: |
+        CASE
+          WHEN partition_strategy IS NOT NULL THEN partition_strategy
+          ELSE NULL
+        END
       source_columns: [partition_strategy]
     partitionCount:
       source_query: |
@@ -108,7 +113,11 @@ columns:
         END
       source_columns: [partition_count]
     constraint:
-      source_query: COALESCE(partition_constraint, NULL)
+      source_query: |
+        CASE
+          WHEN partition_constraint IS NOT NULL THEN partition_constraint
+          ELSE NULL
+        END
       source_columns: [partition_constraint]
     tenantId:
       source_query: tenant_id
