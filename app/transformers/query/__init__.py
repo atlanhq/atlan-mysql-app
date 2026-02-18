@@ -37,6 +37,7 @@ class MySQLQueryBasedTransformer(QueryBasedTransformer):
         Overrides the base class to fix connection_qualified_name and connector_name:
         - Replaces 'default/default' with 'default/mysql' in connection_qualified_name
         - Uses APPLICATION_NAME ('mysql') for connector_name instead of extracting from connection_qualified_name
+        - Handles NULL values by defaulting to empty string (matching legacy app behavior) to prevent DaftError::TypeError
 
         Args:
             dataframe (daft.DataFrame): Input DataFrame
@@ -54,6 +55,12 @@ class MySQLQueryBasedTransformer(QueryBasedTransformer):
             connection_qualified_name = connection_qualified_name.replace(
                 "default/default", f"default/{APPLICATION_NAME}"
             )
+
+        # Handle NULL values like legacy app - default to empty string to avoid Null type errors
+        # Legacy app uses obj.get("connection_qualified_name", "") which defaults to empty string
+        # This prevents DaftError::TypeError when connection_qualified_name/connection_name are None
+        connection_qualified_name = connection_qualified_name or ""
+        connection_name = connection_name or ""
 
         # Call parent method with fixed connection_qualified_name
         dataframe, entity_sql_template = super().prepare_template_and_attributes(
