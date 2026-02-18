@@ -93,7 +93,7 @@ class TestMySQLClient:
             "app.clients.generate_aws_rds_token_with_iam_user",
             return_value="mock_token_12345",
         ) as mock_token, patch(
-            "sqlalchemy.ext.asyncio.create_async_engine"
+            "app.clients.create_async_engine"
         ) as mock_create_engine, patch(
             "sqlalchemy.event.listens_for"
         ) as mock_listens_for:
@@ -103,6 +103,7 @@ class TestMySQLClient:
             mock_connection_context = AsyncMock()
             mock_connection_context.__aenter__ = AsyncMock(return_value=mock_connection)
             mock_connection_context.__aexit__ = AsyncMock(return_value=None)
+            # connect() is a regular method that returns an async context manager
             mock_engine.connect.return_value = mock_connection_context
             mock_sync_engine = MagicMock()
             mock_engine.sync_engine = mock_sync_engine  # For event listener
@@ -122,7 +123,7 @@ class TestMySQLClient:
     async def test_load_iam_role_auth_success(self, iam_role_credentials):
         """Test successful loading with IAM role authentication."""
         with patch("boto3.Session") as mock_boto3_session, patch(
-            "sqlalchemy.ext.asyncio.create_async_engine"
+            "app.clients.create_async_engine"
         ) as mock_create_engine, patch(
             "sqlalchemy.event.listens_for"
         ) as mock_listens_for, patch(
@@ -155,6 +156,7 @@ class TestMySQLClient:
             mock_connection_context = AsyncMock()
             mock_connection_context.__aenter__ = AsyncMock(return_value=mock_connection)
             mock_connection_context.__aexit__ = AsyncMock(return_value=None)
+            # connect() is a regular method that returns an async context manager
             mock_engine.connect.return_value = mock_connection_context
             mock_sync_engine = MagicMock()
             mock_engine.sync_engine = mock_sync_engine  # For event listener
