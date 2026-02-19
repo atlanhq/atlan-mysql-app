@@ -42,7 +42,27 @@ class SQLClient(AsyncBaseSQLClient):
             "connect_timeout": 5,
             "charset": "utf8mb4",
         },
+        # SSL will be enabled in load() method using SSL context (like IAM auth)
+        # This avoids class-level initialization issues and allows proper SSL context creation
+        connect_args={},
     )
+
+    @staticmethod
+    def _create_ssl_context() -> ssl.SSLContext:
+        """
+        Create SSL context without certificate verification for RDS compatibility.
+
+        RDS IAM auth and servers with --require_secure_transport=ON require SSL
+        but may have self-signed certificates. This context disables verification
+        to allow connections while still using encrypted transport.
+
+        Returns:
+            ssl.SSLContext: SSL context configured for RDS compatibility
+        """
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+        return ssl_context
 
     def _extract_region_from_hostname(self, host: Optional[str]) -> Optional[str]:
         """Extract AWS region from RDS hostname.
@@ -310,10 +330,7 @@ class SQLClient(AsyncBaseSQLClient):
             engine_url = URL.create(**url_kwargs)
 
             # Create SSL context without certificate verification for RDS IAM auth
-            # RDS IAM auth requires SSL but may have self-signed certificates
-            ssl_context = ssl.create_default_context()
-            ssl_context.check_hostname = False
-            ssl_context.verify_mode = ssl.CERT_NONE
+            ssl_context = self._create_ssl_context()
 
             # Create async engine with all auth parameters in connect_args
             connect_args = dict(self.DB_CONFIG.connect_args if self.DB_CONFIG else {})
@@ -355,5 +372,14 @@ class SQLClient(AsyncBaseSQLClient):
             # Don't store persistent connection (base class sets this to None)
             # self.connection is managed by the base class
         else:
-            # For basic auth, use base class implementation
+            # For basic auth, enable SSL by default (matching legacy JDBC driver behavior)
+            # Create SSL context and modify DB_CONFIG.connect_args before calling base class
+            ssl_context = self._create_ssl_context()
+
+            # Temporarily add SSL context to DB_CONFIG.connect_args
+            # Base class will use this when creating the engine
+            if self.DB_CONFIG:
+                self.DB_CONFIG.connect_args["ssl"] = ssl_context
+
+            # Use base class - it will use the modified DB_CONFIG.connect_args
             await super().load(credentials)
