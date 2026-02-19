@@ -7,12 +7,19 @@ import pytest
 from application_sdk.transformers.query import QueryBasedTransformer
 from daft.logical.schema import Field
 
+from app.transformers.query import MySQLQueryBasedTransformer
+
 
 @pytest.fixture
 def sql_transformer():
     return QueryBasedTransformer(
         connector_name="test_connector", tenant_id="test_tenant"
     )
+
+
+@pytest.fixture
+def mysql_transformer():
+    return MySQLQueryBasedTransformer(connector_name="mysql", tenant_id="test_tenant")
 
 
 @pytest.fixture
@@ -300,3 +307,66 @@ def test_transform_metadata(
     assert result is not None
     mock_prepare.assert_called_once()
     mock_group.assert_called_once()
+
+
+# MySQL-specific transformer tests
+@patch("application_sdk.transformers.query.QueryBasedTransformer.generate_sql_query")
+def test_mysql_prepare_template_and_attributes_with_none_connection_name(
+    mock_generate: Any,
+    mysql_transformer: MySQLQueryBasedTransformer,
+    sample_dataframe: daft.DataFrame,
+):
+    """Test MySQL transformer handles None connection_name by defaulting to empty string"""
+    mock_generate.return_value = ("SELECT * FROM dataframe", None)
+    workflow_id = "test_workflow"
+    workflow_run_id = "test_run"
+
+    result_df, _ = mysql_transformer.prepare_template_and_attributes(
+        sample_dataframe,
+        workflow_id,
+        workflow_run_id,
+        connection_qualified_name="default/mysql/123",
+        connection_name=None,  # None value
+        entity_sql_template_path="dummy_path",
+    )
+
+    # Verify columns exist
+    assert "connection_qualified_name" in result_df.column_names
+    assert "connection_name" in result_df.column_names
+    assert "connector_name" in result_df.column_names
+
+    # Verify it doesn't raise DaftError::TypeError
+    result_df.to_pandas()
+
+
+@patch("application_sdk.transformers.query.QueryBasedTransformer.generate_sql_query")
+def test_mysql_prepare_template_and_attributes_with_valid_values(
+    mock_generate: Any,
+    mysql_transformer: MySQLQueryBasedTransformer,
+    sample_dataframe: daft.DataFrame,
+):
+    """Test MySQL transformer preserves valid connection values"""
+    mock_generate.return_value = ("SELECT * FROM dataframe", None)
+    workflow_id = "test_workflow"
+    workflow_run_id = "test_run"
+    connection_qualified_name = "default/mysql/1746717318"
+    connection_name = "test_conn"
+
+    result_df, _ = mysql_transformer.prepare_template_and_attributes(
+        sample_dataframe,
+        workflow_id,
+        workflow_run_id,
+        connection_qualified_name=connection_qualified_name,
+        connection_name=connection_name,
+        entity_sql_template_path="dummy_path",
+    )
+
+    # Verify columns exist
+    assert "connection_qualified_name" in result_df.column_names
+    assert "connection_name" in result_df.column_names
+    assert "connector_name" in result_df.column_names
+
+    # Verify connector_name is set (it uses APPLICATION_NAME which may vary by environment)
+    pandas_df = result_df.to_pandas()
+    assert pandas_df["connector_name"].iloc[0] is not None
+    assert isinstance(pandas_df["connector_name"].iloc[0], str)
