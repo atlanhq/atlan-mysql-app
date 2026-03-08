@@ -1,0 +1,24 @@
+name: mysql
+display_name: Mysql
+type: connector
+execution_mode: argo
+argo_package_names:
+  - "@atlan/mysql"
+registries:
+  dockerhub: false
+dockerfile: ./Dockerfile
+deploy:
+  replicaCount: 1
+  containerPort: 8000
+  env: {}
+  dapr:
+    secretstore: true
+    objectstore: false
+    statestore: false
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
