@@ -14,6 +14,11 @@ on:
         required: false
         type: string
 
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
 jobs:
   build:
     uses: atlanhq/application-sdk/.github/workflows/build-app.yml@main
