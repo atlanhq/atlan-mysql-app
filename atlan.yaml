@@ -7,6 +7,7 @@ argo_package_names:
 registries:
   dockerhub: false
 dockerfile: ./Dockerfile
+build_tag: v1
 deploy:
   replicaCount: 1
   containerPort: 8000
