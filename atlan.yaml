@@ -1,4 +1,5 @@
 name: mysql
+app_id: 019c4c4b-8468-7e42-b0d6-eada59da2da1  # Global Marketplace UUID
 display_name: "Mysql"
 type: connector
 execution_mode: argo
