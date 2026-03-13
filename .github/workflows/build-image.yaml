@@ -5,8 +5,8 @@ on:
     branches: [main]
     paths:
       - '**'
-      - '!**.md'
-      - '!images/**'
+      - '\!**.md'
+      - '\!images/**'
   workflow_dispatch:
     inputs:
       ref:
@@ -14,14 +14,9 @@ on:
         required: false
         type: string
 
-permissions:
-  contents: read
-  packages: write
-  security-events: write
-
 jobs:
   build:
-    uses: atlanhq/application-sdk/.github/workflows/build-app.yml@main
+    uses: atlanhq/application-sdk/.github/workflows/build-apps-image.yaml@main
     with:
       ref: ${{ inputs.ref || github.ref }}
     secrets: inherit
