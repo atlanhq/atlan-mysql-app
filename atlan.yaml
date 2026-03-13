@@ -8,7 +8,6 @@ visibility: public
 argo_package_names:
   - "@atlan/mysql"
 
-version: "0.0.10"
 build_tag: v1
 # If set to true, images will be pushed to a shared repository where customers can also pull
 self_deployed_runtime: true
