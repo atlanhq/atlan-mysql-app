@@ -10,7 +10,7 @@ on:
         required: false
         type: string
       channel:
-        description: "Target channel (e.g. 'all' for draft release). Ignored when tenants is set."
+        description: "Target channel: 'all' (draft, needs approval), 'beta', 'staging' (auto-approved). Ignored when tenants is set."
         required: false
         type: string
         default: "all"
