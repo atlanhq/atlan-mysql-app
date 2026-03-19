@@ -3,9 +3,6 @@ name: Publish
 on:
   push:
     branches: [main]
-    paths:
-      - 'atlan.yaml'
-      - '.github/workflows/publish.yaml'
   workflow_dispatch:
     inputs:
       ref:
