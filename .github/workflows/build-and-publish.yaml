@@ -1,0 +1,39 @@
+name: Build & Publish
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '**'
+      - '!**.md'
+      - '!images/**'
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch or SHA to build (default: current ref)"
+        required: false
+        type: string
+      channel:
+        description: "Target channel: 'all' (draft, needs approval), 'beta', 'staging' (auto-approved). Ignored when tenants is set."
+        required: false
+        type: string
+        default: "all"
+      tenants:
+        description: "Comma-separated tenant IDs for targeted publish. Takes precedence over channel."
+        required: false
+        type: string
+      publish:
+        description: "Whether to publish to marketplace after build"
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  build-and-publish:
+    uses: atlanhq/application-sdk/.github/workflows/build-and-publish-app.yaml@main
+    with:
+      ref: ${{ inputs.ref || github.ref }}
+      publish: ${{ github.event.inputs.publish != 'false' }}
+      channel: ${{ inputs.channel || 'all' }}
+      tenants: ${{ inputs.tenants || '' }}
+    secrets: inherit
