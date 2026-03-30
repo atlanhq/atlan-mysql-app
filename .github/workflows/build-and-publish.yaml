@@ -1,0 +1,24 @@
+name: Build & Publish
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "Target channel (ignored when tenants is set)"
+        type: string
+        default: "all"
+      tenants:
+        description: "Comma-separated tenant IDs for targeted publish"
+        type: string
+        default: ""
+
+jobs:
+  build-and-publish:
+    uses: atlanhq/application-sdk/.github/workflows/build-and-publish-app.yaml@main
+    with:
+      publish: true
+      channel: ${{ inputs.channel || 'all' }}
+      tenants: ${{ inputs.tenants || '' }}
+    secrets: inherit
