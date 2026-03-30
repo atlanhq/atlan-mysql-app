@@ -3,8 +3,16 @@ name: Build & Publish
 on:
   push:
     branches: [main]
+    paths:
+      - '**'
+      - '!**.md'
+      - '!images/**'
   workflow_dispatch:
     inputs:
+      ref:
+        description: "Branch or SHA to build and publish (default: current branch)"
+        required: false
+        type: string
       channel:
         description: "Target channel (ignored when tenants is set)"
         type: string
@@ -18,6 +26,7 @@ jobs:
   build-and-publish:
     uses: atlanhq/application-sdk/.github/workflows/build-and-publish-app.yaml@main
     with:
+      ref: ${{ inputs.ref || github.ref }}
       publish: true
       channel: ${{ inputs.channel || 'all' }}
       tenants: ${{ inputs.tenants || '' }}
