@@ -9,8 +9,12 @@ on:
       - '!images/**'
   workflow_dispatch:
     inputs:
+      publish:
+        description: "Publish to marketplace after build"
+        type: boolean
+        default: true
       ref:
-        description: "Branch or SHA to build and publish (default: current branch)"
+        description: "Branch, tag, or SHA to build (default: current branch)"
         required: false
         type: string
       channel:
@@ -27,7 +31,7 @@ jobs:
     uses: atlanhq/application-sdk/.github/workflows/build-and-publish-app.yaml@main
     with:
       ref: ${{ inputs.ref || github.ref }}
-      publish: true
+      publish: ${{ github.event_name == 'push' || inputs.publish }}
       channel: ${{ inputs.channel || 'all' }}
       tenants: ${{ inputs.tenants || '' }}
     secrets: inherit
