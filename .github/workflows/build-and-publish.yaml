@@ -31,7 +31,7 @@ jobs:
     uses: atlanhq/application-sdk/.github/workflows/build-and-publish-app.yaml@main
     with:
       ref: ${{ inputs.ref || github.ref }}
-      publish: ${{ github.event_name == 'push' || inputs.publish }}
+      publish: ${{ github.event_name == 'push' || github.event.inputs.publish != 'false' }}
       channel: ${{ inputs.channel || 'all' }}
       tenants: ${{ inputs.tenants || '' }}
     secrets: inherit
