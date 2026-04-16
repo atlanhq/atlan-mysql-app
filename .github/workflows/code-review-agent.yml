@@ -1,0 +1,18 @@
+name: PR Code Review
+
+on:
+  pull_request:
+    branches: [main, master]
+    types: [opened, synchronize, reopened]
+    paths: ['**.py', '**.ts', '**.js', '**.go']
+
+concurrency:
+  group: code-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  code-review:
+    uses: atlanhq/mothership/.github/workflows/pr-reviewer-reusable.yml@beta
+    with:
+      globalprotect-portal-url: ${{ vars.GLOBALPROTECT_PORTAL_URL }}
+    secrets: inherit
