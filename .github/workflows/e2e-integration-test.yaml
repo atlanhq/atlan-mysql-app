@@ -32,7 +32,7 @@ jobs:
     - name: echo distinct ID ${{ github.event.inputs.distinct_id }}
       run: echo ${{ github.event.inputs.distinct_id }}
 
-    - uses: actions/checkout@v4.0.0
+    - uses: actions/checkout@v6.0.2
       with:
         token : ${{ secrets.ORG_PAT_GITHUB }}
 
