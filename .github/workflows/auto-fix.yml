@@ -7,5 +7,5 @@ on:
 jobs:
   auto-fix:
     if: github.event.issue.pull_request && contains(github.event.comment.body, '/fix-vulnerabilities')
-    uses: atlanhq/application-sdk/.github/workflows/auto-fix-vulnerabilities.yaml@feat/auto-fix-on-comment
+    uses: atlanhq/application-sdk/.github/workflows/auto-fix-vulnerabilities.yaml@main
     secrets: inherit
