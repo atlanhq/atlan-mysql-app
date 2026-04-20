@@ -183,7 +183,7 @@ jobs:
 
     - name: Comment integration test profiling status on Pull Request
       if: ${{ github.event_name == 'pull_request' }}
-      uses: mshick/add-pr-comment@b8f338c590a895d50bcbfa6c5859251edc8952fc # v2.8.2 https://github.com/mshick/add-pr-comment/releases/tag/v2.8.2
+      uses: mshick/add-pr-comment@64b8e914979889d746c99dea15a76e77ef64580a # v3.10.0 https://github.com/mshick/add-pr-comment/releases/tag/v3.10.0
       with:
         message-id: "integration_test_profiling"
         message-path: metrics.md
