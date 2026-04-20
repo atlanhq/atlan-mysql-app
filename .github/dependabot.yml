@@ -1,5 +1,6 @@
 version: 2
 updates:
+  # Python dependencies — grouped to reduce PR noise
   - package-ecosystem: pip
     directory: "/"
     schedule:
@@ -7,6 +8,28 @@ updates:
       day: monday
     labels: ["dependencies"]
     open-pull-requests-limit: 10
+    groups:
+      # SDK — always its own PR (most important)
+      atlan-sdk:
+        patterns: ["atlan-application-sdk", "app-framework"]
+      # Testing tools
+      testing:
+        patterns: ["pytest*", "coverage*", "mock*", "faker*", "responses*"]
+      # Type checking & linting
+      dev-tools:
+        patterns: ["mypy*", "ruff*", "black*", "isort*", "pre-commit*", "ty*"]
+      # Data & serialization
+      data-libs:
+        patterns: ["pydantic*", "protobuf*", "grpcio*", "orjson*"]
+      # Security & crypto
+      security:
+        patterns: ["cryptography*", "certifi*", "urllib3*", "authlib*"]
+      # All other minor/patch bumps
+      minor-patch:
+        update-types: ["minor", "patch"]
+        exclude-patterns: ["atlan-application-sdk", "app-framework"]
+
+  # GitHub Actions — grouped into one PR
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
@@ -14,3 +37,6 @@ updates:
       day: monday
     labels: ["dependencies"]
     open-pull-requests-limit: 5
+    groups:
+      actions:
+        patterns: ["*"]
