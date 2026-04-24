@@ -19,6 +19,6 @@ SELECT
     '{database_placeholder}' as datname,
     (
         SELECT COUNT(*)
-        FROM information_schema.SCHEMATA
-        WHERE SCHEMA_NAME NOT IN ('performance_schema', 'information_schema', 'mysql', 'sys')
+        FROM {cloned_information_schema}SCHEMATA
+        WHERE SCHEMA_NAME NOT IN ('performance_schema', 'information_schema', 'mysql', 'sys'{cloned_schema_exclusion})
     ) as schema_count;

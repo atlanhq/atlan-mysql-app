@@ -14,6 +14,7 @@ from application_sdk.io.parquet import ParquetFileReader
 from application_sdk.io.utils import is_empty_dataframe
 from temporalio import activity
 
+from app.activities.metadata_extraction.utils import resolve_cloned_information_schema
 from app.clients import SQLClient
 from app.constants import DATABASE_PLACEHOLDER
 from app.transformers.query import MySQLQueryBasedTransformer
@@ -57,6 +58,51 @@ class MySQLSQLMetadataExtractionActivities(BaseSQLMetadataExtractionActivities):
     fetch_procedure_sql = _replace_database_placeholder(
         BaseSQLMetadataExtractionActivities.fetch_procedure_sql
     )
+
+    @activity.defn
+    @auto_heartbeater
+    async def fetch_databases(self, workflow_args: Dict[str, Any]) -> ActivityStatistics:
+        self.fetch_database_sql = resolve_cloned_information_schema(
+            workflow_args=workflow_args,
+            default_sql=self.fetch_database_sql,
+        )
+        return await super().fetch_databases(workflow_args)
+
+    @activity.defn
+    @auto_heartbeater
+    async def fetch_schemas(self, workflow_args: Dict[str, Any]) -> ActivityStatistics:
+        self.fetch_schema_sql = resolve_cloned_information_schema(
+            workflow_args=workflow_args,
+            default_sql=self.fetch_schema_sql,
+        )
+        return await super().fetch_schemas(workflow_args)
+
+    @activity.defn
+    @auto_heartbeater
+    async def fetch_tables(self, workflow_args: Dict[str, Any]) -> ActivityStatistics:
+        self.fetch_table_sql = resolve_cloned_information_schema(
+            workflow_args=workflow_args,
+            default_sql=self.fetch_table_sql,
+        )
+        return await super().fetch_tables(workflow_args)
+
+    @activity.defn
+    @auto_heartbeater
+    async def fetch_columns(self, workflow_args: Dict[str, Any]) -> ActivityStatistics:
+        self.fetch_column_sql = resolve_cloned_information_schema(
+            workflow_args=workflow_args,
+            default_sql=self.fetch_column_sql,
+        )
+        return await super().fetch_columns(workflow_args)
+
+    @activity.defn
+    @auto_heartbeater
+    async def fetch_procedures(self, workflow_args: Dict[str, Any]) -> ActivityStatistics:
+        self.fetch_procedure_sql = resolve_cloned_information_schema(
+            workflow_args=workflow_args,
+            default_sql=self.fetch_procedure_sql,
+        )
+        return await super().fetch_procedures(workflow_args)
 
     @activity.defn
     @auto_heartbeater

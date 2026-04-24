@@ -80,6 +80,42 @@
                         }
                     ]
                 }
+            },
+            "advanced-config": {
+                "type": "string",
+                "enum": ["default", "custom"],
+                "default": "default",
+                "required": true,
+                "enumNames": ["Default", "Advanced"],
+                "ui": {
+                    "widget": "radio",
+                    "hidden": false,
+                    "label": "Advanced Config",
+                    "help": "Set advanced configuration of the crawler"
+                }
+            },
+            "control-config-strategy": {
+                "type": "string",
+                "enum": ["default", "custom"],
+                "default": "default",
+                "required": true,
+                "enumNames": ["Default", "Custom"],
+                "ui": {
+                    "widget": "radio",
+                    "hidden": false,
+                    "label": "Control Config",
+                    "help": "Controls custom feature flags for the crawler"
+                }
+            },
+            "control-config": {
+                "type": "string",
+                "ui": {
+                    "label": "Custom Config",
+                    "help": "Custom JSON config. Example: {\"clonedInformationSchema\": \"atlan_meta\"}",
+                    "placeholder": "{\"clonedInformationSchema\": \"atlan_meta\"}",
+                    "hidden": false,
+                    "default": "{}"
+                }
             }
         },
         "steps": [
@@ -107,8 +143,27 @@
                     "include-metadata",
                     "exclude-metadata",
                     "exclude-table-regex",
+                    "advanced-config",
+                    "control-config-strategy",
+                    "control-config",
                     "preflight-check"
                 ]
+            }
+        ],
+        "anyOf": [
+            {
+                "properties": { "advanced-config": { "const": "default" } }
+            },
+            {
+                "properties": { "advanced-config": { "const": "custom" } },
+                "required": ["control-config-strategy"]
+            },
+            {
+                "properties": {
+                    "advanced-config": { "const": "custom" },
+                    "control-config-strategy": { "const": "custom" }
+                },
+                "required": ["control-config"]
             }
         ]
     }

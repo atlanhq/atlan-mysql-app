@@ -27,7 +27,7 @@ SELECT
     COALESCE(T.TABLE_ROWS, 0) AS row_count,
     (
         SELECT COUNT(*)
-        FROM information_schema.COLUMNS C
+        FROM {cloned_information_schema}COLUMNS C
         WHERE C.TABLE_SCHEMA = T.TABLE_SCHEMA
         AND C.TABLE_NAME = T.TABLE_NAME
     ) AS column_count,
@@ -67,7 +67,7 @@ SELECT
     T.CREATE_TIME AS create_time,
     -- Partition metadata
     p.PARTITIONS AS partitions
-FROM information_schema.TABLES T
+FROM {cloned_information_schema}TABLES T
 LEFT JOIN (
     SELECT
         TABLE_NAME,
@@ -75,11 +75,11 @@ LEFT JOIN (
         PARTITION_METHOD,
         COUNT(*) AS partition_count,
         GROUP_CONCAT(PARTITION_NAME ORDER BY PARTITION_NAME) AS PARTITIONS
-    FROM information_schema.PARTITIONS
+    FROM {cloned_information_schema}PARTITIONS
     GROUP BY TABLE_NAME, TABLE_SCHEMA, PARTITION_METHOD
 ) AS p ON p.TABLE_NAME = T.TABLE_NAME AND p.TABLE_SCHEMA = T.TABLE_SCHEMA
-LEFT JOIN information_schema.VIEWS V ON (T.TABLE_SCHEMA = V.TABLE_SCHEMA AND T.TABLE_NAME = V.TABLE_NAME)
-WHERE T.TABLE_SCHEMA NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')
+LEFT JOIN {cloned_information_schema}VIEWS V ON (T.TABLE_SCHEMA = V.TABLE_SCHEMA AND T.TABLE_NAME = V.TABLE_NAME)
+WHERE T.TABLE_SCHEMA NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys'{cloned_schema_exclusion})
 AND CONCAT(COALESCE(DATABASE(), '{database_placeholder}'), CONCAT('.', T.TABLE_SCHEMA)) NOT REGEXP '{normalized_exclude_regex}'
 AND CONCAT(COALESCE(DATABASE(), '{database_placeholder}'), CONCAT('.', T.TABLE_SCHEMA)) REGEXP '{normalized_include_regex}'
 {temp_table_regex_sql}
