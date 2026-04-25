@@ -250,17 +250,17 @@ class TestSQLFilePlaceholders:
     def test_sql_file_has_cloned_placeholder(self, sql_file):
         """Every target SQL file must contain at least one {cloned_information_schema}."""
         sql = _read_sql(sql_file)
-        assert "{cloned_information_schema}" in sql, (
-            f"{sql_file} missing {{cloned_information_schema}} placeholder"
-        )
+        assert (
+            "{cloned_information_schema}" in sql
+        ), f"{sql_file} missing {{cloned_information_schema}} placeholder"
 
     @pytest.mark.parametrize("sql_file", SQL_FILES)
     def test_sql_file_has_exclusion_placeholder(self, sql_file):
         """Every target SQL file must contain {cloned_schema_exclusion}."""
         sql = _read_sql(sql_file)
-        assert "{cloned_schema_exclusion}" in sql, (
-            f"{sql_file} missing {{cloned_schema_exclusion}} placeholder"
-        )
+        assert (
+            "{cloned_schema_exclusion}" in sql
+        ), f"{sql_file} missing {{cloned_schema_exclusion}} placeholder"
 
     @pytest.mark.parametrize("sql_file", SQL_FILES)
     def test_sql_file_no_bare_information_schema_in_from(self, sql_file):
@@ -269,13 +269,18 @@ class TestSQLFilePlaceholders:
         for i, line in enumerate(sql.splitlines(), 1):
             stripped = line.strip()
             # Skip comments
-            if stripped.startswith("--") or stripped.startswith("/*") or stripped.startswith("*"):
+            if (
+                stripped.startswith("--")
+                or stripped.startswith("/*")
+                or stripped.startswith("*")
+            ):
                 continue
             # Check for bare information_schema. that isn't inside a string literal
             if "information_schema." in stripped.lower():
                 # It's OK if it's inside a NOT IN string literal like 'information_schema'
                 # But NOT OK if it's a schema reference like information_schema.TABLES
                 import re
+
                 # Match information_schema.SOMETHING (a table reference, not a string)
                 if re.search(r"(?<!')information_schema\.\w+", stripped, re.IGNORECASE):
                     pytest.fail(
