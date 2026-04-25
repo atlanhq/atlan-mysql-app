@@ -31,6 +31,12 @@ The code review bot (mothership-ai) flagged that `clonedInformationSchema` was u
 
 **Lesson**: Any user-supplied value that ends up in SQL (even as a schema name, not just a WHERE clause value) must be validated — treat it as an injection vector.
 
+### 4. Retro lessons file not created
+
+The retro was only posted to Linear (APP-2052) but the `knowledge/lessons/` directory was left empty, despite the acceptance criteria requiring "Lessons captured in `knowledge/lessons/*.md`" and PROGRESS.md claiming "Lessons captured."
+
+**Lesson**: When the harness specifies a file artifact as an acceptance criterion, verify the file actually exists — don't mark the step done after only completing the Linear comment.
+
 ## What to watch
 
 - **Handler SQL from SDK base class**: `metadata_sql` and `tables_check_sql` come from `BaseSQLHandler` in the SDK. If SDK updates change these, the placeholder insertion may break. Pin SDK version and re-verify after upgrades.
