@@ -37,6 +37,24 @@ The retro was only posted to Linear (APP-2052) but the `knowledge/lessons/` dire
 
 **Lesson**: When the harness specifies a file artifact as an acceptance criterion, verify the file actually exists — don't mark the step done after only completing the Linear comment.
 
+### 5. `uv.lock` not updated after dependency upgrade
+
+Local `uv pip install protobuf==6.33.6` and `uv pip install grpcio==1.80.0` fixed the runtime locally but bypassed `uv.lock`. CI uses `uv sync` from the lock file, so it still resolved protobuf 5.29.5 and failed. The actual blocker was `grpcio-status 1.71.0` which had `protobuf <6.0dev` — all three packages (protobuf, grpcio, grpcio-status) needed to be upgraded together via `uv lock --upgrade-package`.
+
+**Lesson**: Never use `uv pip install` for dependency fixes — always use `uv lock --upgrade-package` so the lock file stays in sync with CI.
+
+### 6. Pre-commit formatting not run locally before push
+
+The test file had assert-statement and if-condition formatting that didn't match the project's ruff/black config.
+
+**Lesson**: Run pre-commit hooks locally (`pre-commit run --all-files`) before pushing, especially on new files.
+
+### 7. Missing PR label
+
+The `e2e-test` label is required by CI but wasn't added when creating the PR.
+
+**Lesson**: Check the repo's required-label CI checks and add them at PR creation time.
+
 ## What to watch
 
 - **Handler SQL from SDK base class**: `metadata_sql` and `tables_check_sql` come from `BaseSQLHandler` in the SDK. If SDK updates change these, the placeholder insertion may break. Pin SDK version and re-verify after upgrades.
