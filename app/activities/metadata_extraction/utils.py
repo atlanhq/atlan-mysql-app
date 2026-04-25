@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,14 @@ def resolve_cloned_information_schema(
                 control_config = {}
 
         cloned_schema = (control_config or {}).get("clonedInformationSchema")
+        if cloned_schema:
+            if not re.match(r"^[a-zA-Z0-9_]+$", cloned_schema):
+                logger.error(
+                    "Invalid clonedInformationSchema name %r; "
+                    "must be alphanumeric/underscore only. Using default.",
+                    cloned_schema,
+                )
+                cloned_schema = None
         if cloned_schema:
             info_schema_prefix = f"{cloned_schema}."
             schema_exclusion = f", '{cloned_schema}'"

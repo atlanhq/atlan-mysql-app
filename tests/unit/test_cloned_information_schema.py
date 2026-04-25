@@ -187,6 +187,40 @@ class TestEdgeCases:
         assert "'sys')" in result
         assert "'sys', " not in result
 
+    def test_invalid_schema_name_with_quotes_rejected(self):
+        """Schema names with SQL injection characters are rejected."""
+        args = _make_workflow_args(
+            strategy="custom",
+            config='{"clonedInformationSchema": "test\'schema"}',
+        )
+        result = resolve_cloned_information_schema(args, SAMPLE_SQL)
+        assert "information_schema.TABLES" in result
+        assert "test" not in result
+
+    def test_invalid_schema_name_with_spaces_rejected(self):
+        args = _make_workflow_args(
+            strategy="custom",
+            config='{"clonedInformationSchema": "bad schema"}',
+        )
+        result = resolve_cloned_information_schema(args, SAMPLE_SQL)
+        assert "information_schema.TABLES" in result
+
+    def test_invalid_schema_name_with_semicolon_rejected(self):
+        args = _make_workflow_args(
+            strategy="custom",
+            config='{"clonedInformationSchema": "a; DROP TABLE"}',
+        )
+        result = resolve_cloned_information_schema(args, SAMPLE_SQL)
+        assert "information_schema.TABLES" in result
+
+    def test_valid_schema_name_with_underscores_and_numbers(self):
+        args = _make_workflow_args(
+            strategy="custom",
+            config='{"clonedInformationSchema": "atlan_meta_v2"}',
+        )
+        result = resolve_cloned_information_schema(args, SAMPLE_SQL)
+        assert "atlan_meta_v2.TABLES" in result
+
 
 # ---------------------------------------------------------------------------
 # Tests: actual SQL file resolution (PRD-MYSQL-CLONE-001)
