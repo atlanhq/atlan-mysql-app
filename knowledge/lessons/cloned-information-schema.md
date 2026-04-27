@@ -55,6 +55,12 @@ The `e2e-test` label is required by CI but wasn't added when creating the PR.
 
 **Lesson**: Check the repo's required-label CI checks and add them at PR creation time.
 
+### 8. Pyright type-narrowing for Optional returns
+
+The `resolve_cloned_information_schema` function returns `Optional[str]`, but tests used `assert "x" in result` without narrowing out `None` first. Pyright flagged 43 errors. Also, method overrides in `mysql.py` calling `super().fetch_*()` (which returns `Optional[ActivityStatistics]`) needed `# type: ignore[return-value]` annotations.
+
+**Lesson**: When a function returns `Optional[T]`, always add `assert result is not None` before using the result with `in`/`not in` operators in tests. Run `pre-commit run pyright --files <changed-files>` locally to catch type errors before pushing.
+
 ## What to watch
 
 - **Handler SQL from SDK base class**: `metadata_sql` and `tables_check_sql` come from `BaseSQLHandler` in the SDK. If SDK updates change these, the placeholder insertion may break. Pin SDK version and re-verify after upgrades.
