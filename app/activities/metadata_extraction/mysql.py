@@ -61,12 +61,14 @@ class MySQLSQLMetadataExtractionActivities(BaseSQLMetadataExtractionActivities):
 
     @activity.defn
     @auto_heartbeater
-    async def fetch_databases(self, workflow_args: Dict[str, Any]) -> ActivityStatistics:
+    async def fetch_databases(
+        self, workflow_args: Dict[str, Any]
+    ) -> ActivityStatistics:
         self.fetch_database_sql = resolve_cloned_information_schema(
             workflow_args=workflow_args,
             default_sql=self.fetch_database_sql,
         )
-        return await super().fetch_databases(workflow_args)
+        return await super().fetch_databases(workflow_args)  # type: ignore[return-value]
 
     @activity.defn
     @auto_heartbeater
@@ -75,7 +77,7 @@ class MySQLSQLMetadataExtractionActivities(BaseSQLMetadataExtractionActivities):
             workflow_args=workflow_args,
             default_sql=self.fetch_schema_sql,
         )
-        return await super().fetch_schemas(workflow_args)
+        return await super().fetch_schemas(workflow_args)  # type: ignore[return-value]
 
     @activity.defn
     @auto_heartbeater
@@ -84,7 +86,7 @@ class MySQLSQLMetadataExtractionActivities(BaseSQLMetadataExtractionActivities):
             workflow_args=workflow_args,
             default_sql=self.fetch_table_sql,
         )
-        return await super().fetch_tables(workflow_args)
+        return await super().fetch_tables(workflow_args)  # type: ignore[return-value]
 
     @activity.defn
     @auto_heartbeater
@@ -93,16 +95,18 @@ class MySQLSQLMetadataExtractionActivities(BaseSQLMetadataExtractionActivities):
             workflow_args=workflow_args,
             default_sql=self.fetch_column_sql,
         )
-        return await super().fetch_columns(workflow_args)
+        return await super().fetch_columns(workflow_args)  # type: ignore[return-value]
 
     @activity.defn
     @auto_heartbeater
-    async def fetch_procedures(self, workflow_args: Dict[str, Any]) -> ActivityStatistics:
+    async def fetch_procedures(
+        self, workflow_args: Dict[str, Any]
+    ) -> ActivityStatistics:
         self.fetch_procedure_sql = resolve_cloned_information_schema(
             workflow_args=workflow_args,
             default_sql=self.fetch_procedure_sql,
         )
-        return await super().fetch_procedures(workflow_args)
+        return await super().fetch_procedures(workflow_args)  # type: ignore[return-value]
 
     @activity.defn
     @auto_heartbeater

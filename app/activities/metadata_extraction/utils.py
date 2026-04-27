@@ -59,8 +59,6 @@ def resolve_cloned_information_schema(
             info_schema_prefix = f"{cloned_schema}."
             schema_exclusion = f", '{cloned_schema}'"
 
-    resolved = default_sql.replace(
-        "{cloned_information_schema}", info_schema_prefix
-    )
+    resolved = default_sql.replace("{cloned_information_schema}", info_schema_prefix)
     resolved = resolved.replace("{cloned_schema_exclusion}", schema_exclusion)
     return resolved

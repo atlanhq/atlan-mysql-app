@@ -1,6 +1,6 @@
 """Unit tests for resolve_cloned_information_schema utility."""
 
-import os
+import re
 from pathlib import Path
 
 import pytest
@@ -50,6 +50,7 @@ class TestDefaultBehavior:
 
     def test_no_args_resolves_to_information_schema(self):
         result = resolve_cloned_information_schema({}, SAMPLE_SQL)
+        assert result is not None
         assert "information_schema.TABLES" in result
         assert "{cloned_information_schema}" not in result
         assert "{cloned_schema_exclusion}" not in result
@@ -60,22 +61,26 @@ class TestDefaultBehavior:
             config='{"clonedInformationSchema": "atlan_meta"}',
         )
         result = resolve_cloned_information_schema(args, SAMPLE_SQL)
+        assert result is not None
         assert "information_schema.TABLES" in result
         assert "atlan_meta" not in result
 
     def test_strategy_missing_uses_default(self):
         args = _make_workflow_args(config='{"clonedInformationSchema": "atlan_meta"}')
         result = resolve_cloned_information_schema(args, SAMPLE_SQL)
+        assert result is not None
         assert "information_schema.TABLES" in result
 
     def test_config_missing_uses_default(self):
         args = _make_workflow_args(strategy="custom")
         result = resolve_cloned_information_schema(args, SAMPLE_SQL)
+        assert result is not None
         assert "information_schema.TABLES" in result
 
     def test_empty_config_uses_default(self):
         args = _make_workflow_args(strategy="custom", config="{}")
         result = resolve_cloned_information_schema(args, SAMPLE_SQL)
+        assert result is not None
         assert "information_schema.TABLES" in result
 
     def test_config_without_cloned_key_uses_default(self):
@@ -83,6 +88,7 @@ class TestDefaultBehavior:
             strategy="custom", config='{"someOtherKey": "value"}'
         )
         result = resolve_cloned_information_schema(args, SAMPLE_SQL)
+        assert result is not None
         assert "information_schema.TABLES" in result
 
 
@@ -100,6 +106,7 @@ class TestClonedSchemaBehavior:
             config='{"clonedInformationSchema": "atlan_meta"}',
         )
         result = resolve_cloned_information_schema(args, SAMPLE_SQL)
+        assert result is not None
         assert "atlan_meta.TABLES" in result
         assert "information_schema.TABLES" not in result
 
@@ -109,6 +116,7 @@ class TestClonedSchemaBehavior:
             config='{"clonedInformationSchema": "atlan_meta"}',
         )
         result = resolve_cloned_information_schema(args, SAMPLE_SQL)
+        assert result is not None
         assert ", 'atlan_meta'" in result
 
     def test_multiple_placeholders_all_resolved(self):
@@ -117,6 +125,7 @@ class TestClonedSchemaBehavior:
             config='{"clonedInformationSchema": "mirror_db"}',
         )
         result = resolve_cloned_information_schema(args, MULTI_PLACEHOLDER_SQL)
+        assert result is not None
         assert "mirror_db.COLUMNS" in result
         assert "mirror_db.TABLES" in result
         assert "{cloned_information_schema}" not in result
@@ -126,6 +135,7 @@ class TestClonedSchemaBehavior:
         args = _make_workflow_args(strategy="custom")
         args["control-config"] = {"clonedInformationSchema": "my_schema"}
         result = resolve_cloned_information_schema(args, SAMPLE_SQL)
+        assert result is not None
         assert "my_schema.TABLES" in result
 
     def test_schema_name_with_underscores(self):
@@ -134,6 +144,7 @@ class TestClonedSchemaBehavior:
             config='{"clonedInformationSchema": "atlan_mysql_meta_v2"}',
         )
         result = resolve_cloned_information_schema(args, SAMPLE_SQL)
+        assert result is not None
         assert "atlan_mysql_meta_v2.TABLES" in result
         assert ", 'atlan_mysql_meta_v2'" in result
 
@@ -157,12 +168,14 @@ class TestEdgeCases:
     def test_malformed_json_falls_back_to_default(self):
         args = _make_workflow_args(strategy="custom", config="not valid json")
         result = resolve_cloned_information_schema(args, SAMPLE_SQL)
+        assert result is not None
         assert "information_schema.TABLES" in result
 
     def test_config_none_value_uses_default(self):
         args = _make_workflow_args(strategy="custom")
         args["control-config"] = None
         result = resolve_cloned_information_schema(args, SAMPLE_SQL)
+        assert result is not None
         assert "information_schema.TABLES" in result
 
     def test_cloned_schema_empty_string_uses_default(self):
@@ -170,6 +183,7 @@ class TestEdgeCases:
             strategy="custom", config='{"clonedInformationSchema": ""}'
         )
         result = resolve_cloned_information_schema(args, SAMPLE_SQL)
+        assert result is not None
         assert "information_schema.TABLES" in result
 
     def test_default_prefix_constant(self):
@@ -183,6 +197,7 @@ class TestEdgeCases:
     def test_exclusion_empty_when_no_clone(self):
         """Default behavior produces no extra exclusion text."""
         result = resolve_cloned_information_schema({}, SAMPLE_SQL)
+        assert result is not None
         # The exclusion placeholder should be replaced with empty string
         assert "'sys')" in result
         assert "'sys', " not in result
@@ -194,6 +209,7 @@ class TestEdgeCases:
             config='{"clonedInformationSchema": "test\'schema"}',
         )
         result = resolve_cloned_information_schema(args, SAMPLE_SQL)
+        assert result is not None
         assert "information_schema.TABLES" in result
         assert "test" not in result
 
@@ -203,6 +219,7 @@ class TestEdgeCases:
             config='{"clonedInformationSchema": "bad schema"}',
         )
         result = resolve_cloned_information_schema(args, SAMPLE_SQL)
+        assert result is not None
         assert "information_schema.TABLES" in result
 
     def test_invalid_schema_name_with_semicolon_rejected(self):
@@ -211,6 +228,7 @@ class TestEdgeCases:
             config='{"clonedInformationSchema": "a; DROP TABLE"}',
         )
         result = resolve_cloned_information_schema(args, SAMPLE_SQL)
+        assert result is not None
         assert "information_schema.TABLES" in result
 
     def test_valid_schema_name_with_underscores_and_numbers(self):
@@ -219,6 +237,7 @@ class TestEdgeCases:
             config='{"clonedInformationSchema": "atlan_meta_v2"}',
         )
         result = resolve_cloned_information_schema(args, SAMPLE_SQL)
+        assert result is not None
         assert "atlan_meta_v2.TABLES" in result
 
 
@@ -279,12 +298,11 @@ class TestSQLFilePlaceholders:
             if "information_schema." in stripped.lower():
                 # It's OK if it's inside a NOT IN string literal like 'information_schema'
                 # But NOT OK if it's a schema reference like information_schema.TABLES
-                import re
-
                 # Match information_schema.SOMETHING (a table reference, not a string)
                 if re.search(r"(?<!')information_schema\.\w+", stripped, re.IGNORECASE):
                     pytest.fail(
-                        f"{sql_file}:{i} has bare information_schema. reference: {stripped}"
+                        f"{sql_file}:{i} has bare information_schema. reference:"
+                        f" {stripped}"
                     )
 
     @pytest.mark.parametrize("sql_file", SQL_FILES)
@@ -292,6 +310,7 @@ class TestSQLFilePlaceholders:
         """Default resolution (no config) produces information_schema. prefix."""
         sql = _read_sql(sql_file)
         resolved = resolve_cloned_information_schema({}, sql)
+        assert resolved is not None
         assert "{cloned_information_schema}" not in resolved
         assert "{cloned_schema_exclusion}" not in resolved
         # Should contain real information_schema references
@@ -306,6 +325,7 @@ class TestSQLFilePlaceholders:
             config='{"clonedInformationSchema": "atlan_meta"}',
         )
         resolved = resolve_cloned_information_schema(args, sql)
+        assert resolved is not None
         assert "{cloned_information_schema}" not in resolved
         assert "{cloned_schema_exclusion}" not in resolved
         assert "atlan_meta." in resolved
