@@ -23,17 +23,17 @@ jobs:
       id-token: write # Required for AWS credentials
 
     steps:
-      - uses: actions/checkout@v3.0.0
+      - uses: actions/checkout@v6.0.2
         with:
           fetch-depth: 0
 
       - name: Set up Python 3.11
-        uses: actions/setup-python@v4.9.1
+        uses: actions/setup-python@v6.2.0
         with:
           python-version: "3.11"
 
       - name: Setup AWS Credentials
-        uses: aws-actions/configure-aws-credentials@ececac1a45f3b08a01d2dd070d28d111c5fe6722 # v4.1.0 https://github.com/aws-actions/configure-aws-credentials/releases/tag/v4.1.0
+        uses: aws-actions/configure-aws-credentials@ec61189d14ec14c8efccab744f656cffd0e33f37 # v6.1.0 https://github.com/aws-actions/configure-aws-credentials/releases/tag/v6.1.0
         with:
           aws-region: ap-south-1
           role-to-assume: arn:aws:iam::733936409301:role/kryptonite-store_FullAccess
@@ -43,7 +43,7 @@ jobs:
         id: get_branch
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v7
         with:
           version: "0.7.3"
 
