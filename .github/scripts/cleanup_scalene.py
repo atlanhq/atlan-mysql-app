@@ -37,17 +37,13 @@ def cleanup_scalene_json():
                             "n_malloc_mb",
                         ]
                     ):
-                        cleaned_functions.append(
-                            {
-                                "line": func.get("line", ""),
-                                "n_cpu_percent_c": func.get("n_cpu_percent_c", 0),
-                                "n_cpu_percent_python": func.get(
-                                    "n_cpu_percent_python", 0
-                                ),
-                                "n_sys_percent": func.get("n_sys_percent", 0),
-                                "n_malloc_mb": func.get("n_malloc_mb", 0),
-                            }
-                        )
+                        cleaned_functions.append({
+                            "line": func.get("line", ""),
+                            "n_cpu_percent_c": func.get("n_cpu_percent_c", 0),
+                            "n_cpu_percent_python": func.get("n_cpu_percent_python", 0),
+                            "n_sys_percent": func.get("n_sys_percent", 0),
+                            "n_malloc_mb": func.get("n_malloc_mb", 0),
+                        })
 
                 if cleaned_functions:
                     cleaned_data["files"][file_path] = {"functions": cleaned_functions}
