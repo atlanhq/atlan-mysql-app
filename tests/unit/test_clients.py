@@ -1,3 +1,4 @@
+import ssl
 from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import quote_plus
 
@@ -89,14 +90,14 @@ class TestMySQLClient:
     @pytest.mark.asyncio
     async def test_load_iam_user_auth_success(self, iam_user_credentials):
         """Test successful loading with IAM user authentication."""
-        with patch(
-            "app.clients.generate_aws_rds_token_with_iam_user",
-            return_value="mock_token_12345",
-        ) as mock_token, patch(
-            "app.clients.create_async_engine"
-        ) as mock_create_engine, patch(
-            "sqlalchemy.event.listens_for"
-        ) as mock_listens_for:
+        with (
+            patch(
+                "app.clients.generate_aws_rds_token_with_iam_user",
+                return_value="mock_token_12345",
+            ) as mock_token,
+            patch("app.clients.create_async_engine") as mock_create_engine,
+            patch("sqlalchemy.event.listens_for") as mock_listens_for,
+        ):
             mock_engine = MagicMock()
             mock_connection = AsyncMock()
             # Mock async context manager for engine.connect()
@@ -122,13 +123,14 @@ class TestMySQLClient:
     @pytest.mark.asyncio
     async def test_load_iam_role_auth_success(self, iam_role_credentials):
         """Test successful loading with IAM role authentication."""
-        with patch("boto3.Session") as mock_boto3_session, patch(
-            "app.clients.create_async_engine"
-        ) as mock_create_engine, patch(
-            "sqlalchemy.event.listens_for"
-        ) as mock_listens_for, patch(
-            "application_sdk.common.aws_utils.create_aws_client"
-        ) as mock_create_client:
+        with (
+            patch("boto3.Session") as mock_boto3_session,
+            patch("app.clients.create_async_engine") as mock_create_engine,
+            patch("sqlalchemy.event.listens_for") as mock_listens_for,
+            patch(
+                "application_sdk.common.aws_utils.create_aws_client"
+            ) as mock_create_client,
+        ):
             # Mock STS assume_role response
             mock_sts_client = MagicMock()
             mock_sts_client.assume_role.return_value = {
@@ -265,11 +267,10 @@ class TestMySQLClient:
             result = client.get_sqlalchemy_connection_string()
             encoded_token = quote_plus("iam_token_12345")
 
-            # Base class uses extra.username (DB user) for IAM user auth
-            # In production, IAM auth uses load() which creates engine directly, not this method
-            db_username = iam_user_credentials["extra"]["username"]
+            # Base class uses credentials["username"] (AWS access key) in the template.
+            # In production, IAM auth uses load() which creates engine directly, not this method.
             expected = (
-                f"mysql+aiomysql://{db_username}:{encoded_token}@"
+                f"mysql+aiomysql://{iam_user_credentials['username']}:{encoded_token}@"
                 f"{iam_user_credentials['host']}:{iam_user_credentials['port']}?connect_timeout=5&charset=utf8mb4"
             )
 
@@ -292,6 +293,50 @@ class TestMySQLClient:
 
             assert result == expected
 
+    def test_extract_region_from_hostname(self):
+        """Test AWS region extraction from RDS hostname."""
+        client = SQLClient()
+        assert (
+            client._extract_region_from_hostname(
+                "test.abc123.us-east-1.rds.amazonaws.com"
+            )
+            == "us-east-1"
+        )
+        assert (
+            client._extract_region_from_hostname("db.xyz.ap-south-1.rds.amazonaws.com")
+            == "ap-south-1"
+        )
+        assert client._extract_region_from_hostname("localhost") is None
+        assert client._extract_region_from_hostname(None) is None
+        assert client._extract_region_from_hostname("") is None
+
+    def test_create_ssl_context(self):
+        """Test SSL context creation for RDS."""
+        client = SQLClient()
+        ctx = client._create_ssl_context()
+        assert isinstance(ctx, ssl.SSLContext)
+        assert ctx.check_hostname is False
+
+    def test_get_iam_user_token_success(self):
+        """Test successful IAM user token generation."""
+        client = SQLClient()
+        client.credentials = {
+            "username": "aws_access_key",
+            "password": "aws_secret_key",
+            "host": "test.abc123.us-east-1.rds.amazonaws.com",
+            "port": "3306",
+            "extra": {"username": "db_user"},
+            "authType": "iam_user",
+        }
+
+        with patch(
+            "app.clients.generate_aws_rds_token_with_iam_user",
+            return_value="mock_iam_token",
+        ) as mock_gen:
+            token = client.get_iam_user_token()
+            assert token == "mock_iam_token"
+            mock_gen.assert_called_once()
+
     def test_get_iam_user_token_missing_extra_username(self):
         """Test IAM user token generation when extra.username is missing."""
         client = SQLClient()
@@ -306,6 +351,71 @@ class TestMySQLClient:
 
         with pytest.raises(Exception, match="extra.username.*required"):
             client.get_iam_user_token()
+
+    def test_get_iam_user_token_missing_access_key(self):
+        """Test IAM user token generation when access key is missing."""
+        client = SQLClient()
+        client.credentials = {
+            "username": "",
+            "password": "secret",
+            "host": "test.abc123.us-east-1.rds.amazonaws.com",
+            "port": "3306",
+            "extra": {"username": "db_user"},
+            "authType": "iam_user",
+        }
+        with pytest.raises(Exception):
+            client.get_iam_user_token()
+
+    def test_get_iam_user_token_missing_secret_key(self):
+        """Test IAM user token generation when secret key is missing."""
+        client = SQLClient()
+        client.credentials = {
+            "username": "access_key",
+            "password": "",
+            "host": "test.abc123.us-east-1.rds.amazonaws.com",
+            "port": "3306",
+            "extra": {"username": "db_user"},
+            "authType": "iam_user",
+        }
+        with pytest.raises(Exception):
+            client.get_iam_user_token()
+
+    def test_get_iam_role_token_success(self):
+        """Test successful IAM role token generation."""
+        client = SQLClient()
+        client.credentials = {
+            "username": "db_user",
+            "host": "test.abc123.us-east-1.rds.amazonaws.com",
+            "port": "3306",
+            "region": "us-east-1",
+            "extra": {
+                "aws_role_arn": "arn:aws:iam::123456:role/test",
+                "aws_external_id": "ext-123",
+            },
+            "authType": "iam_role",
+        }
+
+        with (
+            patch("boto3.Session") as mock_session,
+            patch(
+                "application_sdk.common.aws_utils.create_aws_client"
+            ) as mock_create_client,
+        ):
+            mock_sts = MagicMock()
+            mock_sts.assume_role.return_value = {
+                "Credentials": {
+                    "AccessKeyId": "tmp_key",
+                    "SecretAccessKey": "tmp_secret",
+                    "SessionToken": "tmp_token",
+                }
+            }
+            mock_session.return_value.client.return_value = mock_sts
+            mock_rds = MagicMock()
+            mock_rds.generate_db_auth_token.return_value = "role_token"
+            mock_create_client.return_value = mock_rds
+
+            token = client.get_iam_role_token()
+            assert token == "role_token"
 
     def test_get_iam_role_token_missing_role_arn(self):
         """Test IAM role token generation when aws_role_arn is missing."""

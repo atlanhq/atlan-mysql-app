@@ -4,102 +4,181 @@
 
 # MySQL Application
 
+[![Tests](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/tests.yml/badge.svg)](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/tests.yml)
+[![Build](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/build-image.yml/badge.svg)](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/build-image.yml)
 [![Checked with pyright](https://microsoft.github.io/pyright/img/pyright_badge.svg)](https://microsoft.github.io/pyright/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-[![Tests](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/unit-tests.yml/badge.svg)](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/unit-tests.yml)
 
-MySQL application is designed to interact with a MySQL database and perform actions on it. The application is built using the [Atlan Python Application SDK](https://github.com/atlanhq/application-sdk) and is intended to run on the Atlan Platform.
+MySQL metadata extraction app built on [Atlan Application SDK v3](https://github.com/atlanhq/application-sdk). Extracts databases, schemas, tables, views, columns, and procedures from MySQL and transforms them into Atlan-compatible assets.
 
-This application has two components:
+## Architecture
 
-- FastAPI server that exposes REST API to interact with the application.
-- A workflow that runs on the Atlan platform that extracts metadata from a MySQL database, transforms it and pushes it to an object store.
+```
+MySQLApp(SqlApp)                    MySQLHandler(Handler)
+├── fetch_databases  @task          ├── test_auth      → AuthOutput
+├── fetch_schemas    @task          ├── preflight_check → PreflightOutput
+├── fetch_tables     @task          └── fetch_metadata  → SqlMetadataOutput
+├── fetch_columns    @task
+├── fetch_procedures @task
+├── transform_*      @task  (asset mappers → JSONL)
+└── upload_to_atlan  @task
+```
 
-## Table of contents
+- **`app/mysql.py`** — `MySQLApp` extends `SqlApp` with MySQL-specific SQL queries and asset mappers
+- **`app/handlers/mysql.py`** — v3 handler for auth, preflight, and metadata endpoints
+- **`app/clients/`** — `SQLClient` with basic, IAM user, and IAM role authentication
+- **`app/sql/`** — SQL templates for metadata extraction
 
-- [Usage](#usage)
-- [Features](#features)
-- [Extending this application to other SQL sources](#extending-this-application-to-other-sql-sources)
-- [Development](#development)
-- [Architecture](./docs/ARCHITECTURE.md)
+### Auth Support
 
-## Usage
+| Auth Type | Description |
+|-----------|-------------|
+| `basic` | Username/password with SSL |
+| `iam_user` | AWS IAM user → RDS auth token |
+| `iam_role` | AWS STS assume role → RDS auth token |
 
-### Setting up your environment
+## Quick Start
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/atlanhq/atlan-mysql-app.git
-   cd atlan-mysql-app
-   ```
+### Prerequisites
 
-2. Follow the setup instructions for your platform:
-   - [Automatic Setup](./.cursor/rules/setup.mdc) - Automatically detects your OS and provides the appropriate guide
-   - [macOS Setup Guide](https://github.com/atlanhq/application-sdk/blob/main/docs/docs/setup/MAC.md)
-   - [Linux Setup Guide](https://github.com/atlanhq/application-sdk/blob/main/docs/docs/setup/LINUX.md)
-   - [Windows Setup Guide](https://github.com/atlanhq/application-sdk/blob/main/docs/docs/setup/WINDOWS.md)
+- Python 3.11+
+- [uv](https://docs.astral.sh/uv/)
+- [Dapr CLI](https://docs.dapr.io/getting-started/install-dapr-cli/)
+- [Temporal CLI](https://docs.temporal.io/cli)
+- Docker (optional, for testcontainers)
 
-3. Install dependencies:
-   ```bash
-   uv sync --all-groups --all-extras
-   ```
+### Setup
 
-4. Download required components:
-   ```bash
-   uv run poe download-components
-   ```
+```bash
+git clone https://github.com/atlanhq/atlan-mysql-app.git
+cd atlan-mysql-app
+make install
+```
 
-5. Start the MySQL database (in a separate terminal):
-   ```bash
-   docker-compose -f docker-compose.mysql.yml up -d
-   ```
+### Local Development
 
-6. Start the dependencies (in a separate terminal):
-   ```bash
-   uv run poe start-deps
-   ```
+Create a `.env` with your MySQL credentials:
 
-7. That loads all required dependencies. To run, you just run the command in the main terminal:
-   ```bash
-   uv run main.py
-   ```
+```bash
+export MYSQL_HOST="localhost"
+export MYSQL_PORT="3306"
+export MYSQL_USER="root"
+export MYSQL_PASSWORD=""
+```
 
-## Component Structure
+Start the app (sets up Dapr creds, starts Temporal + Dapr, runs the app):
 
-- `app/clients`: Database client implementations
-- `app/transformers`: Metadata transformation logic (refer [RDBMS models](https://developer.atlan.com/models/rdbms/))
-- `app/sql`: SQL query templates
+```bash
+source .env && make dev
+```
 
-## Features
+The app is available at `http://localhost:8000`.
 
-1. Extract metadata from a MySQL database, transform and push to an object store
-2. FastAPI-based REST API interface
-3. OpenTelemetry integration for metrics, traces and logs
-4. Basic Authentication support
+### API Endpoints
 
-## Extending this application to other SQL sources
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/server/health` | GET | Health check |
+| `/workflows/v1/auth` | POST | Test MySQL connectivity |
+| `/workflows/v1/check` | POST | Preflight checks (auth + table access) |
+| `/workflows/v1/metadata` | POST | Fetch schema list for UI |
+| `/workflows/v1/configmaps` | GET | List configmaps |
+| `/workflows/v1/start` | POST | Start extraction workflow |
+| `/workflows/v1/status/{wf_id}/{run_id}` | GET | Check workflow status |
 
-1. Make sure you add the required SQLAlchemy dialect using uv. For ex. to add Snowflake dialect, `uv add snowflake-sqlalchemy`
-2. Update SQL queries in [`sql`](app/sql) directory to match the target database's system tables and syntax
-3. Update the DB_CONFIG in the [`app/clients`](app/clients) directory with the appropriate connection template
-4. Run the application using the development guide
-5. Update the tests in the [`tests`](tests) directory
+## Testing
 
-### Example: From PostgreSQL to MySQL
+### Unit Tests
 
-This application was converted from PostgreSQL to MySQL by:
-- Changing the connection template from `postgresql+psycopg://` to `mysql+aiomysql:://`
-- Converting PostgreSQL system catalog queries (pg_class, pg_namespace) to MySQL information_schema queries
-- Updating regex syntax from PostgreSQL (`!~`) to MySQL (`NOT REGEXP`)
-- Replacing PostgreSQL-specific functions with MySQL equivalents
+```bash
+make test        # 45 tests, 84%+ coverage
+make test-cov    # with HTML coverage report
+```
 
-## Development
+### Integration Tests (E2E)
 
-- [Development and Quickstart Guide](./docs/DEVELOPMENT.md)
-- This application is just an SQL application implementation of Atlan's [Python Application SDK](https://github.com/atlanhq/application-sdk)
-  - Please refer to the [examples](https://github.com/atlanhq/application-sdk/tree/main/examples) in the SDK to see how to use the SDK to build different applications on the Atlan Platform.
+Tests run against a real MySQL database. Two modes:
 
-## Images
+**With Docker (testcontainers — zero config):**
 
-[![Image 1](https://drive.google.com/uc?export=view&id=132GfsP8_dnVR7LyNf24SCrapN1tULeTJ)](https://drive.google.com/file/d/132GfsP8_dnVR7LyNf24SCrapN1tULeTJ/view?usp=sharing)
-[![Image 2](https://drive.google.com/uc?export=view&id=1MbmhFnTXugIUFdjvMzX6Tr5O_ewTzP92)](https://drive.google.com/file/d/1MbmhFnTXugIUFdjvMzX6Tr5O_ewTzP92/view?usp=sharing)
+```bash
+make test-e2e    # spins up MySQL container, seeds 5 DBs / 99 tables / 1500+ columns
+```
+
+**With external MySQL:**
+
+```bash
+source .env && make test-e2e    # uses MYSQL_HOST from .env
+```
+
+E2E tests validate:
+- Health, auth, preflight, metadata, configmap endpoints
+- Full workflow: start → poll → COMPLETED
+- Extracted artifacts: raw parquet files per entity
+- Transformed artifacts: JSONL with correct `typeName`, `qualifiedName`, `connectorName`
+- Extraction report with entity counts and timings
+
+### Remote E2E (vcluster)
+
+```bash
+make test-e2e-remote    # port-forwards to deployed app, runs e2e suite
+```
+
+Requires `APP_NAMESPACE`, `APP_DEPLOYMENT`, `REMOTE_CREDENTIAL_GUID` env vars.
+
+## Project Structure
+
+```
+app/
+├── mysql.py              # MySQLApp — SqlApp subclass with SQL queries + asset mappers
+├── handlers/mysql.py     # v3 Handler — auth, preflight, metadata
+├── clients/__init__.py   # SQLClient — basic + IAM user + IAM role auth
+├── constants.py          # DATABASE_PLACEHOLDER
+├── sql/                  # SQL templates
+│   ├── extract_database.sql
+│   ├── extract_schema.sql
+│   ├── extract_table.sql
+│   ├── extract_column.sql
+│   ├── extract_procedure.sql
+│   ├── filter_metadata.sql
+│   ├── test_authentication.sql
+│   └── tables_check.sql
+└── generated/            # PKL contract artifacts
+    └── manifest.json
+
+tests/
+├── unit/                 # 45 unit tests
+│   ├── test_mysql_app.py   # MySQLApp class attrs, mappers, hierarchy
+│   ├── test_handler.py     # Handler auth, preflight, metadata
+│   └── test_clients.py     # SQLClient init, auth types, connection strings
+└── e2e/                  # 8 integration tests
+    ├── conftest.py         # Testcontainers MySQL + Dapr credential setup
+    ├── fixtures/seed.sql   # 5 databases, 99 tables, 1500+ columns
+    └── test_mysql_e2e.py   # Handler + workflow + artifact validation
+```
+
+## CI/CD
+
+| Workflow | Trigger | What it does |
+|----------|---------|-------------|
+| **Pre-commit** | All PRs | Ruff lint + format, pyright, isort |
+| **Unit Tests** | All PRs | 45 tests, coverage report on PR |
+| **Integration Tests** | Push to main, `run-e2e` label | Testcontainers MySQL + Dapr + Temporal |
+| **Build Image** | Push to main, tags | Docker build + push to GHCR |
+
+## Makefile Reference
+
+```
+make install          # Install deps + download Dapr components
+make dev              # Setup creds + start Temporal/Dapr + run app
+make test             # Unit tests
+make test-cov         # Unit tests with coverage report
+make test-e2e         # Integration tests (testcontainers or external MySQL)
+make test-e2e-remote  # E2E against deployed vcluster app
+make setup-local-creds # Generate Dapr secrets from env vars
+make lint             # Ruff linter
+make format           # Ruff format + fix
+make pre-commit       # Run all pre-commit hooks
+make build            # Docker build
+make clean            # Remove caches and artifacts
+```

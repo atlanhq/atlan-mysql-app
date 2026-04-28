@@ -1,0 +1,221 @@
+name: Tests
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+
+  # ── Pre-commit: ruff, formatting, type checking ─────────────────────
+  pre-commit:
+    name: Pre-commit Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --extra dev --extra test
+
+      - name: Run pre-commit
+        run: uv run pre-commit run --all-files
+
+  # ── Unit tests (make test) ─────────────────────────────────────────
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --extra dev --extra test
+
+      - name: Run unit tests
+        run: |
+          set -o pipefail
+          uv run pytest tests/unit/ -v \
+            --durations=10 \
+            --durations-min=0.5 \
+            --junit-xml=junit-unit.xml \
+            --cov=app \
+            --cov-report=xml:coverage-unit.xml \
+            --cov-report=term-missing \
+            2>&1 | tee pytest-output.txt
+
+      - name: Test summary
+        if: always()
+        run: |
+          echo "## Unit Test Results" >> $GITHUB_STEP_SUMMARY
+          if [ -f pytest-output.txt ]; then
+            SUMMARY=$(grep -E "^=+ .* =+$" pytest-output.txt | tail -1 || echo "no result")
+            echo "**$SUMMARY**" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: junit-unit.xml
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: coverage
+          path: coverage-unit.xml
+
+  # ── Integration tests (make test-e2e) ────────────────────────────────
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CREDENTIAL_GUID: local-mysql
+      DAPR_HTTP_PORT: "3500"
+      DAPR_GRPC_PORT: "50001"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install deps + pull images + install CLIs
+        env:
+          TEMPORAL_VERSION: "1.3.0"
+        run: |
+          uv sync --extra dev --extra test &
+          PID_UV=$!
+          docker pull mysql:8.0 &
+          PID_MYSQL=$!
+          docker pull testcontainers/ryuk:0.8.1 &
+          PID_RYUK=$!
+          (wget -q https://raw.githubusercontent.com/dapr/cli/master/install/install.sh -O - | /bin/bash && dapr init --slim) &
+          PID_DAPR=$!
+          (curl -sL -o /tmp/temporal.tar.gz "https://temporal.download/cli/archive/v${TEMPORAL_VERSION}?platform=linux&arch=amd64" \
+            && mkdir -p ${HOME}/.temporalio/bin \
+            && tar -xzf /tmp/temporal.tar.gz -C ${HOME}/.temporalio/bin) &
+          PID_TEMPORAL=$!
+          wait $PID_UV $PID_MYSQL $PID_RYUK $PID_DAPR $PID_TEMPORAL
+          echo "${HOME}/.temporalio/bin" >> $GITHUB_PATH
+
+      - name: Verify CLIs
+        run: |
+          temporal --version
+          dapr --version
+
+      - name: Download Dapr components + setup creds
+        run: |
+          uv run poe download-components
+          make setup-local-creds
+
+      - name: Start Temporal
+        run: |
+          temporal server start-dev --db-filename /tmp/temporal.db &
+          echo "Waiting for Temporal on port 7233..."
+          for i in $(seq 1 60); do
+            if nc -z localhost 7233 2>/dev/null; then
+              echo "Temporal ready after ${i}s"
+              break
+            fi
+            if [ "$i" = "60" ]; then
+              echo "::error::Temporal failed to start after 60s"
+              exit 1
+            fi
+            sleep 1
+          done
+
+      - name: Start app with Dapr
+        run: |
+          dapr run \
+            --app-id app \
+            --app-port 8000 \
+            --dapr-http-port $DAPR_HTTP_PORT \
+            --dapr-grpc-port $DAPR_GRPC_PORT \
+            --resources-path components \
+            --placement-host-address '' \
+            --scheduler-host-address '' \
+            -- uv run python main.py &
+          echo "Waiting for app on port 8000..."
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8000/server/health > /dev/null 2>&1; then
+              echo "App ready after ${i}s"
+              break
+            fi
+            if [ "$i" = "60" ]; then
+              echo "::error::App failed to start after 60s"
+              exit 1
+            fi
+            sleep 2
+          done
+
+      - name: Run integration tests
+        run: |
+          set -euo pipefail
+          uv run pytest tests/e2e/ -v \
+            --timeout=600 \
+            --tb=short \
+            --junit-xml=junit-e2e.xml \
+            2>&1 | tee e2e-output.txt
+
+      - name: E2E test summary
+        if: always()
+        run: |
+          echo "## Integration Test Results" >> $GITHUB_STEP_SUMMARY
+          if [ -f e2e-output.txt ]; then
+            SUMMARY=$(grep -E "^=+ .* =+$" e2e-output.txt | tail -1 || echo "no result")
+            echo "**$SUMMARY**" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-results
+          path: junit-e2e.xml
+
+  # ── E2E on K8s (make test-e2e-remote) ──────────────────────────────
+  # TODO: add K8s e2e tests via port-forward to vcluster
+  # Trigger: workflow_dispatch or PR label 'run-e2e-remote'
+  # Secrets needed: CREDENTIAL_GUID, kubeconfig
+
+  # ── Coverage comment on PR ──────────────────────────────────────────
+  coverage-report:
+    name: Coverage Report
+    runs-on: ubuntu-latest
+    needs: unit-tests
+    if: always() && github.event_name == 'pull_request'
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: coverage
+          path: coverage-data
+        continue-on-error: true
+
+      - uses: MishaKav/pytest-coverage-comment@v1
+        if: hashFiles('coverage-data/coverage-unit.xml') != ''
+        with:
+          pytest-xml-coverage-path: coverage-data/coverage-unit.xml
+          title: MySQL Connector — Coverage Report
+          badge-title: Coverage
