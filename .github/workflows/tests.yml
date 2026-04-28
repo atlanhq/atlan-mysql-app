@@ -102,24 +102,26 @@ jobs:
 
       - uses: astral-sh/setup-uv@v5
 
-      - name: Install dependencies
-        run: uv sync --extra dev --extra test
-
-      - name: Install Dapr CLI
+      - name: Install deps + pull images + install CLIs
         run: |
-          wget -q https://raw.githubusercontent.com/dapr/cli/master/install/install.sh -O - | /bin/bash
-          dapr init --slim
-
-      - name: Install Temporal CLI
-        run: |
-          curl -sSf https://temporal.download/cli | sh
+          # Run all installs in parallel
+          uv sync --extra dev --extra test &
+          PID_UV=$!
+          docker pull mysql:8.0 &
+          PID_MYSQL=$!
+          docker pull testcontainers/ryuk:0.8.1 &
+          PID_RYUK=$!
+          (wget -q https://raw.githubusercontent.com/dapr/cli/master/install/install.sh -O - | /bin/bash && dapr init --slim) &
+          PID_DAPR=$!
+          (curl -sSf https://temporal.download/cli | sh) &
+          PID_TEMPORAL=$!
+          wait $PID_UV $PID_MYSQL $PID_RYUK $PID_DAPR $PID_TEMPORAL
           echo "${HOME}/.temporalio/bin" >> $GITHUB_PATH
 
-      - name: Download Dapr components
-        run: uv run poe download-components
-
-      - name: Setup local credentials
-        run: make setup-local-creds
+      - name: Download Dapr components + setup creds
+        run: |
+          uv run poe download-components
+          make setup-local-creds
 
       - name: Start Temporal
         run: |
