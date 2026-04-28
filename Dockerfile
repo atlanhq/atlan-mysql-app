@@ -1,5 +1,5 @@
-# Application-sdk base image with Python
-FROM ghcr.io/atlanhq/application-sdk-chainguard-image:latest
+# Application-sdk v3 base image
+FROM registry.atlan.com/public/app-runtime-base:3
 
 WORKDIR /app
 
@@ -13,10 +13,8 @@ RUN --mount=type=cache,target=/home/appuser/.cache/uv,uid=1000,gid=1000 \
 COPY --chown=appuser:appuser . .
 
 # App-specific environment variables
-ENV ATLAN_APP_HTTP_PORT=8000
+ENV ATLAN_APP_MODULE=app.mysql:MySQLApp \
+    ATLAN_CONTRACT_GENERATED_DIR=app/generated
 
 # Download DAPR components (app-specific)
 RUN uv run poe download-components
-
-# App-specific entrypoint
-ENTRYPOINT ["sh", "-c", "dapr run --log-level info --app-id app --scheduler-host-address '' --placement-host-address '' --max-body-size 1024Mi --app-port $ATLAN_APP_HTTP_PORT --dapr-http-port $ATLAN_DAPR_HTTP_PORT --dapr-grpc-port $ATLAN_DAPR_GRPC_PORT --metrics-port $ATLAN_DAPR_METRICS_PORT --resources-path /app/components -- uv run --no-sync main.py"]
