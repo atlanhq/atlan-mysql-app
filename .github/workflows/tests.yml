@@ -103,6 +103,8 @@ jobs:
       - uses: astral-sh/setup-uv@v5
 
       - name: Install deps + pull images + install CLIs
+        env:
+          TEMPORAL_VERSION: "1.3.0"
         run: |
           uv sync --extra dev --extra test &
           PID_UV=$!
@@ -112,11 +114,11 @@ jobs:
           PID_RYUK=$!
           (wget -q https://raw.githubusercontent.com/dapr/cli/master/install/install.sh -O - | /bin/bash && dapr init --slim) &
           PID_DAPR=$!
-          curl -sSf https://temporal.download/cli | sh &
+          (curl -sL -o /tmp/temporal.tar.gz "https://temporal.download/cli/archive/v${TEMPORAL_VERSION}?platform=linux&arch=amd64" \
+            && mkdir -p ${HOME}/.temporalio/bin \
+            && tar -xzf /tmp/temporal.tar.gz -C ${HOME}/.temporalio/bin) &
           PID_TEMPORAL=$!
           wait $PID_UV $PID_MYSQL $PID_RYUK $PID_DAPR $PID_TEMPORAL
-          # Verify Temporal CLI installed
-          ls -la ${HOME}/.temporalio/bin/temporal
           echo "${HOME}/.temporalio/bin" >> $GITHUB_PATH
 
       - name: Verify CLIs
