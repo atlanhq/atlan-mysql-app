@@ -35,7 +35,7 @@ class MySQLApp(SqlApp):
     - SQLClient with basic + IAM user + IAM role authentication
     """
 
-    _app_name = "mysql"
+    name: ClassVar[str] = "mysql"
 
     sql_client_class: ClassVar = SQLClient  # type: ignore[assignment]
 
@@ -73,7 +73,9 @@ class MySQLApp(SqlApp):
 
     def map_schema(self, record: dict[str, Any], connection_qn: str) -> dict:
         """Map raw schema record to Atlan Schema entity."""
-        db_name = record.get("database_name", record.get("datname", DATABASE_PLACEHOLDER))
+        db_name = record.get(
+            "database_name", record.get("datname", DATABASE_PLACEHOLDER)
+        )
         schema_name = record.get("schema_name", "")
         return {
             "typeName": "Schema",
@@ -95,7 +97,9 @@ class MySQLApp(SqlApp):
         MySQL extract_table.sql returns both tables and views in the same
         result set, differentiated by TABLE_TYPE column.
         """
-        db_name = record.get("database_name", record.get("datname", DATABASE_PLACEHOLDER))
+        db_name = record.get(
+            "database_name", record.get("datname", DATABASE_PLACEHOLDER)
+        )
         schema_name = record.get("schema_name", "")
         table_name = record.get("table_name", "")
         table_type = record.get("TABLE_TYPE", record.get("table_type", "BASE TABLE"))
@@ -127,7 +131,9 @@ class MySQLApp(SqlApp):
 
     def map_column(self, record: dict[str, Any], connection_qn: str) -> dict:
         """Map raw column record to Atlan Column entity."""
-        db_name = record.get("database_name", record.get("datname", DATABASE_PLACEHOLDER))
+        db_name = record.get(
+            "database_name", record.get("datname", DATABASE_PLACEHOLDER)
+        )
         schema_name = record.get("schema_name", "")
         table_name = record.get("table_name", "")
         column_name = record.get("column_name", "")

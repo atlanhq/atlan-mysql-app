@@ -33,9 +33,21 @@ install:
 	uv sync --all-extras
 	uv run poe download-components
 
+setup-local-creds:
+	@CRED_GUID=$${LOCAL_CREDENTIAL_GUID:-local-mysql}; \
+	MYSQL_U=$${MYSQL_USER:-root}; \
+	MYSQL_P=$${MYSQL_PASSWORD:-}; \
+	MYSQL_H=$${MYSQL_HOST:-localhost}; \
+	MYSQL_PT=$${MYSQL_PORT:-3306}; \
+	mkdir -p local/dapr/secrets; \
+	mkdir -p "local/dapr/objectstore/persistent-artifacts/apps/default/credentials/$$CRED_GUID"; \
+	echo "{\"$$CRED_GUID\": {\"username\": \"$$MYSQL_U\", \"password\": \"$$MYSQL_P\"}}" > local/dapr/secrets/secrets.json; \
+	echo "{\"authType\": \"basic\", \"host\": \"$$MYSQL_H\", \"port\": \"$$MYSQL_PT\", \"credentialSource\": \"direct\"}" > "local/dapr/objectstore/persistent-artifacts/apps/default/credentials/$$CRED_GUID/config.json"; \
+	echo "Local Dapr creds configured for $$CRED_GUID (user=$$MYSQL_U)"
+
 # ── Development ───────────────────────────────────────────────────────────────
 
-dev: start-deps
+dev: setup-local-creds start-deps
 	DAPR_HTTP_PORT=3500 DAPR_GRPC_PORT=50001 uv run python main.py
 
 start-deps:
@@ -55,8 +67,8 @@ test-e2e:
 	uv run pytest tests/e2e/ -v --timeout=600 --tb=short
 
 test-e2e-remote:
-	@echo "Port-forwarding $(APP_NAMESPACE)/$(APP_DEPLOYMENT) → localhost:$(LOCAL_PORT)..."
-	@kubectl port-forward -n $(APP_NAMESPACE) deployment/$(APP_DEPLOYMENT) $(LOCAL_PORT):$(REMOTE_PORT) & \
+	@echo "Port-forwarding $(APP_NAMESPACE)/$(APP_DEPLOYMENT) → localhost:$(LOCAL_PORT)..."; \
+	kubectl port-forward -n $${APP_NAMESPACE} deployment/$(APP_DEPLOYMENT) $(LOCAL_PORT):$(REMOTE_PORT) & \
 	PF_PID=$$!; \
 	READY=0; \
 	for i in $$(seq 1 30); do \
@@ -68,7 +80,9 @@ test-e2e-remote:
 	if [ "$$READY" = "0" ]; then \
 		echo "Port-forward failed"; kill $$PF_PID 2>/dev/null; exit 1; \
 	fi; \
-	echo "Running e2e tests..."; \
+	echo "Running e2e tests against $(APP_NAMESPACE)..."; \
+	APP_BASE_URL=http://localhost:$(LOCAL_PORT) \
+	CREDENTIAL_GUID=$(REMOTE_CREDENTIAL_GUID) \
 	uv run pytest tests/e2e/ -v --timeout=600 --tb=short; \
 	TEST_EXIT=$$?; \
 	kill $$PF_PID 2>/dev/null; \

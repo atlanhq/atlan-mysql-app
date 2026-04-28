@@ -8,6 +8,7 @@ from typing import Any
 from application_sdk.handler import (
     AuthInput,
     AuthOutput,
+    AuthStatus,
     Handler,
     HandlerCredential,
     MetadataInput,
@@ -27,16 +28,25 @@ logger = get_logger(__name__)
 
 # SQL for handler endpoints
 _TEST_AUTH_SQL = (
-    Path(__file__).parent.parent / "sql" / "test_authentication.sql"
-).read_text().strip().replace("{database_placeholder}", DATABASE_PLACEHOLDER)
+    (Path(__file__).parent.parent / "sql" / "test_authentication.sql")
+    .read_text()
+    .strip()
+    .replace("{database_placeholder}", DATABASE_PLACEHOLDER)
+)
 
 _TABLES_CHECK_SQL = (
-    Path(__file__).parent.parent / "sql" / "tables_check.sql"
-).read_text().strip().replace("{database_placeholder}", DATABASE_PLACEHOLDER)
+    (Path(__file__).parent.parent / "sql" / "tables_check.sql")
+    .read_text()
+    .strip()
+    .replace("{database_placeholder}", DATABASE_PLACEHOLDER)
+)
 
 _FILTER_METADATA_SQL = (
-    Path(__file__).parent.parent / "sql" / "filter_metadata.sql"
-).read_text().strip().replace("{database_placeholder}", DATABASE_PLACEHOLDER)
+    (Path(__file__).parent.parent / "sql" / "filter_metadata.sql")
+    .read_text()
+    .strip()
+    .replace("{database_placeholder}", DATABASE_PLACEHOLDER)
+)
 
 
 def _creds_to_dict(credentials: list[HandlerCredential]) -> dict[str, Any]:
@@ -45,7 +55,7 @@ def _creds_to_dict(credentials: list[HandlerCredential]) -> dict[str, Any]:
     extra: dict[str, Any] = {}
     for cred in credentials:
         if cred.key.startswith("extra."):
-            extra[cred.key[len("extra."):]] = cred.value
+            extra[cred.key[len("extra.") :]] = cred.value
         else:
             cred_dict[cred.key] = cred.value
     if extra:
@@ -63,10 +73,12 @@ class MySQLHandler(Handler):
             creds = _creds_to_dict(input.credentials)
             await client.load(credentials=creds)
             await client.get_results(_TEST_AUTH_SQL)
-            return AuthOutput(success=True, message="Authentication successful")
+            return AuthOutput(
+                status=AuthStatus.SUCCESS, message="Authentication successful"
+            )
         except Exception as e:
             logger.error("MySQL auth test failed: %s", e)
-            return AuthOutput(success=False, message=str(e))
+            return AuthOutput(status=AuthStatus.FAILED, message=str(e))
         finally:
             await client.close()
 
@@ -77,7 +89,15 @@ class MySQLHandler(Handler):
         client = SQLClient()
         try:
             creds = _creds_to_dict(input.credentials)
-            await client.load(credentials=creds)
+            try:
+                await client.load(credentials=creds)
+            except Exception as e:
+                checks.append(
+                    PreflightCheck(
+                        name="auth", passed=False, message=f"Connection failed: {e}"
+                    )
+                )
+                return PreflightOutput(status=PreflightStatus.NOT_READY, checks=checks)
 
             # Auth check
             try:
@@ -91,9 +111,7 @@ class MySQLHandler(Handler):
                         name="auth", passed=False, message=f"Auth failed: {e}"
                     )
                 )
-                return PreflightOutput(
-                    status=PreflightStatus.FAILED, checks=checks
-                )
+                return PreflightOutput(status=PreflightStatus.NOT_READY, checks=checks)
 
             # Connectivity check — can we list tables?
             try:
@@ -117,7 +135,9 @@ class MySQLHandler(Handler):
 
             all_passed = all(c.passed for c in checks)
             return PreflightOutput(
-                status=PreflightStatus.READY if all_passed else PreflightStatus.FAILED,
+                status=PreflightStatus.READY
+                if all_passed
+                else PreflightStatus.NOT_READY,
                 checks=checks,
             )
         finally:
@@ -136,10 +156,10 @@ class MySQLHandler(Handler):
                 for _, row in result.iterrows():
                     objects.append(
                         SqlMetadataObject(
-                            TABLE_CATALOG=row.get(
-                                "database_name", DATABASE_PLACEHOLDER
+                            TABLE_CATALOG=str(
+                                row.get("database_name", DATABASE_PLACEHOLDER)
                             ),
-                            TABLE_SCHEMA=row.get("schema_name", ""),
+                            TABLE_SCHEMA=str(row.get("schema_name", "")),
                         )
                     )
 

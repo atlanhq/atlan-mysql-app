@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import ClassVar
-
 import pytest
 
 from app.constants import DATABASE_PLACEHOLDER
@@ -97,7 +95,9 @@ class TestMySQLAppMappers:
         result = app.map_table(record, connection_qn)
         assert result["typeName"] == "Table"
         assert result["attributes"]["name"] == "users"
-        assert result["attributes"]["qualifiedName"] == f"{connection_qn}/def/mydb/users"
+        assert (
+            result["attributes"]["qualifiedName"] == f"{connection_qn}/def/mydb/users"
+        )
         assert result["attributes"]["columnCount"] == 5
 
     def test_map_table_view(self, app, connection_qn):
@@ -167,4 +167,5 @@ class TestMySQLAppHierarchy:
         assert issubclass(MySQLApp, SqlApp)
 
     def test_app_name(self):
+        assert MySQLApp.name == "mysql"
         assert MySQLApp._app_name == "mysql"
