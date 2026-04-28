@@ -112,9 +112,17 @@ jobs:
           PID_RYUK=$!
           (wget -q https://raw.githubusercontent.com/dapr/cli/master/install/install.sh -O - | /bin/bash && dapr init --slim) &
           PID_DAPR=$!
-          curl -sSf https://temporal.download/cli | sh
-          wait $PID_UV $PID_MYSQL $PID_RYUK $PID_DAPR
+          curl -sSf https://temporal.download/cli | sh &
+          PID_TEMPORAL=$!
+          wait $PID_UV $PID_MYSQL $PID_RYUK $PID_DAPR $PID_TEMPORAL
+          # Verify Temporal CLI installed
+          ls -la ${HOME}/.temporalio/bin/temporal
           echo "${HOME}/.temporalio/bin" >> $GITHUB_PATH
+
+      - name: Verify CLIs
+        run: |
+          temporal --version
+          dapr --version
 
       - name: Download Dapr components + setup creds
         run: |
