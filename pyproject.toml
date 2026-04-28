@@ -7,11 +7,10 @@ requires-python = ">=3.11"
 license = "Apache-2.0"
 readme = "README.md"
 dependencies = [
-    "atlan-application-sdk[daft,iam-auth,sqlalchemy,tests,workflows,pandas]==2.1.1",
+    "atlan-application-sdk[daft,iam-auth,sql,workflows,pandas]",
     "aiomysql>=0.2.0",
     "cryptography>=3.4.0",
-    "jinja2>=3.1.2",
-    "poethepoet>=0.34.0"
+    "poethepoet>=0.34.0",
 ]
 
 # Optional dependencies for specific functionality - Install using: uv sync --extra dev
@@ -115,5 +114,4 @@ fail_under = 60
 
 [tool.uv.sources]
 # atlan-application-sdk = { path = "../application-sdk", editable = true }
-# Using SDK commit with ExternalId and role assumption fixes
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "931c538f4c05ade8c0c8c5de8c4e8420f0b84657" }
+atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", branch = "internal-ref" }
