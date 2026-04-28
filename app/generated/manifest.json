@@ -1,0 +1,28 @@
+{
+  "name": "mysql",
+  "display_name": "MySQL",
+  "connector_name": "mysql",
+  "connector_type": "jdbc",
+  "logo": "https://assets.atlan.com/assets/mysql.svg",
+  "category": "database",
+  "description": "Extract metadata from MySQL databases",
+  "docs_url": "https://ask.atlan.com/hc/en-us/articles/mysql",
+  "configmaps": {
+    "credential": "atlan-connectors-mysql",
+    "workflow": "mysql"
+  },
+  "nodes": {
+    "extract": {
+      "workflow_type": "mysql-app",
+      "args": {
+        "credential_guid": "{{credential-guid}}",
+        "include_filter": "{{include-metadata}}",
+        "exclude_filter": "{{exclude-metadata}}",
+        "temp_table_regex": "{{exclude-table-regex}}"
+      },
+      "metadata": {
+        "connection": "{{connection}}"
+      }
+    }
+  }
+}
