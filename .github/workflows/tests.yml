@@ -104,7 +104,6 @@ jobs:
 
       - name: Install deps + pull images + install CLIs
         run: |
-          # Run all installs in parallel
           uv sync --extra dev --extra test &
           PID_UV=$!
           docker pull mysql:8.0 &
@@ -113,9 +112,8 @@ jobs:
           PID_RYUK=$!
           (wget -q https://raw.githubusercontent.com/dapr/cli/master/install/install.sh -O - | /bin/bash && dapr init --slim) &
           PID_DAPR=$!
-          (curl -sSf https://temporal.download/cli | sh) &
-          PID_TEMPORAL=$!
-          wait $PID_UV $PID_MYSQL $PID_RYUK $PID_DAPR $PID_TEMPORAL
+          curl -sSf https://temporal.download/cli | sh
+          wait $PID_UV $PID_MYSQL $PID_RYUK $PID_DAPR
           echo "${HOME}/.temporalio/bin" >> $GITHUB_PATH
 
       - name: Download Dapr components + setup creds
