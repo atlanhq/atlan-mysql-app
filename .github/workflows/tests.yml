@@ -34,7 +34,7 @@ jobs:
       - name: Run pre-commit
         run: uv run pre-commit run --all-files
 
-  # ── Unit tests ──────────────────────────────────────────────────────
+  # ── Unit tests (make test) ─────────────────────────────────────────
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -83,6 +83,101 @@ jobs:
         with:
           name: coverage
           path: coverage-unit.xml
+
+  # ── Integration tests (make test-e2e) ────────────────────────────────
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: unit-tests
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.pull_request.labels.*.name, 'run-e2e')
+    env:
+      CREDENTIAL_GUID: local-mysql
+      DAPR_HTTP_PORT: "3500"
+      DAPR_GRPC_PORT: "50001"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Install dependencies
+        run: uv sync --extra dev --extra test
+
+      - name: Install Dapr CLI
+        run: |
+          wget -q https://raw.githubusercontent.com/dapr/cli/master/install/install.sh -O - | /bin/bash
+          dapr init --slim
+
+      - name: Install Temporal CLI
+        run: |
+          curl -sSf https://temporal.download/cli | sh
+          echo "${HOME}/.temporalio/bin" >> $GITHUB_PATH
+
+      - name: Download Dapr components
+        run: uv run poe download-components
+
+      - name: Setup local credentials
+        run: make setup-local-creds
+
+      - name: Start Temporal
+        run: |
+          temporal server start-dev --db-filename /tmp/temporal.db &
+          for i in $(seq 1 30); do
+            temporal workflow list --namespace default > /dev/null 2>&1 && break
+            sleep 1
+          done
+
+      - name: Start app with Dapr
+        run: |
+          dapr run \
+            --app-id app \
+            --app-port 8000 \
+            --dapr-http-port $DAPR_HTTP_PORT \
+            --dapr-grpc-port $DAPR_GRPC_PORT \
+            --resources-path components \
+            --placement-host-address '' \
+            --scheduler-host-address '' \
+            -- uv run python main.py &
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:8000/server/health > /dev/null 2>&1 && break
+            sleep 2
+          done
+
+      - name: Run integration tests
+        run: |
+          set -o pipefail
+          uv run pytest tests/e2e/ -v \
+            --timeout=600 \
+            --tb=short \
+            --junit-xml=junit-e2e.xml \
+            2>&1 | tee e2e-output.txt
+
+      - name: E2E test summary
+        if: always()
+        run: |
+          echo "## Integration Test Results" >> $GITHUB_STEP_SUMMARY
+          if [ -f e2e-output.txt ]; then
+            SUMMARY=$(grep -E "^=+ .* =+$" e2e-output.txt | tail -1 || echo "no result")
+            echo "**$SUMMARY**" >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: e2e-results
+          path: junit-e2e.xml
+
+  # ── E2E on K8s (make test-e2e-remote) ──────────────────────────────
+  # TODO: add K8s e2e tests via port-forward to vcluster
+  # Trigger: workflow_dispatch or PR label 'run-e2e-remote'
+  # Secrets needed: CREDENTIAL_GUID, kubeconfig
 
   # ── Coverage comment on PR ──────────────────────────────────────────
   coverage-report:

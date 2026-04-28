@@ -35,14 +35,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Log in to Atlan Registry
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
-        with:
-          registry: registry.atlan.com
-          username: ${{ secrets.ATLAN_REGISTRY_USERNAME }}
-          password: ${{ secrets.ATLAN_REGISTRY_PASSWORD }}
-
       - name: Docker metadata
         id: meta
         uses: docker/metadata-action@v5
