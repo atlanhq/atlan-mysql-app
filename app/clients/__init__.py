@@ -10,7 +10,7 @@ from application_sdk.common.aws_utils import (
     generate_aws_rds_token_with_iam_user,
 )
 from application_sdk.common.error_codes import CommonError
-from application_sdk.common.utils import parse_credentials_extra
+from application_sdk.credentials.utils import parse_credentials_extra
 from application_sdk.observability.logger_adaptor import get_logger
 from sqlalchemy import event
 from sqlalchemy.engine import URL
