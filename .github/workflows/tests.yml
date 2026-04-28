@@ -126,8 +126,16 @@ jobs:
       - name: Start Temporal
         run: |
           temporal server start-dev --db-filename /tmp/temporal.db &
-          for i in $(seq 1 30); do
-            temporal workflow list --namespace default > /dev/null 2>&1 && break
+          echo "Waiting for Temporal on port 7233..."
+          for i in $(seq 1 60); do
+            if nc -z localhost 7233 2>/dev/null; then
+              echo "Temporal ready after ${i}s"
+              break
+            fi
+            if [ "$i" = "60" ]; then
+              echo "::error::Temporal failed to start after 60s"
+              exit 1
+            fi
             sleep 1
           done
 
@@ -142,14 +150,22 @@ jobs:
             --placement-host-address '' \
             --scheduler-host-address '' \
             -- uv run python main.py &
+          echo "Waiting for app on port 8000..."
           for i in $(seq 1 60); do
-            curl -sf http://localhost:8000/server/health > /dev/null 2>&1 && break
+            if curl -sf http://localhost:8000/server/health > /dev/null 2>&1; then
+              echo "App ready after ${i}s"
+              break
+            fi
+            if [ "$i" = "60" ]; then
+              echo "::error::App failed to start after 60s"
+              exit 1
+            fi
             sleep 2
           done
 
       - name: Run integration tests
         run: |
-          set -o pipefail
+          set -euo pipefail
           uv run pytest tests/e2e/ -v \
             --timeout=600 \
             --tb=short \
