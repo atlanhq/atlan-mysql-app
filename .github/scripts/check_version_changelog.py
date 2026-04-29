@@ -9,7 +9,7 @@ tests/docs/CI files changed.
 import subprocess
 import sys
 
-APP_PATHS = ("app/", "pyproject.toml", "Dockerfile", "main.py")
+APP_PATHS = ("app/", "pyproject.toml", "Dockerfile", "main.py", "Makefile", "atlan.yaml", ".github/workflows/")
 SKIP_PATHS = ("tests/", ".github/", "docs/", "README.md", "CHANGELOG.md", "version.txt")
 
 
