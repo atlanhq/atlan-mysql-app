@@ -11,7 +11,7 @@ from typing import Any, ClassVar
 from application_sdk.templates.sql_app import SqlApp
 
 from app.clients import SQLClient
-from app.constants import DATABASE_PLACEHOLDER
+from app.constants import DATABASE_PLACEHOLDER, TENANT_ID
 
 # Read SQL files at module level
 _SQL_DIR = Path(__file__).parent / "sql"
@@ -61,6 +61,7 @@ class MySQLApp(SqlApp):
         db_name = record.get("database_name", record.get("datname", ""))
         return {
             "typeName": "Database",
+            "tenantId": TENANT_ID,
             "status": "ACTIVE",
             "attributes": {
                 "name": db_name,
@@ -79,6 +80,7 @@ class MySQLApp(SqlApp):
         schema_name = record.get("schema_name", "")
         return {
             "typeName": "Schema",
+            "tenantId": TENANT_ID,
             "status": "ACTIVE",
             "attributes": {
                 "name": schema_name,
@@ -112,6 +114,7 @@ class MySQLApp(SqlApp):
 
         return {
             "typeName": type_name,
+            "tenantId": TENANT_ID,
             "status": "ACTIVE",
             "attributes": {
                 "name": table_name,
@@ -140,6 +143,7 @@ class MySQLApp(SqlApp):
 
         return {
             "typeName": "Column",
+            "tenantId": TENANT_ID,
             "status": "ACTIVE",
             "attributes": {
                 "name": column_name,

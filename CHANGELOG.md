@@ -2,6 +2,15 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.3.6 (April 30, 2026)
+
+### Bug Fixes
+
+- **SDK**: Fix `connection_qn` resolution — use `connection.attributes.qualified_name` (not `connection.qualified_name`)
+- **JSONL**: Add `tenantId` to all entity mappers (database, schema, table, column)
+- **qualifiedName**: Now includes connection QN prefix (e.g. `default/mysql/123/def/atlan/table`)
+- **connectionQualifiedName**: No longer empty in transformed entities
+
 ## 0.3.5 (April 29, 2026)
 
 ### Bug Fixes
