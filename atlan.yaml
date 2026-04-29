@@ -6,20 +6,15 @@ icon_url: ""
 visibility: public
 argo_package_names:
   - "@atlan/mysql"
-
 build_tag: v1
-# If set to true, images will be pushed to a shared repository where customers can also pull
 self_deployed_runtime: true
-
 deploy:
   execution_mode: native
   splitDeploymentEnabled: true
-
   env:
     ATLAN_HEARTBEAT_TIMEOUT_SECONDS: "7200"
     ATLAN_START_TO_CLOSE_TIMEOUT_SECONDS: "7200"
     ATLAN_TENANT_ID: "default"
-
   dapr:
     objectstore: true
     secretstore: true
@@ -28,11 +23,3 @@ deploy:
     subscription: false
     configurationstore: false
     lock: false
-
-  resources:
-    requests:
-      cpu: 100m
-      memory: 1000Mi
-    limits:
-      cpu: 1
-      memory: 3000Mi

@@ -22,10 +22,11 @@ IMAGE_NAME ?= atlan-mysql-app
 TAG        ?= latest
 
 # E2E remote configuration
-APP_NAMESPACE   ?= mysql-app
-APP_DEPLOYMENT  ?= mysql-server
-LOCAL_PORT      ?= 8000
-REMOTE_PORT     ?= 8000
+APP_NAMESPACE          ?= mysql-app
+APP_DEPLOYMENT         ?= mysql-server
+REMOTE_CREDENTIAL_GUID ?= local-mysql
+LOCAL_PORT             ?= 8000
+REMOTE_PORT            ?= 8000
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 
@@ -68,7 +69,7 @@ test-e2e:
 
 test-e2e-remote:
 	@echo "Port-forwarding $(APP_NAMESPACE)/$(APP_DEPLOYMENT) → localhost:$(LOCAL_PORT)..."; \
-	kubectl port-forward -n $${APP_NAMESPACE} deployment/$(APP_DEPLOYMENT) $(LOCAL_PORT):$(REMOTE_PORT) & \
+	kubectl port-forward -n $(APP_NAMESPACE) deployment/$(APP_DEPLOYMENT) $(LOCAL_PORT):$(REMOTE_PORT) & \
 	PF_PID=$$!; \
 	READY=0; \
 	for i in $$(seq 1 30); do \
