@@ -234,33 +234,30 @@ def connection_info(atlan_client):
         name=unique_name,
         connector_type=AtlanConnectorType.MYSQL,
         admin_roles=[admin_role_guid],
+        client=atlan_client,
     )
     response = atlan_client.asset.save(connection)
     created = response.assets_created(asset_type=Connection)[0]
-
-    conn = atlan_client.asset.get_by_guid(
-        created.guid, asset_type=Connection, ignore_relationships=False
-    )
     logger.info(
         "Connection created: name=%s qn=%s guid=%s",
-        conn.name,
-        conn.qualified_name,
-        conn.guid,
+        unique_name,
+        created.qualified_name,
+        created.guid,
     )
 
     yield {
-        "name": conn.name,
-        "qualified_name": conn.qualified_name,
-        "guid": conn.guid,
+        "name": unique_name,
+        "qualified_name": created.qualified_name,
+        "guid": created.guid,
     }
 
     # Cleanup
-    logger.info("Deleting test connection: %s", conn.qualified_name)
+    logger.info("Deleting test connection: %s", created.qualified_name)
     try:
-        atlan_client.asset.purge_by_guid(conn.guid)
-        logger.info("Connection deleted: %s", conn.qualified_name)
+        atlan_client.asset.purge_by_guid(created.guid)
+        logger.info("Connection deleted: %s", created.qualified_name)
     except Exception:
-        logger.exception("Failed to delete connection: %s", conn.qualified_name)
+        logger.exception("Failed to delete connection: %s", created.qualified_name)
 
 
 # ── Tests (ordered) ────────────────────────────────────────────────────────
@@ -279,6 +276,13 @@ def test_run_et_workflow(connection_info):
         "credential_guid": CREDENTIAL_GUID,
         "metadata": {},
         "connection": {
+            "typeName": "Connection",
+            "attributes": {
+                "qualifiedName": connection_info["qualified_name"],
+                "name": connection_info["name"],
+                "connectorName": "mysql",
+                "category": "warehouse",
+            },
             "connection_name": connection_info["name"],
             "connection_qualified_name": connection_info["qualified_name"],
         },
@@ -336,8 +340,8 @@ def test_verify_entities_in_atlan(connection_info, atlan_client):
 
     connection_qn = connection_info["qualified_name"]
 
-    # Wait for indexing
-    time.sleep(10)
+    # Wait for Atlan to index published entities
+    time.sleep(30)
 
     # Verify connection
     conn_results = list(

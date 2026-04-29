@@ -2,6 +2,19 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.3.2 (April 29, 2026)
+
+### New Features
+
+- **Publish integration**: Full ETL pipeline — E&T COMPLETED + PublishWorkflow COMPLETED
+- **Temporal port-forward**: `test-e2e-remote` now port-forwards Temporal internal frontend for publish workflow
+- **Connection attributes**: Proper `typeName`/`attributes` structure in workflow payload
+
+### Bug Fixes
+
+- **Cleanup NameError**: Fixed `conn` → `created` in teardown
+- **Indexing wait**: Increased to 30s for entity verification after publish
+
 ## 0.3.1 (April 29, 2026)
 
 ### Bug Fixes
