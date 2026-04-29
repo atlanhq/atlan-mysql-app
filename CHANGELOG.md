@@ -2,6 +2,46 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.3.3 (April 29, 2026)
+
+### Bug Fixes
+
+- **SDK**: Auto-set `output_path` from `build_output_path()` when empty — ensures fetch/transform/upload runs on deployed apps
+
+## 0.3.2 (April 29, 2026)
+
+### New Features
+
+- **Publish integration**: Full ETL pipeline — E&T COMPLETED + PublishWorkflow COMPLETED
+- **Temporal port-forward**: `test-e2e-remote` now port-forwards Temporal internal frontend for publish workflow
+- **Connection attributes**: Proper `typeName`/`attributes` structure in workflow payload
+
+### Bug Fixes
+
+- **Cleanup NameError**: Fixed `conn` → `created` in teardown
+- **Indexing wait**: Increased to 30s for entity verification after publish
+
+## 0.3.1 (April 29, 2026)
+
+### Bug Fixes
+
+- **Disable split deployment**: `splitDeploymentEnabled: false` — runs handler + worker in single pod (avoids workflow node scheduling issues)
+
+## 0.3.0 (April 29, 2026)
+
+### New Features
+
+- **Publish integration test**: Full ETL pipeline — extract, transform, publish to Atlan, verify entities
+- **Unique test connections**: Each test run creates a unique Connection via pyatlan with `uuid` suffix, cleaned up after
+- **Entity verification**: Verifies databases, schemas, tables, columns are published to Atlan after PublishWorkflow
+
+## 0.2.3 (April 29, 2026)
+
+### Bug Fixes
+
+- **Remote e2e**: Skip `output_path` for remote tests (pod can't write to local temp dirs)
+- **Include filter**: Remove default filter — pass empty string, let SDK/credentials handle it
+
 ## 0.2.2 (April 29, 2026)
 
 ### Bug Fixes

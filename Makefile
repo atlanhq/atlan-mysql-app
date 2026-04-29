@@ -70,6 +70,7 @@ test-e2e:
 test-e2e-remote:
 	@echo "Port-forwarding $(APP_NAMESPACE)/$(APP_DEPLOYMENT) → localhost:$(LOCAL_PORT)..."; \
 	kubectl port-forward -n $(APP_NAMESPACE) deployment/$(APP_DEPLOYMENT) $(LOCAL_PORT):$(REMOTE_PORT) & \
+	kubectl port-forward -n temporal svc/temporal-cluster-internal-frontend-headless 7233:7236 & \
 	PF_PID=$$!; \
 	READY=0; \
 	for i in $$(seq 1 30); do \
@@ -86,7 +87,7 @@ test-e2e-remote:
 	CREDENTIAL_GUID=$(REMOTE_CREDENTIAL_GUID) \
 	uv run pytest tests/e2e/ -v --timeout=600 --tb=short; \
 	TEST_EXIT=$$?; \
-	kill $$PF_PID 2>/dev/null; \
+	kill %1 %2 2>/dev/null; \
 	exit $$TEST_EXIT
 
 test-cov:
