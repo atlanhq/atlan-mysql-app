@@ -2,6 +2,14 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.3.0 (April 29, 2026)
+
+### New Features
+
+- **Publish integration test**: Full ETL pipeline — extract, transform, publish to Atlan, verify entities
+- **Unique test connections**: Each test run creates a unique Connection via pyatlan with `uuid` suffix, cleaned up after
+- **Entity verification**: Verifies databases, schemas, tables, columns are published to Atlan after PublishWorkflow
+
 ## 0.2.3 (April 29, 2026)
 
 ### Bug Fixes

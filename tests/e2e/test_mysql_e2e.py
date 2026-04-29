@@ -16,6 +16,7 @@ import shutil
 import tempfile
 import time
 import unittest
+import uuid
 from pathlib import Path
 
 import pandas as pd
@@ -157,7 +158,9 @@ class TestMySQLE2E(unittest.TestCase):
         Local (testcontainers/dev): passes output_path for artifact validation.
         Remote (vcluster): skips output_path since the pod can't write to local paths.
         """
-        is_remote = os.environ.get("APP_BASE_URL", "").startswith("http://localhost") and os.environ.get("REMOTE_CREDENTIAL_GUID")
+        is_remote = os.environ.get("APP_BASE_URL", "").startswith(
+            "http://localhost"
+        ) and os.environ.get("REMOTE_CREDENTIAL_GUID")
         if is_remote:
             self._run_and_validate(output_path=None)
         else:
@@ -174,8 +177,8 @@ class TestMySQLE2E(unittest.TestCase):
             "include_filter": include_filter,
             "metadata": {},
             "connection": {
-                "connection_name": "test-mysql",
-                "connection_qualified_name": "default/mysql/test",
+                "connection_name": f"mysql-e2e-{uuid.uuid4().hex[:8]}",
+                "connection_qualified_name": f"default/mysql/{uuid.uuid4().hex[:8]}",
             },
         }
         if output_path:
