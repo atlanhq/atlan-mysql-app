@@ -37,7 +37,7 @@ jobs:
         with:
           ref: ${{ inputs.ref || github.ref }}
       - id: version
-        run: echo "version=v$(cat version.txt | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(cat version.txt | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
 
   build-and-publish:
     needs: read-version

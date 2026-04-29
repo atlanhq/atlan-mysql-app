@@ -2,14 +2,14 @@ name: mysql
 app_id: 019c4c4b-8468-7e42-b0d6-eada59da2da1  # Global Marketplace UUID
 display_name: "Mysql"
 type: connector
-execution_mode: native
 icon_url: ""
 visibility: public
 argo_package_names:
   - "@atlan/mysql"
 build_tag: v1
-self_deployed_runtime: false
+self_deployed_runtime: true
 deploy:
+  execution_mode: native
   splitDeploymentEnabled: true
   env:
     ATLAN_HEARTBEAT_TIMEOUT_SECONDS: "7200"
