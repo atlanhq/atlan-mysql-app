@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.3.1 (April 29, 2026)
+
+### Bug Fixes
+
+- **Disable split deployment**: `splitDeploymentEnabled: false` — runs handler + worker in single pod (avoids workflow node scheduling issues)
+
 ## 0.3.0 (April 29, 2026)
 
 ### New Features
