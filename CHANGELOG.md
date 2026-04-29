@@ -2,6 +2,13 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.2.3 (April 29, 2026)
+
+### Bug Fixes
+
+- **Remote e2e**: Skip `output_path` for remote tests (pod can't write to local temp dirs)
+- **Include filter**: Remove default filter — pass empty string, let SDK/credentials handle it
+
 ## 0.2.2 (April 29, 2026)
 
 ### Bug Fixes
