@@ -154,27 +154,32 @@ class TestMySQLE2E(unittest.TestCase):
     def test_run_workflow(self):
         """Run full extraction workflow, assert COMPLETED + validate artifacts.
 
-        Validates:
-        1. Workflow completes successfully
-        2. Raw parquet files exist for databases, schemas, tables, columns
-        3. Transformed JSONL files exist with valid entity structure
+        Local (testcontainers/dev): passes output_path for artifact validation.
+        Remote (vcluster): skips output_path since the pod can't write to local paths.
         """
-        output_path = tempfile.mkdtemp(prefix="mysql-e2e-")
-        try:
-            self._run_and_validate(output_path)
-        finally:
-            shutil.rmtree(output_path, ignore_errors=True)
+        is_remote = os.environ.get("APP_BASE_URL", "").startswith("http://localhost") and os.environ.get("REMOTE_CREDENTIAL_GUID")
+        if is_remote:
+            self._run_and_validate(output_path=None)
+        else:
+            output_path = tempfile.mkdtemp(prefix="mysql-e2e-")
+            try:
+                self._run_and_validate(output_path=output_path)
+            finally:
+                shutil.rmtree(output_path, ignore_errors=True)
 
-    def _run_and_validate(self, output_path: str):
+    def _run_and_validate(self, output_path: str | None):
+        include_filter = os.environ.get("INCLUDE_FILTER", "")
         payload = {
             "credential_guid": _credential_guid(),
-            "output_path": output_path,
+            "include_filter": include_filter,
             "metadata": {},
             "connection": {
                 "connection_name": "test-mysql",
                 "connection_qualified_name": "default/mysql/test",
             },
         }
+        if output_path:
+            payload["output_path"] = output_path
         resp = requests.post(
             f"{BASE_URL}/workflows/v1/start",
             json=payload,
@@ -194,6 +199,9 @@ class TestMySQLE2E(unittest.TestCase):
             "COMPLETED",
             f"Workflow did not complete: {result}",
         )
+
+        if not output_path:
+            return
 
         # ── Validate raw extraction (parquet) ────────────────────────
         raw_dir = Path(output_path) / "raw"
