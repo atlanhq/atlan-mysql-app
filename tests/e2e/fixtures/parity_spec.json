@@ -1,0 +1,175 @@
+{
+  "_description": "Expected JSONL entity structure from legacy Argo MySQL connector. Used as parity guard rail in tests.",
+  "_note": "sdk_injected_attributes are added by the SDK framework (not app mappers) \u2014 connectionName, lastSync*",
+  "sdk_injected_attributes": [
+    "lastSyncWorkflowName",
+    "lastSyncRun",
+    "lastSyncRunAt",
+    "connectionName"
+  ],
+  "database": {
+    "top_level_keys": [
+      "typeName",
+      "tenantId",
+      "status",
+      "attributes",
+      "customAttributes"
+    ],
+    "required_attributes": [
+      "name",
+      "qualifiedName",
+      "connectionQualifiedName",
+      "connectorName",
+      "schemaCount",
+      "tenantId"
+    ]
+  },
+  "schema": {
+    "top_level_keys": [
+      "typeName",
+      "tenantId",
+      "status",
+      "attributes",
+      "customAttributes"
+    ],
+    "required_attributes": [
+      "name",
+      "qualifiedName",
+      "connectionQualifiedName",
+      "connectorName",
+      "databaseName",
+      "databaseQualifiedName",
+      "tableCount",
+      "viewsCount",
+      "tenantId",
+      "database"
+    ]
+  },
+  "table": {
+    "top_level_keys": [
+      "typeName",
+      "tenantId",
+      "status",
+      "attributes",
+      "customAttributes"
+    ],
+    "required_attributes": [
+      "name",
+      "qualifiedName",
+      "connectionQualifiedName",
+      "connectorName",
+      "databaseName",
+      "databaseQualifiedName",
+      "schemaName",
+      "schemaQualifiedName",
+      "columnCount",
+      "sizeBytes",
+      "isPartitioned",
+      "partitionCount",
+      "tenantId",
+      "atlanSchema"
+    ],
+    "table_only_attributes": [
+      "rowCount",
+      "subType"
+    ],
+    "view_only_attributes": [
+      "definition",
+      "description"
+    ]
+  },
+  "view": {
+    "top_level_keys": [
+      "typeName",
+      "tenantId",
+      "status",
+      "attributes",
+      "customAttributes"
+    ],
+    "required_attributes": [
+      "name",
+      "qualifiedName",
+      "connectionQualifiedName",
+      "connectorName",
+      "databaseName",
+      "databaseQualifiedName",
+      "schemaName",
+      "schemaQualifiedName",
+      "definition",
+      "description",
+      "columnCount",
+      "sizeBytes",
+      "isPartitioned",
+      "partitionCount",
+      "tenantId",
+      "atlanSchema"
+    ]
+  },
+  "column": {
+    "top_level_keys": [
+      "typeName",
+      "tenantId",
+      "status",
+      "attributes",
+      "customAttributes"
+    ],
+    "required_attributes": [
+      "name",
+      "qualifiedName",
+      "connectionQualifiedName",
+      "connectorName",
+      "databaseName",
+      "databaseQualifiedName",
+      "schemaName",
+      "schemaQualifiedName",
+      "dataType",
+      "isNullable",
+      "isPartition",
+      "isPrimary",
+      "isForeign",
+      "maxLength",
+      "numericScale",
+      "order",
+      "precision",
+      "tenantId"
+    ],
+    "conditional_attributes": {
+      "table_column": [
+        "tableName",
+        "tableQualifiedName",
+        "table"
+      ],
+      "view_column": [
+        "viewName",
+        "viewQualifiedName",
+        "view"
+      ]
+    }
+  },
+  "relationship_ref_format": {
+    "database": {
+      "typeName": "Database",
+      "uniqueAttributes": {
+        "qualifiedName": "..."
+      }
+    },
+    "atlanSchema": {
+      "typeName": "Schema",
+      "uniqueAttributes": {
+        "qualifiedName": "..."
+      }
+    },
+    "table": {
+      "typeName": "Table",
+      "uniqueAttributes": {
+        "qualifiedName": "..."
+      }
+    },
+    "view": {
+      "typeName": "View",
+      "uniqueAttributes": {
+        "qualifiedName": "..."
+      }
+    }
+  }
+}
