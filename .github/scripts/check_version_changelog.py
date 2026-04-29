@@ -27,12 +27,8 @@ def main() -> int:
     if not staged:
         return 0
 
-    has_app_changes = any(
-        any(f.startswith(p) for p in APP_PATHS) for f in staged
-    )
-    only_skip_paths = all(
-        any(f.startswith(p) for p in SKIP_PATHS) for f in staged
-    )
+    has_app_changes = any(any(f.startswith(p) for p in APP_PATHS) for f in staged)
+    only_skip_paths = all(any(f.startswith(p) for p in SKIP_PATHS) for f in staged)
 
     if not has_app_changes or only_skip_paths:
         return 0
