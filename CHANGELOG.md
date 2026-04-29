@@ -2,6 +2,13 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.3.4 (April 29, 2026)
+
+### Bug Fixes
+
+- **SDK**: Auto-set `output_path` from `workflow_id` in workflow context (not activity context) — ensures fetch/transform/upload runs on deployed apps
+- **Pre-commit**: Move all pyatlan imports to top level in publish integration test
+
 ## 0.3.3 (April 29, 2026)
 
 ### Bug Fixes
