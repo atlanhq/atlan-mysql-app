@@ -149,7 +149,7 @@ jobs:
 
       - name: Start app with Dapr
         run: |
-          dapr run \
+          nohup dapr run \
             --app-id app \
             --app-port 8000 \
             --dapr-http-port $DAPR_HTTP_PORT \
@@ -157,7 +157,7 @@ jobs:
             --resources-path components \
             --placement-host-address '' \
             --scheduler-host-address '' \
-            -- uv run python main.py &
+            -- uv run python main.py > /tmp/app.log 2>&1 &
           echo "Waiting for app on port 8000..."
           for i in $(seq 1 60); do
             if curl -sf http://localhost:8000/server/health > /dev/null 2>&1; then
