@@ -9,7 +9,7 @@ argo_package_names:
 
 build_tag: v1
 # If set to true, images will be pushed to a shared repository where customers can also pull
-self_deployed_runtime: false
+self_deployed_runtime: true
 
 deploy:
   execution_mode: native
