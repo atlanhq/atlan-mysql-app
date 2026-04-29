@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.3.3 (April 29, 2026)
+
+### Bug Fixes
+
+- **SDK**: Auto-set `output_path` from `build_output_path()` when empty — ensures fetch/transform/upload runs on deployed apps
+
 ## 0.3.2 (April 29, 2026)
 
 ### New Features

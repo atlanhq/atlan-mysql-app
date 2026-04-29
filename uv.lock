@@ -2,7 +2,8 @@ version = 1
 revision = 3
 requires-python = ">=3.11"
 resolution-markers = [
-    "python_full_version >= '3.13'",
+    "python_full_version >= '3.14'",
+    "python_full_version == '3.13.*'",
     "python_full_version == '3.12.*'",
     "python_full_version < '3.12'",
 ]
@@ -143,7 +144,7 @@ wheels = [
 [[package]]
 name = "atlan-application-sdk"
 version = "3.3.0"
-source = { git = "https://github.com/atlanhq/application-sdk?branch=BLDX-968#f791d93c6ed021fcb0d8227ca0ef3b37b61cd9ae" }
+source = { git = "https://github.com/atlanhq/application-sdk?branch=BLDX-968#583bd656382131b7e4309bcc55e3355d197d5a0c" }
 dependencies = [
     { name = "aiohttp" },
     { name = "fastapi", extra = ["standard"] },
@@ -205,10 +206,12 @@ test = [
     { name = "coverage" },
     { name = "docker" },
     { name = "pandas" },
+    { name = "pyatlan" },
     { name = "pymysql" },
     { name = "pytest" },
     { name = "pytest-asyncio" },
     { name = "pytest-cov" },
+    { name = "pytest-order" },
     { name = "pytest-timeout" },
     { name = "requests" },
     { name = "testcontainers", extra = ["mysql"] },
@@ -225,10 +228,12 @@ requires-dist = [
     { name = "pandas", marker = "extra == 'test'", specifier = ">=2.0.0" },
     { name = "poethepoet", specifier = ">=0.34.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.8.0" },
+    { name = "pyatlan", marker = "extra == 'test'", specifier = ">=9.5.0" },
     { name = "pymysql", marker = "extra == 'test'", specifier = ">=1.1.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.3.3" },
     { name = "pytest-asyncio", marker = "extra == 'test'", specifier = ">=0.24.0" },
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=6.0.0" },
+    { name = "pytest-order", marker = "extra == 'test'", specifier = ">=1.3.0" },
     { name = "pytest-timeout", marker = "extra == 'test'", specifier = ">=2.3.1" },
     { name = "requests", marker = "extra == 'dev'" },
     { name = "requests", marker = "extra == 'test'" },
@@ -2147,6 +2152,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/30/4c/f883ab8f0daad69f47efdf95f55a66b51a8b939c430dadce0611508d9e99/pytest_cov-6.3.0.tar.gz", hash = "sha256:35c580e7800f87ce892e687461166e1ac2bcb8fb9e13aea79032518d6e503ff2", size = 70398, upload-time = "2025-09-06T15:40:14.361Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/80/b4/bb7263e12aade3842b938bc5c6958cae79c5ee18992f9b9349019579da0f/pytest_cov-6.3.0-py3-none-any.whl", hash = "sha256:440db28156d2468cafc0415b4f8e50856a0d11faefa38f30906048fe490f1749", size = 25115, upload-time = "2025-09-06T15:40:12.44Z" },
+]
+
+[[package]]
+name = "pytest-order"
+version = "1.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pytest" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fe/76/c7b4a2ad3758a3c2757f532c6e931aa5e387781512a71b67b6ddc19d9ef8/pytest_order-1.4.0.tar.gz", hash = "sha256:327fb6eee1ae771051da13d2a0d9306d947e87f9ab8f4d6302e5d122c7472691", size = 49891, upload-time = "2026-04-26T12:37:43.056Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1e/d0/c62c07141151f259faddff6bd591f28235c37dd0c486160d0d2a0d4e6e5a/pytest_order-1.4.0-py3-none-any.whl", hash = "sha256:05b1710cf16bb2123294eec5bdfaee513322ff1926c0dfa86eb8be632eb264a1", size = 14918, upload-time = "2026-04-26T12:37:41.123Z" },
 ]
 
 [[package]]
