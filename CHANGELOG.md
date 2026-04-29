@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.2.2 (April 29, 2026)
+
+### Bug Fixes
+
+- **atlan.yaml**: Align with azure-event-hub pattern — `execution_mode` top-level, `self_deployed_runtime: false`, remove explicit resources (use platform defaults)
+
 ## 0.2.1 (April 29, 2026)
 
 ### Bug Fixes
