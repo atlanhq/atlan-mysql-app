@@ -2,6 +2,7 @@ name: mysql
 app_id: 019c4c4b-8468-7e42-b0d6-eada59da2da1  # Global Marketplace UUID
 display_name: "Mysql"
 type: connector
+execution_mode: native
 icon_url: ""
 visibility: public
 argo_package_names:
@@ -12,9 +13,7 @@ build_tag: v1
 self_deployed_runtime: true
 
 deploy:
-  execution_mode: native
-  replicaCount: 1
-  containerPort: 8000
+  splitDeploymentEnabled: true
 
   env:
     ATLAN_HEARTBEAT_TIMEOUT_SECONDS: "7200"
@@ -30,17 +29,10 @@ deploy:
     configurationstore: false
     lock: false
 
-  # ============================================================================
-  # RESOURCES
-  # ============================================================================
-  # Set CPU and memory limits for your app.
-  # Uncomment and adjust based on your app's resource requirements.
-  # requests: Minimum guaranteed resources
-  # limits: Maximum resources the container can use
   resources:
     requests:
-      cpu: 100m           # 0.1 CPU cores
-      memory: 1000Mi       # 500 MB RAM
+      cpu: 100m
+      memory: 1000Mi
     limits:
-      cpu: 1              # 1 CPU core
-      memory: 3000Mi      # 1 GB RAM
+      cpu: 1
+      memory: 3000Mi
