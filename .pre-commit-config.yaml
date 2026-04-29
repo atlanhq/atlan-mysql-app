@@ -29,3 +29,11 @@ repos:
       - id: conventional-pre-commit
         stages: [commit-msg]
         args: []
+  - repo: local
+    hooks:
+      - id: check-version-changelog
+        name: check version + changelog updated
+        entry: python .github/scripts/check_version_changelog.py
+        language: system
+        pass_filenames: false
+        always_run: true
