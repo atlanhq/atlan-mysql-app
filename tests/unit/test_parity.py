@@ -48,9 +48,9 @@ def _assert_structure(entity: dict, spec_key: str, entity_type: str):
 def _assert_ref(ref: dict, expected_type: str):
     """Validate a relationship ref has the correct shape."""
     assert ref is not None, "Relationship ref is None"
-    assert ref.get("typeName") == expected_type, (
-        f"Ref typeName={ref.get('typeName')}, expected {expected_type}"
-    )
+    assert (
+        ref.get("typeName") == expected_type
+    ), f"Ref typeName={ref.get('typeName')}, expected {expected_type}"
     assert "uniqueAttributes" in ref, "Ref missing uniqueAttributes"
     assert "qualifiedName" in ref["uniqueAttributes"], "Ref missing qualifiedName"
     assert ref["uniqueAttributes"]["qualifiedName"], "Ref qualifiedName is empty"
@@ -176,7 +176,15 @@ class TestTableParity:
         }
         entity = app.map_table(record, CONNECTION_QN)
         custom = entity["customAttributes"]
-        for key in ("engine", "version", "row_format", "data_length", "table_collation", "create_options", "is_transient"):
+        for key in (
+            "engine",
+            "version",
+            "row_format",
+            "data_length",
+            "table_collation",
+            "create_options",
+            "is_transient",
+        ):
             assert key in custom, f"Table customAttributes missing: {key}"
 
     def test_table_has_row_count_and_sub_type(self, app):
@@ -322,7 +330,13 @@ class TestColumnParity:
         custom = entity["customAttributes"]
         assert "type_name" in custom
         assert custom["type_name"] == "int"
-        for key in ("column_type", "column_key", "privileges", "character_set_name", "collation_name"):
+        for key in (
+            "column_type",
+            "column_key",
+            "privileges",
+            "character_set_name",
+            "collation_name",
+        ):
             assert key in custom, f"Column customAttributes missing: {key}"
 
 
@@ -371,27 +385,53 @@ class TestCrossEntityConsistency:
             app.map_database({"database_name": "def"}, CONNECTION_QN),
             app.map_schema({"catalog_name": "def", "schema_name": "s"}, CONNECTION_QN),
             app.map_table(
-                {"table_catalog": "def", "table_schema": "s", "table_name": "t", "table_kind": "BASE TABLE"},
+                {
+                    "table_catalog": "def",
+                    "table_schema": "s",
+                    "table_name": "t",
+                    "table_kind": "BASE TABLE",
+                },
                 CONNECTION_QN,
             ),
             app.map_column(
-                {"table_catalog": "def", "table_schema": "s", "table_name": "t", "column_name": "c", "table_type": "BASE TABLE"},
+                {
+                    "table_catalog": "def",
+                    "table_schema": "s",
+                    "table_name": "t",
+                    "column_name": "c",
+                    "table_type": "BASE TABLE",
+                },
                 CONNECTION_QN,
             ),
         ]:
-            assert entity.get("tenantId") == "default", f"{entity['typeName']} missing tenantId"
+            assert (
+                entity.get("tenantId") == "default"
+            ), f"{entity['typeName']} missing tenantId"
 
     def test_all_entities_have_custom_attributes(self, app):
         for entity in [
             app.map_database({"database_name": "def"}, CONNECTION_QN),
             app.map_schema({"catalog_name": "def", "schema_name": "s"}, CONNECTION_QN),
             app.map_table(
-                {"table_catalog": "def", "table_schema": "s", "table_name": "t", "table_kind": "BASE TABLE"},
+                {
+                    "table_catalog": "def",
+                    "table_schema": "s",
+                    "table_name": "t",
+                    "table_kind": "BASE TABLE",
+                },
                 CONNECTION_QN,
             ),
             app.map_column(
-                {"table_catalog": "def", "table_schema": "s", "table_name": "t", "column_name": "c", "table_type": "BASE TABLE"},
+                {
+                    "table_catalog": "def",
+                    "table_schema": "s",
+                    "table_name": "t",
+                    "column_name": "c",
+                    "table_type": "BASE TABLE",
+                },
                 CONNECTION_QN,
             ),
         ]:
-            assert "customAttributes" in entity, f"{entity['typeName']} missing customAttributes"
+            assert (
+                "customAttributes" in entity
+            ), f"{entity['typeName']} missing customAttributes"
