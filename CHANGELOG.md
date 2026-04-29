@@ -2,6 +2,13 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.3.5 (April 29, 2026)
+
+### Bug Fixes
+
+- **SDK**: Auto-resolve `output_path` via `build_output_path()` in each task (activity context) — same pattern as azure-event-hub. Ensures fetch/transform write parquet/JSONL and upload pushes to S3.
+- **Pre-commit**: Move all pyatlan imports to top level in publish integration test
+
 ## 0.3.4 (April 29, 2026)
 
 ### Bug Fixes
