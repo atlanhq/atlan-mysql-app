@@ -2,6 +2,25 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.0 (April 30, 2026)
+
+### New Features
+
+- **Parity with legacy Argo connector**: Asset mappers rewritten to match legacy JSONL structure
+- **Parity guard rail tests**: 30+ tests validate entity structure against legacy spec (`parity_spec.json`)
+- **Relationship refs**: Schema has `database` ref, Table/View has `atlanSchema` ref, Column has `table`/`view` ref
+- **customAttributes**: Table/View include engine, version, row_format, collation; Column includes all SQL metadata
+- **View support**: `definition`, `description` fields; views have no `rowCount`/`subType`
+- **Column improvements**: `isPrimary`/`isForeign` from constraint_type, `dataType` uppercase, `precision`/`numericScale`
+
+### Bug Fixes
+
+- **tenantId**: Added to all entities (top-level + attributes)
+- **qualifiedName**: Includes connection QN prefix (was empty before)
+- **Schema**: Added `viewsCount`, `database` relationship ref
+- **Table**: Added `isPartitioned`, `partitionCount`, `subType`, `sourceCreatedAt`, `atlanSchema` ref
+- **Column**: Added `isPartition`, `isForeign`, `numericScale`, `precision`, `table`/`view` relationship refs
+
 ## 0.3.6 (April 30, 2026)
 
 ### Bug Fixes
