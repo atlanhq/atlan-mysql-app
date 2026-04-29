@@ -69,12 +69,15 @@ class TestMySQLAppMappers:
         assert result["attributes"]["qualifiedName"] == f"{connection_qn}/def"
         assert result["attributes"]["connectorName"] == "mysql"
         assert result["attributes"]["schemaCount"] == 5
+        assert result["tenantId"] == "default"
+        assert "customAttributes" in result
 
     def test_map_schema(self, app, connection_qn):
         record = {
-            "database_name": "def",
+            "catalog_name": "def",
             "schema_name": "mydb",
             "table_count": 10,
+            "views_count": 3,
         }
         result = app.map_schema(record, connection_qn)
         assert result["typeName"] == "Schema"
@@ -82,13 +85,15 @@ class TestMySQLAppMappers:
         assert result["attributes"]["qualifiedName"] == f"{connection_qn}/def/mydb"
         assert result["attributes"]["databaseName"] == "def"
         assert result["attributes"]["tableCount"] == 10
+        assert result["attributes"]["viewsCount"] == 3
+        assert result["attributes"]["database"]["typeName"] == "Database"
 
     def test_map_table_base_table(self, app, connection_qn):
         record = {
-            "database_name": "def",
-            "schema_name": "mydb",
+            "table_catalog": "def",
+            "table_schema": "mydb",
             "table_name": "users",
-            "TABLE_TYPE": "BASE TABLE",
+            "table_kind": "BASE TABLE",
             "column_count": 5,
             "row_count": 100,
         }
@@ -99,40 +104,51 @@ class TestMySQLAppMappers:
             result["attributes"]["qualifiedName"] == f"{connection_qn}/def/mydb/users"
         )
         assert result["attributes"]["columnCount"] == 5
+        assert result["attributes"]["rowCount"] == 100
+        assert result["attributes"]["subType"] == "TABLE"
+        assert result["attributes"]["atlanSchema"]["typeName"] == "Schema"
 
     def test_map_table_view(self, app, connection_qn):
-        """Views are returned as typeName=View based on TABLE_TYPE."""
+        """Views are returned as typeName=View based on table_kind."""
         record = {
-            "database_name": "def",
-            "schema_name": "mydb",
+            "table_catalog": "def",
+            "table_schema": "mydb",
             "table_name": "active_users_view",
-            "TABLE_TYPE": "VIEW",
+            "table_kind": "VIEW",
+            "view_definition": "SELECT * FROM users WHERE active=1",
         }
         result = app.map_table(record, connection_qn)
         assert result["typeName"] == "View"
         assert result["attributes"]["name"] == "active_users_view"
+        assert (
+            result["attributes"]["definition"] == "SELECT * FROM users WHERE active=1"
+        )
+        assert result["attributes"]["description"] == "VIEW"
+        assert "rowCount" not in result["attributes"]
 
     def test_map_table_system_view(self, app, connection_qn):
         record = {
-            "database_name": "def",
-            "schema_name": "mydb",
+            "table_catalog": "def",
+            "table_schema": "mydb",
             "table_name": "sys_view",
-            "TABLE_TYPE": "SYSTEM VIEW",
+            "table_kind": "SYSTEM VIEW",
         }
         result = app.map_table(record, connection_qn)
         assert result["typeName"] == "View"
 
     def test_map_column(self, app, connection_qn):
         record = {
-            "database_name": "def",
-            "schema_name": "mydb",
+            "table_catalog": "def",
+            "table_schema": "mydb",
             "table_name": "users",
             "column_name": "email",
+            "table_type": "BASE TABLE",
             "data_type": "varchar",
-            "character_maximum_length": 255,
+            "max_length": 255,
             "is_nullable": "YES",
             "ordinal_position": 3,
             "column_default": None,
+            "constraint_type": "",
         }
         result = app.map_column(record, connection_qn)
         assert result["typeName"] == "Column"
@@ -141,21 +157,39 @@ class TestMySQLAppMappers:
             result["attributes"]["qualifiedName"]
             == f"{connection_qn}/def/mydb/users/email"
         )
-        assert result["attributes"]["dataType"] == "varchar"
+        assert result["attributes"]["dataType"] == "VARCHAR"
         assert result["attributes"]["maxLength"] == 255
         assert result["attributes"]["isNullable"] is True
         assert result["attributes"]["order"] == 3
+        assert result["attributes"]["table"]["typeName"] == "Table"
+        assert "customAttributes" in result
 
     def test_map_column_not_nullable(self, app, connection_qn):
         record = {
-            "database_name": "def",
-            "schema_name": "mydb",
+            "table_catalog": "def",
+            "table_schema": "mydb",
             "table_name": "users",
             "column_name": "id",
+            "table_type": "BASE TABLE",
             "is_nullable": "NO",
         }
         result = app.map_column(record, connection_qn)
         assert result["attributes"]["isNullable"] is False
+
+    def test_map_column_view(self, app, connection_qn):
+        """View columns have view ref instead of table ref."""
+        record = {
+            "table_catalog": "def",
+            "table_schema": "mydb",
+            "table_name": "active_view",
+            "column_name": "name",
+            "table_type": "VIEW",
+        }
+        result = app.map_column(record, connection_qn)
+        assert "view" in result["attributes"]
+        assert result["attributes"]["view"]["typeName"] == "View"
+        assert "table" not in result["attributes"]
+        assert result["attributes"]["viewName"] == "active_view"
 
 
 class TestMySQLAppHierarchy:

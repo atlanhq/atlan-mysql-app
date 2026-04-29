@@ -5,13 +5,15 @@ Extends SqlApp with MySQL-specific SQL queries and asset mappers.
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Any, ClassVar
 
+import pandas as pd
 from application_sdk.templates.sql_app import SqlApp
 
 from app.clients import SQLClient
-from app.constants import DATABASE_PLACEHOLDER
+from app.constants import DATABASE_PLACEHOLDER, TENANT_ID
 
 # Read SQL files at module level
 _SQL_DIR = Path(__file__).parent / "sql"
@@ -24,6 +26,31 @@ def _read_sql(filename: str) -> str:
         return ""
     sql = path.read_text().strip()
     return sql.replace("{database_placeholder}", DATABASE_PLACEHOLDER)
+
+
+def _epoch_ms(value: Any) -> int | None:
+    """Convert a datetime/timestamp to epoch milliseconds, or None."""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return int(value)
+    try:
+        ts = pd.Timestamp(value)
+        if pd.isna(ts):  # type: ignore[arg-type]
+            return None
+        return int(ts.timestamp() * 1000)  # type: ignore[union-attr]
+    except Exception:
+        return None
+
+
+def _sync_attrs(connection_name: str, workflow_id: str, run_id: str) -> dict:
+    """Build lastSync* attributes from workflow context."""
+    return {
+        "connectionName": connection_name,
+        "lastSyncWorkflowName": workflow_id,
+        "lastSyncRun": run_id,
+        "lastSyncRunAt": int(time.time() * 1000),
+    }
 
 
 class MySQLApp(SqlApp):
@@ -61,100 +88,234 @@ class MySQLApp(SqlApp):
         db_name = record.get("database_name", record.get("datname", ""))
         return {
             "typeName": "Database",
+            "tenantId": TENANT_ID,
             "status": "ACTIVE",
             "attributes": {
                 "name": db_name,
                 "qualifiedName": f"{connection_qn}/{db_name}",
-                "connectorName": "mysql",
                 "connectionQualifiedName": connection_qn,
+                "connectorName": "mysql",
                 "schemaCount": record.get("schema_count", 0),
+                "tenantId": TENANT_ID,
             },
+            "customAttributes": {},
         }
 
     def map_schema(self, record: dict[str, Any], connection_qn: str) -> dict:
         """Map raw schema record to Atlan Schema entity."""
         db_name = record.get(
-            "database_name", record.get("datname", DATABASE_PLACEHOLDER)
+            "catalog_name",
+            record.get("database_name", record.get("datname", DATABASE_PLACEHOLDER)),
         )
         schema_name = record.get("schema_name", "")
+        db_qn = f"{connection_qn}/{db_name}"
         return {
             "typeName": "Schema",
+            "tenantId": TENANT_ID,
             "status": "ACTIVE",
             "attributes": {
                 "name": schema_name,
-                "qualifiedName": f"{connection_qn}/{db_name}/{schema_name}",
-                "connectorName": "mysql",
+                "qualifiedName": f"{db_qn}/{schema_name}",
                 "connectionQualifiedName": connection_qn,
+                "connectorName": "mysql",
                 "databaseName": db_name,
-                "databaseQualifiedName": f"{connection_qn}/{db_name}",
+                "databaseQualifiedName": db_qn,
                 "tableCount": record.get("table_count", 0),
+                "viewsCount": record.get("views_count", 0),
+                "tenantId": TENANT_ID,
+                "database": {
+                    "typeName": "Database",
+                    "uniqueAttributes": {"qualifiedName": db_qn},
+                },
             },
+            "customAttributes": {},
         }
 
     def map_table(self, record: dict[str, Any], connection_qn: str) -> dict:
-        """Map raw table record to Atlan Table or View entity.
+        """Map raw table/view record to Atlan Table or View entity.
 
         MySQL extract_table.sql returns both tables and views in the same
-        result set, differentiated by TABLE_TYPE column.
+        result set, differentiated by table_type / table_kind column.
         """
         db_name = record.get(
-            "database_name", record.get("datname", DATABASE_PLACEHOLDER)
+            "table_catalog",
+            record.get("database_name", record.get("datname", DATABASE_PLACEHOLDER)),
         )
-        schema_name = record.get("schema_name", "")
+        schema_name = record.get("table_schema", record.get("schema_name", ""))
         table_name = record.get("table_name", "")
-        table_type = record.get("TABLE_TYPE", record.get("table_type", "BASE TABLE"))
+        table_kind = record.get(
+            "table_kind", record.get("table_type", "BASE TABLE")
+        ).upper()
 
-        # Determine entity type based on TABLE_TYPE
-        if table_type.upper() in ("VIEW", "SYSTEM VIEW"):
-            type_name = "View"
-        else:
-            type_name = "Table"
+        db_qn = f"{connection_qn}/{db_name}"
+        schema_qn = f"{db_qn}/{schema_name}"
+        entity_qn = f"{schema_qn}/{table_name}"
+
+        is_view = table_kind in ("VIEW", "SYSTEM VIEW")
+        type_name = "View" if is_view else "Table"
+
+        attrs: dict[str, Any] = {
+            "name": table_name,
+            "qualifiedName": entity_qn,
+            "connectionQualifiedName": connection_qn,
+            "connectorName": "mysql",
+            "databaseName": db_name,
+            "databaseQualifiedName": db_qn,
+            "schemaName": schema_name,
+            "schemaQualifiedName": schema_qn,
+            "columnCount": record.get("column_count", 0),
+            "sizeBytes": record.get("size_bytes", 0),
+            "isPartitioned": bool(record.get("is_partition", False)),
+            "partitionCount": record.get("partition_count", 0),
+            "tenantId": TENANT_ID,
+            "atlanSchema": {
+                "typeName": "Schema",
+                "uniqueAttributes": {"qualifiedName": schema_qn},
+            },
+        }
+
+        # Table-specific fields
+        if not is_view:
+            attrs["rowCount"] = record.get("row_count", 0)
+            attrs["subType"] = "TABLE"
+
+        # View-specific fields
+        if is_view:
+            attrs["definition"] = record.get("view_definition", "")
+            attrs["description"] = "VIEW"
+
+        # Source timestamps
+        source_created = _epoch_ms(record.get("create_time"))
+        if source_created:
+            attrs["sourceCreatedAt"] = source_created
+
+        # Custom attributes (MySQL-specific metadata)
+        custom: dict[str, Any] = {}
+        for key in (
+            "engine",
+            "version",
+            "row_format",
+            "data_length",
+            "table_collation",
+            "create_options",
+        ):
+            val = record.get(key)
+            if val is not None:
+                custom[key] = str(val) if not isinstance(val, str) else val
+            else:
+                custom[key] = ""
+        custom["is_transient"] = ""
 
         return {
             "typeName": type_name,
+            "tenantId": TENANT_ID,
             "status": "ACTIVE",
-            "attributes": {
-                "name": table_name,
-                "qualifiedName": f"{connection_qn}/{db_name}/{schema_name}/{table_name}",
-                "connectorName": "mysql",
-                "connectionQualifiedName": connection_qn,
-                "databaseName": db_name,
-                "databaseQualifiedName": f"{connection_qn}/{db_name}",
-                "schemaName": schema_name,
-                "schemaQualifiedName": f"{connection_qn}/{db_name}/{schema_name}",
-                "tableType": table_type,
-                "columnCount": record.get("column_count", 0),
-                "rowCount": record.get("row_count", 0),
-                "sizeBytes": record.get("size_bytes", 0),
-            },
+            "attributes": attrs,
+            "customAttributes": custom,
         }
 
     def map_column(self, record: dict[str, Any], connection_qn: str) -> dict:
         """Map raw column record to Atlan Column entity."""
         db_name = record.get(
-            "database_name", record.get("datname", DATABASE_PLACEHOLDER)
+            "table_catalog",
+            record.get("database_name", record.get("datname", DATABASE_PLACEHOLDER)),
         )
-        schema_name = record.get("schema_name", "")
+        schema_name = record.get("table_schema", record.get("schema_name", ""))
         table_name = record.get("table_name", "")
         column_name = record.get("column_name", "")
+        table_type = record.get("table_type", "BASE TABLE").upper()
+
+        db_qn = f"{connection_qn}/{db_name}"
+        schema_qn = f"{db_qn}/{schema_name}"
+        table_qn = f"{schema_qn}/{table_name}"
+        column_qn = f"{table_qn}/{column_name}"
+
+        is_view = table_type in ("VIEW", "SYSTEM VIEW")
+        constraint = record.get("constraint_type", "")
+
+        attrs: dict[str, Any] = {
+            "name": column_name,
+            "qualifiedName": column_qn,
+            "connectionQualifiedName": connection_qn,
+            "connectorName": "mysql",
+            "databaseName": db_name,
+            "databaseQualifiedName": db_qn,
+            "schemaName": schema_name,
+            "schemaQualifiedName": schema_qn,
+            "dataType": (record.get("data_type") or "").upper(),
+            "isNullable": record.get("is_nullable", "YES") == "YES",
+            "isPartition": False,
+            "isPrimary": constraint == "PRIMARY KEY",
+            "isForeign": constraint == "FOREIGN KEY",
+            "maxLength": record.get(
+                "max_length", record.get("character_maximum_length", 0)
+            )
+            or 0,
+            "numericScale": record.get("numeric_scale", record.get("decimal_digits", 0))
+            or 0,
+            "order": record.get("ordinal_position", 0),
+            "precision": record.get("numeric_precision", 0) or 0,
+            "tenantId": TENANT_ID,
+        }
+
+        # Table or View relationship ref
+        if is_view:
+            attrs["viewName"] = table_name
+            attrs["viewQualifiedName"] = table_qn
+            attrs["view"] = {
+                "typeName": "View",
+                "uniqueAttributes": {"qualifiedName": table_qn},
+            }
+        else:
+            attrs["tableName"] = table_name
+            attrs["tableQualifiedName"] = table_qn
+            attrs["table"] = {
+                "typeName": "Table",
+                "uniqueAttributes": {"qualifiedName": table_qn},
+            }
+
+        # Custom attributes (all raw SQL metadata)
+        custom: dict[str, Any] = {}
+        for key in (
+            "ordinal_position",
+            "is_self_referencing",
+            "numeric_precision",
+            "is_auto_increment",
+            "is_generated",
+            "extra_info",
+            "character_set_name",
+            "collation_name",
+            "column_type",
+            "column_key",
+            "privileges",
+            "generation_expression",
+            "is_autoincrement",
+            "is_generatedcolumn",
+            "constraint_type",
+            "constraint_name",
+            "buffer_length",
+            "column_size",
+            "is_identity",
+            "identity_cycle",
+            "character_octet_length",
+        ):
+            val = record.get(key)
+            if val is not None:
+                custom[key] = val
+            else:
+                custom[key] = (
+                    ""
+                    if key
+                    not in ("ordinal_position", "numeric_precision", "column_size")
+                    else None
+                )
+        # Ensure type_name from data_type
+        custom["type_name"] = (record.get("data_type") or "").lower()
 
         return {
             "typeName": "Column",
+            "tenantId": TENANT_ID,
             "status": "ACTIVE",
-            "attributes": {
-                "name": column_name,
-                "qualifiedName": f"{connection_qn}/{db_name}/{schema_name}/{table_name}/{column_name}",
-                "connectorName": "mysql",
-                "connectionQualifiedName": connection_qn,
-                "databaseName": db_name,
-                "schemaName": schema_name,
-                "tableName": table_name,
-                "tableQualifiedName": f"{connection_qn}/{db_name}/{schema_name}/{table_name}",
-                "order": record.get("ordinal_position", record.get("column_order", 0)),
-                "dataType": record.get("data_type", ""),
-                "maxLength": record.get("character_maximum_length", 0),
-                "isNullable": record.get("is_nullable", "YES") == "YES",
-                "defaultValue": record.get("column_default"),
-                "isPrimaryKey": record.get("is_primary_key", False),
-            },
+            "attributes": attrs,
+            "customAttributes": custom,
         }

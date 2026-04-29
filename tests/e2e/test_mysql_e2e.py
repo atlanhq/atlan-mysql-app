@@ -243,6 +243,7 @@ class TestMySQLE2E(unittest.TestCase):
             self.assertTrue(len(lines) > 0, f"Empty JSONL for {entity}")
 
             first = json.loads(lines[0])
+            self.assertIn("tenantId", first, f"{entity} missing tenantId")
             self.assertIn("typeName", first, f"{entity} missing typeName")
             self.assertIn("attributes", first, f"{entity} missing attributes")
             attrs = first["attributes"]
