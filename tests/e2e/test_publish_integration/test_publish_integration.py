@@ -30,6 +30,10 @@ from typing import Any
 
 import pytest
 import requests as http_requests
+from pyatlan.client.atlan import AtlanClient
+from pyatlan.model.assets import Asset, Connection
+from pyatlan.model.enums import AtlanConnectorType
+from pyatlan.model.fluent_search import FluentSearch
 
 logger = logging.getLogger("e2e")
 
@@ -213,17 +217,12 @@ def _poll_workflow(workflow_id: str, run_id: str, timeout: int = ET_TIMEOUT) -> 
 
 @pytest.fixture(scope="module")
 def atlan_client():
-    from pyatlan.client.atlan import AtlanClient
-
     return AtlanClient(base_url=ATLAN_BASE_URL, api_key=ATLAN_API_KEY)
 
 
 @pytest.fixture(scope="module")
 def connection_info(atlan_client):
     """Create a test MySQL connection via pyatlan with unique name."""
-    from pyatlan.model.assets import Connection
-    from pyatlan.model.enums import AtlanConnectorType
-
     unique_name = _make_unique("mysql-e2e")
     logger.info("Creating test connection: %s", unique_name)
 
@@ -336,8 +335,6 @@ def test_trigger_publish_workflow(connection_info):
 @pytest.mark.order(4)
 def test_verify_entities_in_atlan(connection_info, atlan_client):
     """Verify extracted MySQL entities are published to Atlan."""
-    from pyatlan.model.assets import Asset, Connection, Database, Schema, Table
-
     connection_qn = connection_info["qualified_name"]
 
     # Wait for Atlan to index published entities
@@ -353,8 +350,6 @@ def test_verify_entities_in_atlan(connection_info, atlan_client):
     logger.info("Connection verified: %s", connection_qn)
 
     # Verify databases
-    from pyatlan.model.fluent_search import FluentSearch
-
     db_results = list(
         FluentSearch()
         .where(Asset.QUALIFIED_NAME.startswith(connection_qn))
