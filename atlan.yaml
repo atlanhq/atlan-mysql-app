@@ -2,7 +2,6 @@ name: mysql
 app_id: 019c4c4b-8468-7e42-b0d6-eada59da2da1  # Global Marketplace UUID
 display_name: "Mysql"
 type: connector
-execution_mode: argo
 icon_url: ""
 visibility: public
 argo_package_names:
@@ -13,6 +12,7 @@ build_tag: v1
 self_deployed_runtime: true
 
 deploy:
+  execution_mode: native
   replicaCount: 1
   containerPort: 8000
 
