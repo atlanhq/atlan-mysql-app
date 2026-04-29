@@ -2,6 +2,22 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.2.2 (April 29, 2026)
+
+### Bug Fixes
+
+- **atlan.yaml**: Align with azure-event-hub pattern — `execution_mode` top-level, `self_deployed_runtime: false`, remove explicit resources (use platform defaults)
+
+## 0.2.1 (April 29, 2026)
+
+### Bug Fixes
+
+- **Makefile**: Use Make variables in `test-e2e-remote` instead of shell env vars
+- **Pre-commit**: Expand `APP_PATHS` to include Makefile, atlan.yaml, workflows
+- **atlan.yaml**: Split deployment with `execution_mode: native`
+- **Build workflow**: Versioned GM publish via `release_tag` from `version.txt`
+- **CI**: Remove duplicate `build-image.yml`, stale v2 workflows
+
 ## 0.2.0 (April 29, 2026)
 
 ### New Features
