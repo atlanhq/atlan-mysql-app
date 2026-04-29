@@ -2,24 +2,19 @@ name: mysql
 app_id: 019c4c4b-8468-7e42-b0d6-eada59da2da1  # Global Marketplace UUID
 display_name: "Mysql"
 type: connector
+execution_mode: native
 icon_url: ""
 visibility: public
 argo_package_names:
   - "@atlan/mysql"
-
 build_tag: v1
-# If set to true, images will be pushed to a shared repository where customers can also pull
-self_deployed_runtime: true
-
+self_deployed_runtime: false
 deploy:
-  execution_mode: native
   splitDeploymentEnabled: true
-
   env:
     ATLAN_HEARTBEAT_TIMEOUT_SECONDS: "7200"
     ATLAN_START_TO_CLOSE_TIMEOUT_SECONDS: "7200"
     ATLAN_TENANT_ID: "default"
-
   dapr:
     objectstore: true
     secretstore: true
@@ -28,11 +23,3 @@ deploy:
     subscription: false
     configurationstore: false
     lock: false
-
-  resources:
-    requests:
-      cpu: 100m
-      memory: 1000Mi
-    limits:
-      cpu: 1
-      memory: 3000Mi
