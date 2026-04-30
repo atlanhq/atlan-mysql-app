@@ -2,6 +2,14 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.1 (April 30, 2026)
+
+### Bug Fixes
+
+- **SDK**: Use `entities.json` filename for transformed entities (publish-app compatible, was `entities.jsonl`)
+- **SDK**: Inject `connectionName` into all entities from connection attributes
+- **E2E**: Update artifact validation to match new filename
+
 ## 0.4.0 (April 30, 2026)
 
 ### New Features
