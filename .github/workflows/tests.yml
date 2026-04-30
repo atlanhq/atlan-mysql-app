@@ -120,6 +120,7 @@ jobs:
           PID_TEMPORAL=$!
           wait $PID_UV $PID_MYSQL $PID_RYUK $PID_DAPR $PID_TEMPORAL
           echo "${HOME}/.temporalio/bin" >> $GITHUB_PATH
+          echo "${HOME}/.dapr/bin" >> $GITHUB_PATH
 
       - name: Verify CLIs
         run: |

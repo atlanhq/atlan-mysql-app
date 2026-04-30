@@ -233,10 +233,10 @@ class TestMySQLE2E(unittest.TestCase):
         )
 
         for entity in ("database", "schema", "table", "column"):
-            jsonl_file = transformed_dir / entity / "entities.jsonl"
+            jsonl_file = transformed_dir / entity / "entities.json"
             self.assertTrue(
                 jsonl_file.exists(),
-                f"Missing transformed/{entity}/entities.jsonl",
+                f"Missing transformed/{entity}/entities.json",
             )
 
             lines = jsonl_file.read_text().strip().splitlines()
@@ -263,7 +263,7 @@ class TestMySQLE2E(unittest.TestCase):
             "column": {"Column"},
         }
         for entity, allowed_types in type_map.items():
-            jsonl_file = transformed_dir / entity / "entities.jsonl"
+            jsonl_file = transformed_dir / entity / "entities.json"
             lines = jsonl_file.read_text().strip().splitlines()
             seen_types = {json.loads(line)["typeName"] for line in lines}
             self.assertTrue(
@@ -299,7 +299,7 @@ class TestMySQLE2E(unittest.TestCase):
 
             transformed_count = 0
             sample_name = ""
-            jsonl_file = transformed_dir / entity / "entities.jsonl"
+            jsonl_file = transformed_dir / entity / "entities.json"
             if jsonl_file.exists():
                 lines = jsonl_file.read_text().strip().splitlines()
                 transformed_count = len(lines)
