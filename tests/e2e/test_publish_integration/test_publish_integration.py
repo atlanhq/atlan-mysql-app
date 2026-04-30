@@ -52,7 +52,7 @@ ATLAN_BASE_URL = os.getenv("ATLAN_BASE_URL", "")
 
 PUBLISH_TASK_QUEUE = "atlan-publish-production"
 PUBLISH_WORKFLOW_TYPE = "PublishWorkflow"
-PUBLISH_TIMEOUT = 600
+PUBLISH_TIMEOUT = 900
 ET_TIMEOUT = 300
 
 # ── Skip if not configured ──────────────────────────────────────────────────
