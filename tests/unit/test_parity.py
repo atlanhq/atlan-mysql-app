@@ -13,6 +13,7 @@ import json
 from pathlib import Path
 
 import pytest
+from application_sdk.templates.sql_app import SqlApp
 
 from app.mysql import MySQLApp
 
@@ -338,6 +339,66 @@ class TestColumnParity:
             "collation_name",
         ):
             assert key in custom, f"Column customAttributes missing: {key}"
+
+
+# ── JSON serialization safety ────────────────────────────────────────────
+
+
+class TestJsonSerialization:
+    """Verify entities serialize to valid JSON (no NaN, Inf, NaT)."""
+
+    def test_column_with_nan_values_produces_valid_json(self, app):
+        """SQL NULLs become NaN in pandas — SDK sanitizes before writing JSONL."""
+        record = {
+            "table_catalog": "def",
+            "table_schema": "s",
+            "table_name": "t",
+            "column_name": "c",
+            "table_type": "BASE TABLE",
+            "data_type": "double",
+            "numeric_precision": float("nan"),
+            "character_octet_length": float("nan"),
+            "column_size": float("nan"),
+            "numeric_scale": float("nan"),
+            "ordinal_position": 1,
+        }
+        entity = app.map_column(record, CONNECTION_QN)
+        # SDK sanitizes NaN before writing — simulate that here
+        sanitized = SqlApp._sanitize_nan(entity)
+        serialized = json.dumps(sanitized)
+        assert "NaN" not in serialized, "NaN found in JSON output"
+        assert "Infinity" not in serialized, "Infinity found in JSON output"
+        parsed = json.loads(serialized)
+        assert parsed["typeName"] == "Column"
+
+    def test_column_with_inf_values_produces_valid_json(self, app):
+        record = {
+            "table_catalog": "def",
+            "table_schema": "s",
+            "table_name": "t",
+            "column_name": "c",
+            "table_type": "BASE TABLE",
+            "numeric_precision": float("inf"),
+            "column_size": float("-inf"),
+        }
+        entity = app.map_column(record, CONNECTION_QN)
+        sanitized = SqlApp._sanitize_nan(entity)
+        serialized = json.dumps(sanitized)
+        assert "Infinity" not in serialized
+
+    def test_table_with_nan_size_produces_valid_json(self, app):
+        record = {
+            "table_catalog": "def",
+            "table_schema": "s",
+            "table_name": "t",
+            "table_kind": "BASE TABLE",
+            "size_bytes": float("nan"),
+            "row_count": float("nan"),
+        }
+        entity = app.map_table(record, CONNECTION_QN)
+        sanitized = SqlApp._sanitize_nan(entity)
+        serialized = json.dumps(sanitized)
+        assert "NaN" not in serialized
 
 
 # ── Cross-entity consistency ─────────────────────────────────────────────
