@@ -2,6 +2,13 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.2 (April 30, 2026)
+
+### Bug Fixes
+
+- **SDK**: Sanitize NaN/Inf/NaT in JSONL output — pandas converts SQL NULLs to NaN which is invalid JSON, publish-app rejects it
+- **Tests**: Added JSON serialization safety tests (NaN, Inf, NaT edge cases) — 73 unit tests total
+
 ## 0.4.1 (April 30, 2026)
 
 ### Bug Fixes
