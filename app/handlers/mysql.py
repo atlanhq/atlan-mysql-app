@@ -63,7 +63,7 @@ def _creds_to_dict(credentials: list[HandlerCredential]) -> dict[str, Any]:
     return cred_dict
 
 
-class MySQLHandler(Handler):
+class MySQLAppHandler(Handler):
     """MySQL v3 handler for auth, preflight, and metadata endpoints."""
 
     async def test_auth(self, input: AuthInput) -> AuthOutput:
