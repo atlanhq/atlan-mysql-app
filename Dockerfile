@@ -14,7 +14,6 @@ COPY --chown=appuser:appuser . .
 
 # App-specific environment variables
 ENV ATLAN_APP_MODULE=app.mysql:MySQLApp \
-    ATLAN_HANDLER_MODULE=app.handlers.mysql:MySQLHandler \
     ATLAN_CONTRACT_GENERATED_DIR=app/generated
 
 # Download DAPR components (app-specific)

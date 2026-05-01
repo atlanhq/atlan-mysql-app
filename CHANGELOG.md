@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.5 (May 1, 2026)
+
+### Bug Fixes
+
+- **Handler renamed to `MySQLAppHandler` — SDK now discovers it by convention**: SDK auto-discovers a handler named `{AppClass}Handler` in the same module as the App. Our handler was named `MySQLHandler` in a separate file, so the SDK fell back to `DefaultHandler` (which always returns 0 schemas). Renamed to `MySQLAppHandler`, re-exported from `app/mysql.py`, and removed the `ATLAN_HANDLER_MODULE` env var workaround from Dockerfile and `atlan.yaml`. No env var needed — same pattern other v3 apps follow.
+
 ## 0.4.4 (May 1, 2026)
 
 ### Bug Fixes
