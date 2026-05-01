@@ -15,7 +15,8 @@ from application_sdk.handler import (
     PreflightStatus,
 )
 
-from app.handlers.mysql import MySQLHandler, _creds_to_dict
+from app.handlers.mysql import MySQLAppHandler as MySQLHandler
+from app.handlers.mysql import _creds_to_dict
 
 
 class TestCredsToDict:
