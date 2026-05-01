@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.4 (May 1, 2026)
+
+### Bug Fixes
+
+- **`ATLAN_HANDLER_MODULE` not set — metadata always returned 0 objects**: The SDK falls back to `DefaultHandler.fetch_metadata` which always returns `SqlMetadataOutput(objects=[])` when no handler module is configured. Added `ATLAN_HANDLER_MODULE: "app.handlers.mysql:MySQLHandler"` to `atlan.yaml` deploy.env so the server loads `MySQLHandler` at startup instead. This fixes the "Include metadata filter" UI returning 0 schemas despite valid credentials.
+
 ## 0.4.3 (May 1, 2026)
 
 ### Observability
