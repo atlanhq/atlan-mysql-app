@@ -2,6 +2,25 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.6 (May 1, 2026)
+
+### Bug Fixes
+
+- **`_TABLES_CHECK_SQL` had unresolved placeholders causing preflight SQL failure**: The tables_check.sql template uses `{normalized_exclude_regex}`, `{normalized_include_regex}`, and `{temp_table_regex_sql}` which were not substituted in the handler's `_TABLES_CHECK_SQL` constant. MySQL rejected the literal curly-brace strings as a syntax error. Replaced them with sensible preflight defaults (`^$`, `.*`, empty string).
+- **E2E test incorrectly expected HTTP 200 for failed auth**: SDK returns `AuthStatus.FAILED.http_status = 401` for authentication failures (not 200). Updated `test_auth_negative_invalid_auth_type` to assert 401 and verify `data["data"]["status"] == "failed"`.
+
+## 0.4.5 (May 1, 2026)
+
+### Bug Fixes
+
+- **Handler renamed to `MySQLAppHandler` — SDK now discovers it by convention**: SDK auto-discovers a handler named `{AppClass}Handler` in the same module as the App. Our handler was named `MySQLHandler` in a separate file, so the SDK fell back to `DefaultHandler` (which always returns 0 schemas). Renamed to `MySQLAppHandler`, re-exported from `app/mysql.py`, and removed the `ATLAN_HANDLER_MODULE` env var workaround from Dockerfile and `atlan.yaml`. No env var needed — same pattern other v3 apps follow.
+
+## 0.4.4 (May 1, 2026)
+
+### Bug Fixes
+
+- **`ATLAN_HANDLER_MODULE` not set — metadata always returned 0 objects**: The SDK falls back to `DefaultHandler.fetch_metadata` which always returns `SqlMetadataOutput(objects=[])` when no handler module is configured. Added `ATLAN_HANDLER_MODULE: "app.handlers.mysql:MySQLHandler"` to `atlan.yaml` deploy.env so the server loads `MySQLHandler` at startup instead. This fixes the "Include metadata filter" UI returning 0 schemas despite valid credentials.
+
 ## 0.4.3 (May 1, 2026)
 
 ### Observability
