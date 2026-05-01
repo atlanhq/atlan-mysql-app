@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.3 (May 1, 2026)
+
+### Observability
+
+- **`fetch_metadata` diagnostic logging**: Added credential count + sorted-key + host log line and an SQL result type + row count log line on the metadata handler. The previous `logger.error` was dropping tracebacks (no `exc_info`), so silent failures from `client.load` or `client.get_results` were indistinguishable from a genuinely empty query result. Values are never logged — only credential keys — so the change is safe to keep around after debugging.
+
 ## 0.4.2 (April 30, 2026)
 
 ### Bug Fixes
