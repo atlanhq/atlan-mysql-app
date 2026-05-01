@@ -98,7 +98,7 @@ class TestMySQLE2E(unittest.TestCase):
         self.assertEqual(data["data"]["status"], "success")
 
     def test_auth_negative_invalid_auth_type(self):
-        """Auth with unsupported authType should return status=failed in data."""
+        """Failed auth returns HTTP 401 (AuthStatus.FAILED.http_status=401) per SDK contract."""
         bad_creds = [
             {"key": "host", "value": "localhost"},
             {"key": "port", "value": "3306"},
@@ -111,10 +111,11 @@ class TestMySQLE2E(unittest.TestCase):
             json={"credentials": bad_creds},
             timeout=TIMEOUT,
         )
-        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.status_code, 401)
         data = resp.json()
         self.assertIn("data", data)
         self.assertIn("status", data["data"])
+        self.assertEqual(data["data"]["status"], "failed")
 
     # ── Preflight ─────────────────────────────────────────────────────
 
