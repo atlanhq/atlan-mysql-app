@@ -15,8 +15,7 @@ from application_sdk.handler import (
     PreflightStatus,
 )
 
-from app.handlers.mysql import MySQLAppHandler as MySQLHandler
-from app.handlers.mysql import _creds_to_dict
+from app.handlers.mysql import MySQLAppHandler, _creds_to_dict
 
 
 class TestCredsToDict:
@@ -56,7 +55,7 @@ class TestMySQLHandlerAuth:
 
     @pytest.fixture
     def handler(self):
-        return MySQLHandler()
+        return MySQLAppHandler()
 
     @pytest.fixture
     def valid_creds(self):
@@ -108,7 +107,7 @@ class TestMySQLHandlerPreflight:
 
     @pytest.fixture
     def handler(self):
-        return MySQLHandler()
+        return MySQLAppHandler()
 
     @pytest.fixture
     def valid_creds(self):
@@ -154,7 +153,7 @@ class TestMySQLHandlerMetadata:
 
     @pytest.fixture
     def handler(self):
-        return MySQLHandler()
+        return MySQLAppHandler()
 
     @pytest.fixture
     def valid_creds(self):
