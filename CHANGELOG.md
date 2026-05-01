@@ -2,6 +2,13 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.6 (May 1, 2026)
+
+### Bug Fixes
+
+- **`_TABLES_CHECK_SQL` had unresolved placeholders causing preflight SQL failure**: The tables_check.sql template uses `{normalized_exclude_regex}`, `{normalized_include_regex}`, and `{temp_table_regex_sql}` which were not substituted in the handler's `_TABLES_CHECK_SQL` constant. MySQL rejected the literal curly-brace strings as a syntax error. Replaced them with sensible preflight defaults (`^$`, `.*`, empty string).
+- **E2E test incorrectly expected HTTP 200 for failed auth**: SDK returns `AuthStatus.FAILED.http_status = 401` for authentication failures (not 200). Updated `test_auth_negative_invalid_auth_type` to assert 401 and verify `data["data"]["status"] == "failed"`.
+
 ## 0.4.5 (May 1, 2026)
 
 ### Bug Fixes
