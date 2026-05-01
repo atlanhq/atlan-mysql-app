@@ -148,9 +148,26 @@ class MySQLHandler(Handler):
         client = SQLClient()
         try:
             creds = _creds_to_dict(input.credentials)
+            # Log credential keys (not values) so we can tell whether the
+            # marketplace credential-resolution layer populated the input.
+            # Values would leak secrets; keys alone are enough to diagnose.
+            logger.info(
+                "fetch_metadata: %d credentials received, keys=%s, host=%s",
+                len(input.credentials),
+                sorted(creds.keys()),
+                creds.get("host", "<missing>"),
+            )
+
             await client.load(credentials=creds)
 
             result = await client.get_results(_FILTER_METADATA_SQL)
+            row_count = 0 if result is None else len(result)
+            logger.info(
+                "fetch_metadata: SQL returned %s (%d rows)",
+                "None" if result is None else "DataFrame",
+                row_count,
+            )
+
             objects = []
             if result is not None:
                 for _, row in result.iterrows():
@@ -165,7 +182,7 @@ class MySQLHandler(Handler):
 
             return SqlMetadataOutput(objects=objects)
         except Exception as e:
-            logger.error("Failed to fetch metadata: %s", e)
+            logger.error("Failed to fetch metadata: %s", e, exc_info=True)
             return SqlMetadataOutput(objects=[])
         finally:
             await client.close()
