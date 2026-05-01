@@ -15,6 +15,7 @@ deploy:
     ATLAN_HEARTBEAT_TIMEOUT_SECONDS: "7200"
     ATLAN_START_TO_CLOSE_TIMEOUT_SECONDS: "7200"
     ATLAN_TENANT_ID: "default"
+    ATLAN_HANDLER_MODULE: "app.handlers.mysql:MySQLHandler"
   dapr:
     objectstore: true
     secretstore: true
