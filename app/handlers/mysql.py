@@ -39,6 +39,9 @@ _TABLES_CHECK_SQL = (
     .read_text()
     .strip()
     .replace("{database_placeholder}", DATABASE_PLACEHOLDER)
+    .replace("{normalized_exclude_regex}", "^$")  # exclude nothing
+    .replace("{normalized_include_regex}", ".*")  # include everything
+    .replace("{temp_table_regex_sql}", "")  # no temp-table filter
 )
 
 _FILTER_METADATA_SQL = (
@@ -63,7 +66,7 @@ def _creds_to_dict(credentials: list[HandlerCredential]) -> dict[str, Any]:
     return cred_dict
 
 
-class MySQLHandler(Handler):
+class MySQLAppHandler(Handler):
     """MySQL v3 handler for auth, preflight, and metadata endpoints."""
 
     async def test_auth(self, input: AuthInput) -> AuthOutput:
