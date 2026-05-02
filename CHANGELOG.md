@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.7 (May 2, 2026)
+
+### Bug Fixes
+
+- **Fix `fetch_metadata` silently returning empty results when credentials are missing**: `fetch_metadata` now raises explicitly when `host` is absent (turns invisible credential-resolution failures into visible HTTP errors) and propagates exceptions rather than swallowing them — so Heracles returns a non-200 and the frontend can surface the error instead of rendering a blank filter dropdown.
+
 ## 0.4.6 (May 1, 2026)
 
 ### Bug Fixes
