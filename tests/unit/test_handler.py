@@ -184,3 +184,14 @@ class TestMySQLHandlerMetadata:
         assert len(result.objects) == 2
         assert result.objects[0].TABLE_SCHEMA == "mydb"
         assert result.objects[1].TABLE_SCHEMA == "testdb"
+
+    @pytest.mark.asyncio
+    async def test_fetch_metadata_raises_when_no_host(self, handler):
+        """Empty credentials must raise, not silently return empty results.
+
+        This guards against credential-resolution races where fetch_metadata
+        is called before credentials are populated — previously this returned
+        an empty SqlMetadataOutput which caused blank filter dropdowns in the UI.
+        """
+        with pytest.raises(Exception, match="no host in credentials"):
+            await handler.fetch_metadata(MetadataInput(credentials=[]))

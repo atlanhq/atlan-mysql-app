@@ -161,6 +161,12 @@ class MySQLAppHandler(Handler):
                 creds.get("host", "<missing>"),
             )
 
+            if not creds.get("host"):
+                raise ValueError(
+                    "fetch_metadata called with no host in credentials — "
+                    "credential resolution may not have completed yet"
+                )
+
             await client.load(credentials=creds)
 
             result = await client.get_results(_FILTER_METADATA_SQL)
@@ -186,6 +192,6 @@ class MySQLAppHandler(Handler):
             return SqlMetadataOutput(objects=objects)
         except Exception as e:
             logger.error("Failed to fetch metadata: %s", e, exc_info=True)
-            return SqlMetadataOutput(objects=[])
+            raise
         finally:
             await client.close()
