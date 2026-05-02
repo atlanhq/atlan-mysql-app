@@ -16,8 +16,8 @@
       "workflow_type": "mysql-app",
       "args": {
         "credential_guid": "{{credential-guid}}",
-        "include_filter": "{{include-metadata}}",
-        "exclude_filter": "{{exclude-metadata}}",
+        "include_filter": "{{include-filter}}",
+        "exclude_filter": "{{exclude-filter}}",
         "temp_table_regex": "{{exclude-table-regex}}"
       },
       "metadata": {

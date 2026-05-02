@@ -1,0 +1,104 @@
+amends "@app-contract-toolkit/NativeApp.pkl"
+
+import "@app-contract-toolkit/Config.pkl"
+import "@app-contract-toolkit/Connectors.pkl"
+
+name = "mysql"
+displayName = "MySQL Assets"
+connector = Connectors.MYSQL
+workflowType = "MySQLMetadataExtractionWorkflow"
+icon = "https://www.mysql.com/common/logos/mysql-logo.svg"
+logo = "https://www.mysql.com/common/logos/mysql-logo.svg"
+credentialConnectorType = "jdbc"
+
+// ---------------------------------------------------------------------------
+// Credential config
+// ---------------------------------------------------------------------------
+
+credentialCommonFields {
+  new FieldSpec {
+    name = "host"
+    displayName = "Host"
+    placeholder = "mysql.example.com"
+    width = 6
+  }
+  new FieldSpec {
+    name = "port"
+    displayName = "Port"
+    fieldType = "number"
+    defaultValue = "3306"
+    width = 2
+  }
+}
+
+credentialAuthOptions {
+  ["basic"] = new AuthOption {
+    label = "Basic Authentication"
+    fields {
+      new FieldSpec { name = "username"; displayName = "Username"; placeholder = "Username"; width = 4 }
+      new FieldSpec { name = "password"; sensitive = true; displayName = "Password"; placeholder = "Password"; width = 4 }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Workflow config
+// ---------------------------------------------------------------------------
+
+uiConfig {
+  tasks {
+    ["Credential"] {
+      inputs {
+        ["credential-guid"] = new Config.CredentialInput {
+          title = ""
+          credType = "atlan-connectors-mysql"
+          placeholderText = "Credential Guid"
+        }
+      }
+    }
+    ["Connection"] {
+      inputs {
+        ["connection"] = new Config.ConnectionCreator {
+          title = ""
+          placeholderText = "Connection Name"
+        }
+      }
+    }
+    ["Metadata"] {
+      inputs {
+        ["include-filter"] = new Config.SqlTree {
+          title = "Include Metadata"
+          desc = "Only selected databases and schemas will be extracted. Exclude takes precedence over include for common schemas."
+          sqlQuery = "show atlan schemas"
+          credentialType = "atlan-connectors-mysql"
+          cred = "credential-guid"
+          excludePatterns = List("^performance_schema$", "^information_schema.*", "^mysql$", "^sys$", "^METRICS_SCHEMA.*")
+          databaseExcludePatterns = List()
+          width = 4
+        }
+        ["exclude-filter"] = new Config.SqlTree {
+          title = "Exclude Metadata"
+          desc = "Selected schemas wont be extracted."
+          sqlQuery = "show atlan schemas"
+          credentialType = "atlan-connectors-mysql"
+          cred = "credential-guid"
+          excludePatterns = List("^performance_schema$", "^information_schema.*", "^mysql$", "^sys$", "^METRICS_SCHEMA.*")
+          databaseExcludePatterns = List()
+          width = 4
+        }
+        ["exclude-table-regex"] = new Config.TextInput {
+          title = "Exclude regex for tables & views"
+          helpText = "Regular expression to exclude temporary tables and views."
+          placeholderText = ".*_TMP|.*_TEMP|TMP:*|TEMP:*"
+          width = 8
+        }
+        ["preflight-check"] = new Config.SageV2 {
+          title = ""
+          checks {
+            new Dynamic { id = 1; name = "preflightCheck"; title = "MySQL instance preflight check"; loaderText = "Checking MySQL instance accessibility and permissions" }
+          }
+        }
+      }
+    }
+  }
+}
