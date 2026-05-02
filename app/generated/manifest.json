@@ -1,27 +1,49 @@
 {
-  "name": "mysql",
-  "display_name": "MySQL",
-  "connector_name": "mysql",
-  "connector_type": "jdbc",
-  "logo": "https://assets.atlan.com/assets/mysql.svg",
-  "category": "database",
-  "description": "Extract metadata from MySQL databases",
-  "docs_url": "https://ask.atlan.com/hc/en-us/articles/mysql",
-  "configmaps": {
-    "credential": "atlan-connectors-mysql",
-    "workflow": "mysql"
-  },
-  "nodes": {
+  "execution_mode": "automation-engine",
+  "dag": {
     "extract": {
-      "workflow_type": "mysql-app",
-      "args": {
-        "credential_guid": "{{credential-guid}}",
-        "include_filter": "{{include-filter}}",
-        "exclude_filter": "{{exclude-filter}}",
-        "temp_table_regex": "{{exclude-table-regex}}"
+      "activity_name": "execute_workflow",
+      "activity_display_name": "Extract MySQL Assets Metadata",
+      "app_name": "{app_name}",
+      "inputs": {
+        "workflow_type": "MySQLMetadataExtractionWorkflow",
+        "app_name": "{app_name}",
+        "app_id": "",
+        "argo_workflow_slug": "",
+        "task_queue": "atlan-mysql-{deployment_name}",
+        "args": {
+          "credential": "{{credential}}",
+          "credential_guid": "{{credential-guid}}",
+          "connection": "{{connection}}",
+          "metadata": {
+            "include-filter": "{{include-filter}}",
+            "exclude-filter": "{{exclude-filter}}",
+            "exclude-table-regex": "{{exclude-table-regex}}",
+            "preflight-check": "{{preflight-check}}"
+          }
+        }
+      }
+    },
+    "publish": {
+      "activity_name": "execute_workflow",
+      "activity_display_name": "Publish to Atlas",
+      "app_name": "publish",
+      "inputs": {
+        "workflow_type": "PublishWorkflow",
+        "app_name": "publish",
+        "task_queue": "atlan-publish-{deployment_name}",
+        "args": {
+          "connection_qualified_name": "$.extract.outputs.connection_qualified_name",
+          "transformed_data_prefix": "$.extract.outputs.transformed_data_prefix",
+          "publish_state_prefix": "$.extract.outputs.publish_state_prefix",
+          "current_state_prefix": "$.extract.outputs.current_state_prefix",
+          "connection_creation_enabled": true,
+          "executor_enabled": true,
+          "connection_entity": "{{connection}}"
+        }
       },
-      "metadata": {
-        "connection": "{{connection}}"
+      "depends_on": {
+        "node_id": "extract"
       }
     }
   }
