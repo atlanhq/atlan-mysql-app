@@ -2,6 +2,13 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.8 (May 2, 2026)
+
+### Bug Fixes
+
+- **Fix filter dropdowns not showing schemas**: Changed Include/Exclude Metadata widgets from `apitree` to `sqltree` (matching the legacy Argo configmap and other native connectors like Trino). Renamed workflow params from `include-metadata`/`exclude-metadata` to `include-filter`/`exclude-filter` for consistency. Added `schemaExcludePattern` to hide system schemas (performance_schema, information_schema, mysql, sys) from the picker. Updated `manifest.json` param references accordingly.
+- **Add PKL contract** (`contract/app.pkl`): MySQL app now has a typed contract using `Config.SqlTree` for filter widgets, consistent with Trino and other native connectors.
+
 ## 0.4.7 (May 2, 2026)
 
 ### Bug Fixes
