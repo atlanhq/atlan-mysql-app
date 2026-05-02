@@ -2,12 +2,20 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.9 (May 2, 2026)
+
+### Bug Fixes
+
+- **Fix 500 on workflow submit**: `manifest.json` was using the old `nodes` format — Heracles/AE expects `{"execution_mode": "automation-engine", "dag": {...}}`. Converted to the `dag` format matching the Trino pattern, with `extract` and `publish` nodes and `task_queue: "atlan-mysql-{deployment_name}"`.
+- **Fix filter dropdowns**: Switched Include/Exclude Metadata widgets from `apitree` to `sqltree` and added PKL contract (`contract/app.pkl`). See 0.4.8 for details — this bump tracks the manifest fix shipped on top.
+
 ## 0.4.8 (May 2, 2026)
 
 ### Bug Fixes
 
 - **Fix filter dropdowns not showing schemas**: Changed Include/Exclude Metadata widgets from `apitree` to `sqltree` (matching the legacy Argo configmap and other native connectors like Trino). Renamed workflow params from `include-metadata`/`exclude-metadata` to `include-filter`/`exclude-filter` for consistency. Added `schemaExcludePattern` to hide system schemas (performance_schema, information_schema, mysql, sys) from the picker. Updated `manifest.json` param references accordingly.
 - **Add PKL contract** (`contract/app.pkl`): MySQL app now has a typed contract using `Config.SqlTree` for filter widgets, consistent with Trino and other native connectors.
+- **Fix 500 on workflow submit**: `manifest.json` was using the old `nodes` format — Heracles/AE expects `{"execution_mode": "automation-engine", "dag": {...}}`. Converted to the `dag` format matching the Trino pattern, with `extract` and `publish` nodes and correct `task_queue: "atlan-mysql-{deployment_name}"`.
 
 ## 0.4.7 (May 2, 2026)
 
