@@ -6,7 +6,7 @@ import "@app-contract-toolkit/Connectors.pkl"
 name = "mysql"
 displayName = "MySQL Assets"
 connector = Connectors.MYSQL
-workflowType = "MySQLMetadataExtractionWorkflow"
+workflowType = "mysql"
 icon = "https://www.mysql.com/common/logos/mysql-logo.svg"
 logo = "https://www.mysql.com/common/logos/mysql-logo.svg"
 credentialConnectorType = "jdbc"
