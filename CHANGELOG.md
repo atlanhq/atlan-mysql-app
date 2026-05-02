@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.10 (May 2, 2026)
+
+### Chore
+
+- Version bump to track merged changes from internal-ref (sqltree filters, dag manifest format, workflow_type fix, PKL contract).
+
 ## 0.4.9 (May 2, 2026)
 
 ### Bug Fixes
