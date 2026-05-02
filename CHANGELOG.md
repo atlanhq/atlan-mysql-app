@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.11 (May 2, 2026)
+
+### Bug Fixes
+
+- **Fix publish step receiving empty `connection_qualified_name`**: AE passes `{{connection}}` as a JSON string. `ExtractionInput._normalize_ae_payload` in the SDK did not parse it, so Pydantic fell back to the default empty `ConnectionRef()` — making `input.connection.attributes.qualified_name = ""`. The extract output then had `connection_qualified_name=""`, and the publish step could not link entities to the correct connection. Fixed in `application-sdk@BLDX-968` by JSON-parsing the connection string before Pydantic validation. `uv.lock` updated to pick up the fix.
+
 ## 0.4.10 (May 2, 2026)
 
 ### Chore
