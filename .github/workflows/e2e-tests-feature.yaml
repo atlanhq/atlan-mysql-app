@@ -1,0 +1,38 @@
+# Comment-triggered E2E test wrapper.
+#
+# All orchestration logic lives in:
+#   atlanhq/marketplace-releases/.github/workflows/e2e-app-test.yaml
+#
+# To enable for a new repo: copy this file as-is. No customization needed.
+#
+# Supported PR-comment commands:
+#   /trigger-dev-tenant-tests tags=@pw-mssql-basic
+#   /trigger-dev-tenant-tests tenant=PARTNER_APPS tags=@pw-mssql-basic
+#   /trigger-dev-tenant-tests tags=@pw-mssql-basic script_branch=my-branch
+#   /list-tenants
+
+name: E2E Dev Tenant Tests (Comment-Triggered)
+
+on:
+  issue_comment:
+    types: [created, edited]
+
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+  issues: write
+  pull-requests: write
+  statuses: write
+
+jobs:
+  e2e:
+    name: E2E orchestrator
+    if: |
+      github.event.issue.pull_request &&
+      github.actor != 'github-actions[bot]' &&
+      github.actor != 'atlan-ci' &&
+      (contains(github.event.comment.body, '/trigger-dev-tenant-tests') ||
+       contains(github.event.comment.body, '/list-tenants'))
+    uses: atlanhq/marketplace-releases/.github/workflows/e2e-app-test.yaml@main
+    secrets: inherit
