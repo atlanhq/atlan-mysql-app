@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.12 (May 3, 2026)
+
+### Bug Fixes
+
+- **Fix publish receiving empty `connection_qualified_name` (root cause)**: `SqlApp.run()` returned `ExtractionOutput` without setting `connection_qualified_name`. The publish workflow reads this via `$.extract.outputs.connection_qualified_name` to derive state prefixes — with it empty, diff compare returned 0 entities and nothing was published. Fixed in `application-sdk@BLDX-968` (`bdb17b78`) by extracting `input.connection.attributes.qualified_name` and setting it on the output, matching the existing pattern in `SqlMetadataExtractor.run()`. `uv.lock` updated.
+
 ## 0.4.11 (May 2, 2026)
 
 ### Bug Fixes
