@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.23 (May 5, 2026)
+
+### Bug Fixes
+
+- **Fix lineage failing on every new workflow run (persistent cache_path)**: `lineage-app` was configured with `cache_path: "connection-cache"` — a generic, non-persistent directory. Each run rebuilt the catalog from Atlas from scratch. For a fresh connection whose entities aren't indexed yet when lineage-app starts, the catalog would be empty. Redshift (and other working connectors) use a **connection-specific, persistent SQLite file** (`connection-cache/default/redshift/1776852152.sqlite`) that persists across runs. Changed MySQL to `cache_path: "$.extract.outputs.connection_qualified_name"`, so the cache is keyed to the connection and reused on the second run. First run remains metadata-only (no lineage) because Atlas needs ~10 minutes to index 1,000+ new entities — second run and all subsequent runs produce lineage correctly.
+
 ## 0.4.22 (May 5, 2026)
 
 ### Bug Fixes
