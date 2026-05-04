@@ -41,8 +41,6 @@
           "timestamp_key": "",
           "mine_output_type": "json",
           "parsing_mode": "competitive",
-          "lake_provider": "",
-          "storage_bucket": "$.extract.outputs.storage_bucket",
           "input_prefix": "$.extract.outputs.transformed_data_prefix",
           "output_prefix": "$.extract.outputs.view_lineage_output_prefix"
         }
@@ -91,9 +89,7 @@
           "parsed_views_path": "$.extract.outputs.view_lineage_output_prefix",
           "lineage_output_path": "$.extract.outputs.lineage_stage_prefix",
           "cache_path": "connection-cache",
-          "file_type": "json",
-          "lake_provider": "",
-          "cloud_storage_bucket": "$.extract.outputs.storage_bucket"
+          "file_type": "json"
         }
       },
       "depends_on": {

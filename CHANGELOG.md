@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.18 (May 4, 2026)
+
+### Bug Fixes
+
+- **Fix lineage-app resolving 0 relationships**: `lake_provider: ""` in `manifest.json` caused the lineage-app to default to `"aws"` internally, corrupting its path resolution logic for non-data-lake connectors. Removed `lake_provider` and `cloud_storage_bucket` from both `qi` and `lineage-app` nodes — matching the pattern used by MSSQL and Teradata (JDBC SQL databases that are not data lakes). Cross-referenced against 8 apps in the org to confirm this is the correct config for MySQL.
+
 ## 0.4.17 (May 4, 2026)
 
 ### Improvements
