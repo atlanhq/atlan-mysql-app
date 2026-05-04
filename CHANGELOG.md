@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.14 (May 4, 2026)
+
+### Bug Fixes
+
+- **Fix incorrect `transformed_data_prefix` sent to publish**: `MySQLExtractionOutput.run()` was computing `base = input.output_path or ""` — AE never sets `input.output_path`, so `get_object_store_prefix("")` returned bare names like `"transformed"` instead of the full S3 key. Fixed at the `SqlApp` base level: `SqlApp.run()` now derives the path from `TEMPORARY_PATH + build_output_path()` (same logic as `_resolve_output_path()`), and `MySQLApp.run()` inherits `transformed_data_prefix` from the base result. `uv.lock` updated to `application-sdk@internal-ref`.
+
 ## 0.4.13 (May 4, 2026)
 
 ### New Features

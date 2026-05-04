@@ -443,28 +443,17 @@ class MySQLApp(SqlApp):
             )
             await self.transform_procedures(transform_input)
 
-        # Derive ObjectStore key prefixes from the resolved output_path.
-        # These are forwarded as workflow outputs so the manifest JSONPath
-        # expressions (e.g. $.extract.outputs.view_lineage_output_prefix)
-        # resolve to the correct bucket paths for qi / lineage-app.
-        # Derive the base path the same way _resolve_output_path() does it.
-        # AE never sets input.output_path, so we build it from TEMPORARY_PATH +
-        # build_output_path() (workflow_id/run_id). get_object_store_prefix() then
-        # strips TEMPORARY_PATH to yield the correct S3 key.
+        # The base SqlApp.run() already sets transformed_data_prefix,
+        # publish_state_prefix, and current_state_prefix on ExtractionOutput.
+        # Here we only compute the lineage-specific prefixes (qi / lineage-app).
         base = input.output_path or os.path.join(TEMPORARY_PATH, build_output_path())
         connection_qn = base_result.connection_qualified_name
 
         return MySQLExtractionOutput(
             connection_qualified_name=connection_qn,
-            transformed_data_prefix=get_object_store_prefix(
-                os.path.join(base, "transformed")
-            ),
-            publish_state_prefix=get_object_store_prefix(
-                os.path.join(base, "publish_state")
-            ),
-            current_state_prefix=get_object_store_prefix(
-                os.path.join(base, "current_state")
-            ),
+            transformed_data_prefix=base_result.transformed_data_prefix,
+            publish_state_prefix=base_result.publish_state_prefix,
+            current_state_prefix=base_result.current_state_prefix,
             view_lineage_output_prefix=get_object_store_prefix(
                 os.path.join(base, "view_lineage")
             ),
