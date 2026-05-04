@@ -120,8 +120,8 @@ class TestMySQLAppMappers:
         result = app.map_table(record, connection_qn)
         assert result["typeName"] == "View"
         assert result["attributes"]["name"] == "active_users_view"
-        assert (
-            result["attributes"]["definition"] == "SELECT * FROM users WHERE active=1"
+        assert result["attributes"]["definition"] == (
+            "CREATE OR REPLACE VIEW active_users_view AS SELECT * FROM users WHERE active=1"
         )
         assert result["attributes"]["description"] == "VIEW"
         assert "rowCount" not in result["attributes"]

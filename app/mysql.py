@@ -5,6 +5,7 @@ Extends SqlApp with MySQL-specific SQL queries and asset mappers.
 
 from __future__ import annotations
 
+import math
 import os
 import time
 from pathlib import Path
@@ -13,6 +14,7 @@ from typing import Any, ClassVar
 import pandas as pd
 from application_sdk.contracts.base import Output
 from application_sdk.execution._temporal.activity_utils import get_object_store_prefix
+from application_sdk.templates.contracts.base_metadata_extraction import UploadInput
 from application_sdk.templates.contracts.sql_metadata import (
     ExtractionInput,
     FetchProceduresInput,
@@ -95,6 +97,37 @@ def _sync_attrs(connection_name: str, workflow_id: str, run_id: str) -> dict:
         "lastSyncRun": run_id,
         "lastSyncRunAt": int(time.time() * 1000),
     }
+
+
+def _coerce_numeric(v: Any, default: int = 0) -> int | float:
+    """Return v as-is, but convert None / NaN / Inf to default.
+
+    pandas represents SQL NULLs as NaN in numeric columns. Python's ``x or 0``
+    guard doesn't catch NaN because ``bool(float('nan'))`` is True.
+    """
+    if v is None:
+        return default
+    if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+        return default
+    return v
+
+
+def _safe_str(v: Any) -> str:
+    """Stringify v safely for customAttributes.
+
+    - None  → ""
+    - NaN / Inf → ""
+    - whole-number float (1589248.0) → "1589248"  (matches legacy Argo output)
+    - everything else → str(v)
+    """
+    if v is None:
+        return ""
+    if isinstance(v, float):
+        if math.isnan(v) or math.isinf(v):
+            return ""
+        if v.is_integer():
+            return str(int(v))
+    return str(v) if not isinstance(v, str) else v
 
 
 class MySQLApp(SqlApp):
@@ -225,7 +258,16 @@ class MySQLApp(SqlApp):
 
         # View-specific fields
         if is_view:
-            attrs["definition"] = record.get("view_definition", "")
+            view_body = record.get("view_definition", "") or ""
+            if view_body:
+                # Prepend CREATE VIEW so QI/gudusoft can identify the target view
+                # and generate view→table lineage edges. MySQL's VIEW_DEFINITION
+                # stores only the SELECT body without the CREATE VIEW prefix.
+                attrs["definition"] = (
+                    f"CREATE OR REPLACE VIEW {table_name} AS {view_body}"
+                )
+            else:
+                attrs["definition"] = ""
             attrs["description"] = "VIEW"
 
         # Source timestamps
@@ -243,11 +285,7 @@ class MySQLApp(SqlApp):
             "table_collation",
             "create_options",
         ):
-            val = record.get(key)
-            if val is not None:
-                custom[key] = str(val) if not isinstance(val, str) else val
-            else:
-                custom[key] = ""
+            custom[key] = _safe_str(record.get(key))
         custom["is_transient"] = ""
 
         return {
@@ -295,10 +333,11 @@ class MySQLApp(SqlApp):
                 "max_length", record.get("character_maximum_length", 0)
             )
             or 0,
-            "numericScale": record.get("numeric_scale", record.get("decimal_digits", 0))
-            or 0,
+            "numericScale": _coerce_numeric(
+                record.get("numeric_scale", record.get("decimal_digits"))
+            ),
             "order": record.get("ordinal_position", 0),
-            "precision": record.get("numeric_precision", 0) or 0,
+            "precision": _coerce_numeric(record.get("numeric_precision")),
             "tenantId": TENANT_ID,
         }
 
@@ -401,6 +440,10 @@ class MySQLApp(SqlApp):
             },
         }
 
+        source_owner = record.get("source_owner", "") or ""
+        if source_owner:
+            attrs["sourceCreatedBy"] = source_owner
+
         source_created = _epoch_ms(record.get("created"))
         if source_created:
             attrs["sourceCreatedAt"] = source_created
@@ -440,6 +483,11 @@ class MySQLApp(SqlApp):
                 TransformInput, input, cred_ref=cred_ref
             )
             await self.transform_procedures(transform_input)
+            # Upload extras-procedure entities separately — super().run() uploads
+            # standard entities (database/schema/table/column) BEFORE procedures
+            # are fetched, so we need a second upload pass for procedures.
+            upload_input = UploadInput(output_path=input.output_path)
+            await self.upload_to_atlan(upload_input)
 
         # SqlApp.run() exposes its resolved local base path via output_path so
         # subclasses can derive additional prefixes without re-calling workflow.info().
