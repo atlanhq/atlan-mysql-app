@@ -2,6 +2,13 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.22 (May 5, 2026)
+
+### Bug Fixes
+
+- **Fix lineage-app catalog resolution: add `defaultCatalogName`/`defaultSchemaName` to view entities**: Lineage-app uses `json_key_mapping.default_catalog: "defaultCatalogName"` to resolve bare view names (e.g. `akshaycat`) to fully-qualified Atlas paths. QI reads this from the input entity's top-level fields and passes it through to `success.json`. View entities previously only had `databaseName`/`schemaName` under `attributes` — not accessible as top-level fields. Added `entity["defaultCatalogName"]` and `entity["defaultSchemaName"]` to view entity output in `map_table()`, making them visible to QI's `column_mapping` pass-through.
+- **Root cause of zero lineage (Atlas indexing delay)**: Lineage-app's `build_catalog_cache` ran ~2 minutes after publish for a brand-new connection with 1,227 entities — Atlas search index hadn't caught up yet, so the catalog was empty and all entities were marked `is_temporary: True`. Entities appear in Atlas after ~2 hours. Fix: re-run the workflow after entities are indexed, or submit with an existing connection that already has indexed entities.
+
 ## 0.4.21 (May 5, 2026)
 
 ### Bug Fixes
