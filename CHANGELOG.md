@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.17 (May 4, 2026)
+
+### Improvements
+
+- **Simplify lineage prefix derivation**: `SqlApp.run()` now exposes `resolved_base` via `ExtractionOutput.output_path`, so `MySQLApp.run()` reads `base_result.output_path` directly instead of calling `workflow.info()` a second time. `workflow.info()` is now called exactly once per extraction run. `TEMPORARY_PATH` import removed from `mysql.py`.
+
 ## 0.4.16 (May 4, 2026)
 
 ### Bug Fixes

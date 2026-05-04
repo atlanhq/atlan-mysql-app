@@ -11,7 +11,6 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 import pandas as pd
-from application_sdk.constants import TEMPORARY_PATH
 from application_sdk.contracts.base import Output
 from application_sdk.execution._temporal.activity_utils import get_object_store_prefix
 from application_sdk.templates.contracts.sql_metadata import (
@@ -442,28 +441,9 @@ class MySQLApp(SqlApp):
             )
             await self.transform_procedures(transform_input)
 
-        # The base SqlApp.run() already sets transformed_data_prefix,
-        # publish_state_prefix, and current_state_prefix on ExtractionOutput.
-        # Here we only compute the lineage-specific prefixes (qi / lineage-app).
-        # Use workflow.info() — build_output_path() calls activity.info() which
-        # is unavailable in a workflow context and raises "Not in activity context".
-        if input.output_path:
-            base = input.output_path
-        else:
-            from application_sdk.constants import (  # noqa: PLC0415
-                WORKFLOW_OUTPUT_PATH_TEMPLATE,
-            )
-            from temporalio import workflow as _wf  # noqa: PLC0415
-
-            _info = _wf.info()
-            base = os.path.join(
-                TEMPORARY_PATH,
-                WORKFLOW_OUTPUT_PATH_TEMPLATE.format(
-                    application_name=self._app_name or "mysql",
-                    workflow_id=_info.workflow_id,
-                    run_id=_info.run_id,
-                ),
-            )
+        # SqlApp.run() exposes its resolved local base path via output_path so
+        # subclasses can derive additional prefixes without re-calling workflow.info().
+        base = base_result.output_path
         connection_qn = base_result.connection_qualified_name
 
         return MySQLExtractionOutput(
