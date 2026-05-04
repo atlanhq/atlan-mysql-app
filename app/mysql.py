@@ -11,7 +11,9 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 import pandas as pd
+from application_sdk.constants import TEMPORARY_PATH
 from application_sdk.contracts.base import Output
+from application_sdk.execution import build_output_path
 from application_sdk.execution._temporal.activity_utils import get_object_store_prefix
 from application_sdk.templates.contracts.sql_metadata import (
     ExtractionInput,
@@ -445,7 +447,11 @@ class MySQLApp(SqlApp):
         # These are forwarded as workflow outputs so the manifest JSONPath
         # expressions (e.g. $.extract.outputs.view_lineage_output_prefix)
         # resolve to the correct bucket paths for qi / lineage-app.
-        base = input.output_path or ""
+        # Derive the base path the same way _resolve_output_path() does it.
+        # AE never sets input.output_path, so we build it from TEMPORARY_PATH +
+        # build_output_path() (workflow_id/run_id). get_object_store_prefix() then
+        # strips TEMPORARY_PATH to yield the correct S3 key.
+        base = input.output_path or os.path.join(TEMPORARY_PATH, build_output_path())
         connection_qn = base_result.connection_qualified_name
 
         return MySQLExtractionOutput(
