@@ -11,9 +11,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 import pandas as pd
-from application_sdk.constants import TEMPORARY_PATH
 from application_sdk.contracts.base import Output
-from application_sdk.execution import build_output_path
 from application_sdk.execution._temporal.activity_utils import get_object_store_prefix
 from application_sdk.templates.contracts.sql_metadata import (
     ExtractionInput,
@@ -443,10 +441,9 @@ class MySQLApp(SqlApp):
             )
             await self.transform_procedures(transform_input)
 
-        # The base SqlApp.run() already sets transformed_data_prefix,
-        # publish_state_prefix, and current_state_prefix on ExtractionOutput.
-        # Here we only compute the lineage-specific prefixes (qi / lineage-app).
-        base = input.output_path or os.path.join(TEMPORARY_PATH, build_output_path())
+        # SqlApp.run() exposes its resolved local base path via output_path so
+        # subclasses can derive additional prefixes without re-calling workflow.info().
+        base = base_result.output_path
         connection_qn = base_result.connection_qualified_name
 
         return MySQLExtractionOutput(
