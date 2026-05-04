@@ -358,3 +358,175 @@ class TestMySQLExtractionOutput:
         assert MySQLApp.fetch_procedure_sql != ""
         assert "ROUTINE_DEFINITION" in MySQLApp.fetch_procedure_sql
         assert "ROUTINE_SCHEMA" in MySQLApp.fetch_procedure_sql
+
+
+class TestMySQLAppRun:
+    """Tests for MySQLApp.run() — verifies workflow.info() is used for output
+    prefix derivation, not build_output_path() which crashes in workflow context.
+
+    These guard against regressions where build_output_path() (activity-only)
+    accidentally replaces the workflow.info() calls.
+    """
+
+    def _make_app(self):
+        app = MySQLApp.__new__(MySQLApp)
+        app._app_name = "mysql"
+        return app
+
+    def _mock_workflow_info(self, wf_id="wf-test-123", run_id="run-test-456"):
+        from unittest.mock import MagicMock
+
+        info = MagicMock()
+        info.workflow_id = wf_id
+        info.run_id = run_id
+        return info
+
+    def _run(self, app, input_, wf_info):
+        """Run MySQLApp.run() with all SQL tasks mocked out."""
+        import asyncio
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        with (
+            patch("temporalio.workflow.info", return_value=wf_info),
+            patch.object(
+                MySQLApp,
+                "fetch_databases",
+                new=AsyncMock(return_value=MagicMock(total_record_count=1)),
+            ),
+            patch.object(
+                MySQLApp,
+                "fetch_schemas",
+                new=AsyncMock(return_value=MagicMock(total_record_count=1)),
+            ),
+            patch.object(
+                MySQLApp,
+                "fetch_tables",
+                new=AsyncMock(return_value=MagicMock(total_record_count=2)),
+            ),
+            patch.object(
+                MySQLApp,
+                "fetch_columns",
+                new=AsyncMock(return_value=MagicMock(total_record_count=5)),
+            ),
+            patch.object(
+                MySQLApp,
+                "fetch_procedures",
+                new=AsyncMock(return_value=MagicMock(total_record_count=1)),
+            ),
+            patch.object(
+                MySQLApp, "transform_databases", new=AsyncMock(return_value=MagicMock())
+            ),
+            patch.object(
+                MySQLApp, "transform_schemas", new=AsyncMock(return_value=MagicMock())
+            ),
+            patch.object(
+                MySQLApp, "transform_tables", new=AsyncMock(return_value=MagicMock())
+            ),
+            patch.object(
+                MySQLApp, "transform_columns", new=AsyncMock(return_value=MagicMock())
+            ),
+            patch.object(
+                MySQLApp,
+                "transform_procedures",
+                new=AsyncMock(return_value=MagicMock()),
+            ),
+            patch.object(
+                MySQLApp, "upload_to_atlan", new=AsyncMock(return_value=MagicMock())
+            ),
+            patch.object(MySQLApp, "_resolve_credential_ref", return_value=None),
+        ):
+            return asyncio.get_event_loop().run_until_complete(app.run(input_))
+
+    def test_lineage_prefixes_use_workflow_id_and_run_id(self):
+        """view_lineage_output_prefix and lineage_stage_prefix must contain the
+        workflow_id and run_id from workflow.info() — not activity context values."""
+        from application_sdk.templates.contracts.sql_metadata import ExtractionInput
+
+        app = self._make_app()
+        info = self._mock_workflow_info("my-wf-id", "my-run-id")
+        result = self._run(app, ExtractionInput(output_path=""), info)
+
+        assert "my-wf-id" in result.view_lineage_output_prefix
+        assert "my-run-id" in result.view_lineage_output_prefix
+        assert "my-wf-id" in result.lineage_stage_prefix
+        assert "my-run-id" in result.lineage_stage_prefix
+
+    def test_lineage_prefixes_end_with_correct_suffixes(self):
+        """Each lineage prefix must end with its semantic directory name."""
+        from application_sdk.templates.contracts.sql_metadata import ExtractionInput
+
+        app = self._make_app()
+        info = self._mock_workflow_info()
+        result = self._run(app, ExtractionInput(output_path=""), info)
+
+        assert result.view_lineage_output_prefix.endswith(
+            "view_lineage"
+        ) or result.view_lineage_output_prefix.endswith("view_lineage/")
+        assert result.lineage_stage_prefix.endswith(
+            "lineage_stage"
+        ) or result.lineage_stage_prefix.endswith("lineage_stage/")
+        assert result.lineage_publish_state_prefix.endswith(
+            "lineage_publish_state"
+        ) or result.lineage_publish_state_prefix.endswith("lineage_publish_state/")
+        assert result.lineage_current_state_prefix.endswith(
+            "lineage_current_state"
+        ) or result.lineage_current_state_prefix.endswith("lineage_current_state/")
+
+    def test_explicit_output_path_used_directly(self):
+        """When input.output_path is set, it is used as base without calling workflow.info()."""
+        from unittest.mock import patch
+
+        from application_sdk.templates.contracts.sql_metadata import ExtractionInput
+
+        app = self._make_app()
+        info = self._mock_workflow_info()
+        with patch("temporalio.workflow.info", return_value=info):
+            result = self._run(
+                app,
+                ExtractionInput(
+                    output_path="./local/tmp/artifacts/apps/mysql/workflows/explicit-wf/run-1"
+                ),
+                info,
+            )
+        # With explicit output_path, lineage prefixes derive from it
+        assert "explicit-wf" in result.view_lineage_output_prefix
+
+    def test_build_output_path_never_called(self):
+        """build_output_path() (activity-only) is NOT in mysql.py imports — verifies
+        it was removed and won't accidentally be re-introduced causing a crash."""
+        import app.mysql as mysql_module
+
+        assert not hasattr(mysql_module, "build_output_path"), (
+            "build_output_path is imported in mysql.py — it will crash in workflow "
+            "context with 'Not in activity context'. Use workflow.info() instead."
+        )
+
+    def test_storage_bucket_from_env(self):
+        """storage_bucket is read from S3_BUCKET env var."""
+        import os
+        from unittest.mock import patch
+
+        from application_sdk.templates.contracts.sql_metadata import ExtractionInput
+
+        app = self._make_app()
+        info = self._mock_workflow_info()
+
+        with patch.dict(os.environ, {"S3_BUCKET": "my-test-bucket"}):
+            # Reload _S3_BUCKET by patching the module-level variable
+            with patch("app.mysql._S3_BUCKET", "my-test-bucket"):
+                result = self._run(app, ExtractionInput(output_path=""), info)
+        assert result.storage_bucket == "my-test-bucket"
+
+    def test_connection_qualified_name_propagated(self):
+        """connection_qualified_name from base SqlApp.run() is forwarded correctly."""
+        from application_sdk.contracts.types import ConnectionAttributes, ConnectionRef
+        from application_sdk.templates.contracts.sql_metadata import ExtractionInput
+
+        app = self._make_app()
+        info = self._mock_workflow_info()
+
+        conn = ConnectionRef(
+            attributes=ConnectionAttributes(qualified_name="default/mysql/123")
+        )
+        result = self._run(app, ExtractionInput(connection=conn, output_path=""), info)
+        assert result.connection_qualified_name == "default/mysql/123"
