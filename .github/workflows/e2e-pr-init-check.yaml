@@ -1,0 +1,29 @@
+# PR-init thin wrapper.
+#
+# All orchestration logic lives in:
+#   atlanhq/marketplace-releases/.github/workflows/e2e-pr-init.yaml
+#
+# On PR open / synchronize / reopen, the central workflow:
+#   - posts a pending commit status for "Playwright E2E — Feature Branch"
+#   - posts (or updates) a tenant-availability table comment
+#
+# To enable for a new repo: copy this file as-is. No customization needed.
+
+name: E2E PR Init
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  statuses: write
+  issues: write
+  pull-requests: write
+  actions: read
+
+jobs:
+  init:
+    name: PR init
+    uses: atlanhq/marketplace-releases/.github/workflows/e2e-pr-init.yaml@main
+    secrets: inherit
