@@ -209,7 +209,7 @@ class TestTableParity:
             "view_definition": "SELECT 1",
         }
         entity = app.map_table(record, CONNECTION_QN)
-        assert entity["attributes"]["definition"] == "SELECT 1"
+        assert entity["attributes"]["definition"] == "CREATE OR REPLACE VIEW v AS SELECT 1"
         assert entity["attributes"]["description"] == "VIEW"
         assert "rowCount" not in entity["attributes"]
 
