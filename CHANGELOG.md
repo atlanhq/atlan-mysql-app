@@ -2,6 +2,14 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.13 (May 4, 2026)
+
+### New Features
+
+- **Stored procedure extraction**: `MySQLApp.map_procedure()` maps MySQL stored procedures to Atlan `Procedure` entities with `definition` (SQL body) set, writing to `extras-procedure/` — matching the legacy Argo crawler output. `SqlApp.transform_procedures()` task added to SDK.
+- **Full lineage pipeline (QI + lineage-app)**: `manifest.json` now has a 5-node DAG mirroring the Athena native app: `extract → qi` (parses view/procedure SQL definitions) and `extract → publish` run in parallel, then `lineage-app` builds `Process`/`ColumnProcess` entities from the QI output, and `lineage-publish` publishes them to Atlas.
+- **`MySQLExtractionOutput`**: Extended extract output includes `view_lineage_output_prefix`, `lineage_stage_prefix`, `lineage_publish_state_prefix`, `lineage_current_state_prefix`, and `storage_bucket` so AE's manifest JSONPath expressions resolve correctly for the lineage nodes.
+
 ## 0.4.12 (May 3, 2026)
 
 ### Bug Fixes
