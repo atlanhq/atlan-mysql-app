@@ -88,7 +88,7 @@
           "input_path": "",
           "parsed_views_path": "$.extract.outputs.view_lineage_output_prefix",
           "lineage_output_path": "$.extract.outputs.lineage_stage_prefix",
-          "cache_path": "$.extract.outputs.connection_qualified_name",
+          "cache_path": "$.extract.outputs.connection_cache_path",
           "file_type": "json"
         }
       },
