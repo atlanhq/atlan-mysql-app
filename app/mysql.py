@@ -5,6 +5,7 @@ Extends SqlApp with MySQL-specific SQL queries and asset mappers.
 
 from __future__ import annotations
 
+import math
 import os
 import time
 from pathlib import Path
@@ -95,6 +96,37 @@ def _sync_attrs(connection_name: str, workflow_id: str, run_id: str) -> dict:
         "lastSyncRun": run_id,
         "lastSyncRunAt": int(time.time() * 1000),
     }
+
+
+def _coerce_numeric(v: Any, default: int = 0) -> int | float:
+    """Return v as-is, but convert None / NaN / Inf to default.
+
+    pandas represents SQL NULLs as NaN in numeric columns. Python's ``x or 0``
+    guard doesn't catch NaN because ``bool(float('nan'))`` is True.
+    """
+    if v is None:
+        return default
+    if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+        return default
+    return v
+
+
+def _safe_str(v: Any) -> str:
+    """Stringify v safely for customAttributes.
+
+    - None  → ""
+    - NaN / Inf → ""
+    - whole-number float (1589248.0) → "1589248"  (matches legacy Argo output)
+    - everything else → str(v)
+    """
+    if v is None:
+        return ""
+    if isinstance(v, float):
+        if math.isnan(v) or math.isinf(v):
+            return ""
+        if v.is_integer():
+            return str(int(v))
+    return str(v) if not isinstance(v, str) else v
 
 
 class MySQLApp(SqlApp):
@@ -252,11 +284,7 @@ class MySQLApp(SqlApp):
             "table_collation",
             "create_options",
         ):
-            val = record.get(key)
-            if val is not None:
-                custom[key] = str(val) if not isinstance(val, str) else val
-            else:
-                custom[key] = ""
+            custom[key] = _safe_str(record.get(key))
         custom["is_transient"] = ""
 
         return {
@@ -304,10 +332,11 @@ class MySQLApp(SqlApp):
                 "max_length", record.get("character_maximum_length", 0)
             )
             or 0,
-            "numericScale": record.get("numeric_scale", record.get("decimal_digits", 0))
-            or 0,
+            "numericScale": _coerce_numeric(
+                record.get("numeric_scale", record.get("decimal_digits"))
+            ),
             "order": record.get("ordinal_position", 0),
-            "precision": record.get("numeric_precision", 0) or 0,
+            "precision": _coerce_numeric(record.get("numeric_precision")),
             "tenantId": TENANT_ID,
         }
 
@@ -409,6 +438,10 @@ class MySQLApp(SqlApp):
                 "uniqueAttributes": {"qualifiedName": schema_qn},
             },
         }
+
+        source_owner = record.get("source_owner", "") or ""
+        if source_owner:
+            attrs["sourceCreatedBy"] = source_owner
 
         source_created = _epoch_ms(record.get("created"))
         if source_created:
