@@ -2,6 +2,28 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.21 (May 5, 2026)
+
+### Bug Fixes
+
+- **Fix procedure entities never reaching S3 (SDK bug + upload gap)**: Two separate bugs prevented procedures from being extracted:
+  1. **SDK**: `fetch_procedures` wrote parquet to `raw/procedure/` but `transform_procedures` read from `raw/extras-procedure/` — directory name mismatch meant transform always returned 0 records. Fixed in `application-sdk` by aligning the write path to `raw/extras-procedure/`.
+  2. **App**: `MySQLApp.run()` calls `super().run()` (which fetches/transforms/uploads standard entities) and then `fetch_procedures` + `transform_procedures`. The standard `upload_to_atlan` runs *before* procedures are fetched, so procedure entities were never uploaded to S3. Added a second `upload_to_atlan` call after `transform_procedures`.
+
+## 0.4.20 (May 5, 2026)
+
+### Bug Fixes
+
+- **Fix NaN leaking as `"nan"` string in table/view customAttributes**: `str(float('nan'))` = `"nan"` bypassed the SDK's `_sanitize_nan` (which only catches float NaN, not the string). Replaced bare `str(val)` calls in `map_table` customAttributes with `_safe_str()`, which converts NaN/Inf → `""` and strips `.0` from whole-number floats (e.g. `"1589248.0"` → `"1589248"` — matching legacy Argo output).
+- **Fix `numericScale`/`precision` NaN → None**: `float('nan') or 0` evaluates to `NaN` (NaN is truthy in Python), so the `or 0` guard had no effect — the SDK then sanitized NaN to `None`. Replaced with `_coerce_numeric()` which explicitly checks for NaN/None and returns `0`, matching legacy `0.0` values.
+- **Add `sourceCreatedBy` to procedure entities**: `map_procedure()` now sets `sourceCreatedBy` from the DEFINER field (`source_owner`) — matching the legacy Argo connector.
+
+## 0.4.19 (May 5, 2026)
+
+### Bug Fixes
+
+- **Fix lineage-app resolving 0 relationships (view→table)**: MySQL's `information_schema.VIEWS.VIEW_DEFINITION` stores only the SELECT body (no `CREATE VIEW name AS` prefix). QI/gudusoft parsed this as a plain SELECT and correctly detected source tables, but produced `relationships: []` because it couldn't identify the target view. Fixed by prepending `` CREATE VIEW `schema`.`view` AS `` to each view's `definition` field in `map_table()`. With the full CREATE VIEW statement, gudusoft generates Process edges (source table → view), and lineage-app resolves them against the Atlas catalog. Verified by inspecting the QI `success.json` gudusoft output: previously `"relationships": []`, now populated.
+
 ## 0.4.18 (May 4, 2026)
 
 ### Bug Fixes
