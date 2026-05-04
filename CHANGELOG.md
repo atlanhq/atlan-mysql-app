@@ -2,6 +2,19 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.23 (May 5, 2026)
+
+### Bug Fixes
+
+- **Fix lineage failing on every new workflow run (persistent cache_path)**: `lineage-app` was configured with `cache_path: "connection-cache"` — a generic, non-persistent directory. Each run rebuilt the catalog from Atlas from scratch. For a fresh connection whose entities aren't indexed yet when lineage-app starts, the catalog would be empty. Redshift (and other working connectors) use a **connection-specific, persistent SQLite file** (`connection-cache/default/redshift/1776852152.sqlite`) that persists across runs. Changed MySQL to `cache_path: "$.extract.outputs.connection_qualified_name"`, so the cache is keyed to the connection and reused on the second run. First run remains metadata-only (no lineage) because Atlas needs ~10 minutes to index 1,000+ new entities — second run and all subsequent runs produce lineage correctly.
+
+## 0.4.22 (May 5, 2026)
+
+### Bug Fixes
+
+- **Fix lineage-app catalog resolution: add `defaultCatalogName`/`defaultSchemaName` to view entities**: Lineage-app uses `json_key_mapping.default_catalog: "defaultCatalogName"` to resolve bare view names (e.g. `akshaycat`) to fully-qualified Atlas paths. QI reads this from the input entity's top-level fields and passes it through to `success.json`. View entities previously only had `databaseName`/`schemaName` under `attributes` — not accessible as top-level fields. Added `entity["defaultCatalogName"]` and `entity["defaultSchemaName"]` to view entity output in `map_table()`, making them visible to QI's `column_mapping` pass-through.
+- **Root cause of zero lineage (Atlas indexing delay)**: Lineage-app's `build_catalog_cache` ran ~2 minutes after publish for a brand-new connection with 1,227 entities — Atlas search index hadn't caught up yet, so the catalog was empty and all entities were marked `is_temporary: True`. Entities appear in Atlas after ~2 hours. Fix: re-run the workflow after entities are indexed, or submit with an existing connection that already has indexed entities.
+
 ## 0.4.21 (May 5, 2026)
 
 ### Bug Fixes
