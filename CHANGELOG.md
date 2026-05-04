@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.15 (May 4, 2026)
+
+### Bug Fixes
+
+- **Fix "Not in activity context" crash in SqlApp.run()**: `build_output_path()` calls `activity.info()` which is only valid inside a Temporal activity — `SqlApp.run()` is a workflow method. Fixed by using `workflow.info().workflow_id` + `workflow.info().run_id` with `WORKFLOW_OUTPUT_PATH_TEMPLATE` directly. Tests added to `TestRunOutputPrefixes` to prevent regression.
+
 ## 0.4.14 (May 4, 2026)
 
 ### Bug Fixes
