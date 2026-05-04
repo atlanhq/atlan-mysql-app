@@ -2,6 +2,26 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.15 (May 4, 2026)
+
+### Bug Fixes
+
+- **Fix "Not in activity context" crash in SqlApp.run()**: `build_output_path()` calls `activity.info()` which is only valid inside a Temporal activity — `SqlApp.run()` is a workflow method. Fixed by using `workflow.info().workflow_id` + `workflow.info().run_id` with `WORKFLOW_OUTPUT_PATH_TEMPLATE` directly. Tests added to `TestRunOutputPrefixes` to prevent regression.
+
+## 0.4.14 (May 4, 2026)
+
+### Bug Fixes
+
+- **Fix incorrect `transformed_data_prefix` sent to publish**: `MySQLExtractionOutput.run()` was computing `base = input.output_path or ""` — AE never sets `input.output_path`, so `get_object_store_prefix("")` returned bare names like `"transformed"` instead of the full S3 key. Fixed at the `SqlApp` base level: `SqlApp.run()` now derives the path from `TEMPORARY_PATH + build_output_path()` (same logic as `_resolve_output_path()`), and `MySQLApp.run()` inherits `transformed_data_prefix` from the base result. `uv.lock` updated to `application-sdk@internal-ref`.
+
+## 0.4.13 (May 4, 2026)
+
+### New Features
+
+- **Stored procedure extraction**: `MySQLApp.map_procedure()` maps MySQL stored procedures to Atlan `Procedure` entities with `definition` (SQL body) set, writing to `extras-procedure/` — matching the legacy Argo crawler output. `SqlApp.transform_procedures()` task added to SDK.
+- **Full lineage pipeline (QI + lineage-app)**: `manifest.json` now has a 5-node DAG mirroring the Athena native app: `extract → qi` (parses view/procedure SQL definitions) and `extract → publish` run in parallel, then `lineage-app` builds `Process`/`ColumnProcess` entities from the QI output, and `lineage-publish` publishes them to Atlas.
+- **`MySQLExtractionOutput`**: Extended extract output includes `view_lineage_output_prefix`, `lineage_stage_prefix`, `lineage_publish_state_prefix`, `lineage_current_state_prefix`, and `storage_bucket` so AE's manifest JSONPath expressions resolve correctly for the lineage nodes.
+
 ## 0.4.12 (May 3, 2026)
 
 ### Bug Fixes
