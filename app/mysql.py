@@ -14,6 +14,7 @@ from typing import Any, ClassVar
 import pandas as pd
 from application_sdk.contracts.base import Output
 from application_sdk.execution._temporal.activity_utils import get_object_store_prefix
+from application_sdk.templates.contracts.base_metadata_extraction import UploadInput
 from application_sdk.templates.contracts.sql_metadata import (
     ExtractionInput,
     FetchProceduresInput,
@@ -482,6 +483,11 @@ class MySQLApp(SqlApp):
                 TransformInput, input, cred_ref=cred_ref
             )
             await self.transform_procedures(transform_input)
+            # Upload extras-procedure entities separately — super().run() uploads
+            # standard entities (database/schema/table/column) BEFORE procedures
+            # are fetched, so we need a second upload pass for procedures.
+            upload_input = UploadInput(output_path=input.output_path)
+            await self.upload_to_atlan(upload_input)
 
         # SqlApp.run() exposes its resolved local base path via output_path so
         # subclasses can derive additional prefixes without re-calling workflow.info().

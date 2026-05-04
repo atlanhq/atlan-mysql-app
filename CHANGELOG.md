@@ -2,6 +2,14 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.21 (May 5, 2026)
+
+### Bug Fixes
+
+- **Fix procedure entities never reaching S3 (SDK bug + upload gap)**: Two separate bugs prevented procedures from being extracted:
+  1. **SDK**: `fetch_procedures` wrote parquet to `raw/procedure/` but `transform_procedures` read from `raw/extras-procedure/` — directory name mismatch meant transform always returned 0 records. Fixed in `application-sdk` by aligning the write path to `raw/extras-procedure/`.
+  2. **App**: `MySQLApp.run()` calls `super().run()` (which fetches/transforms/uploads standard entities) and then `fetch_procedures` + `transform_procedures`. The standard `upload_to_atlan` runs *before* procedures are fetched, so procedure entities were never uploaded to S3. Added a second `upload_to_atlan` call after `transform_procedures`.
+
 ## 0.4.20 (May 5, 2026)
 
 ### Bug Fixes
