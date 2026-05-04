@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.25 (May 5, 2026)
+
+### Bug Fixes
+
+- **Fix lineage never working for any connection (missing `connection_cache_enabled` flags)**: The publish-app builds the SQLite connection cache when `connection_cache_enabled: true` and `connection_cache_via_app_enabled: true` are passed to the `publish` node. MySQL was missing both flags — the publish-app never built the SQLite, so `lineage-app` always found an empty catalog (`valid_hash_count: 0`). Added both flags to `publish` and `lineage-publish` nodes, matching the MSSQL pattern. The publish-app now writes `connection-cache/default/mysql/{connection_id}.sqlite` after every run.
+
 ## 0.4.24 (May 5, 2026)
 
 ### Bug Fixes
