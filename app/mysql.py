@@ -5,12 +5,53 @@ Extends SqlApp with MySQL-specific SQL queries and asset mappers.
 
 from __future__ import annotations
 
+import os
 import time
 from pathlib import Path
 from typing import Any, ClassVar
 
 import pandas as pd
+from application_sdk.contracts.base import Output
+from application_sdk.execution._temporal.activity_utils import get_object_store_prefix
+from application_sdk.templates.contracts.sql_metadata import (
+    ExtractionInput,
+    FetchProceduresInput,
+    TransformInput,
+)
 from application_sdk.templates.sql_app import SqlApp
+
+# S3 bucket for QI + lineage-app — forwarded as extract output so the manifest
+# JSONPath expressions ($.extract.outputs.storage_bucket) resolve correctly.
+_S3_BUCKET = os.environ.get("S3_BUCKET", "")
+
+
+class MySQLExtractionOutput(Output):
+    """Extended extraction output for MySQL — includes lineage pipeline prefixes.
+
+    The standard ExtractionOutput fields (connection_qualified_name,
+    transformed_data_prefix, publish_state_prefix, current_state_prefix) are
+    consumed by the publish node. The additional fields are consumed by the
+    qi → lineage-app → lineage-publish nodes in the manifest DAG, mirroring
+    the pattern used by the Athena native app.
+    """
+
+    # Standard publish inputs (match ExtractionOutput fields)
+    connection_qualified_name: str = ""
+    transformed_data_prefix: str = ""
+    publish_state_prefix: str = ""
+    current_state_prefix: str = ""
+
+    # QI inputs/outputs
+    view_lineage_output_prefix: str = ""
+
+    # Lineage-app inputs/outputs
+    lineage_stage_prefix: str = ""
+    lineage_publish_state_prefix: str = ""
+    lineage_current_state_prefix: str = ""
+
+    # Forwarded to QI + lineage-app via manifest JSONPath
+    storage_bucket: str = ""
+
 
 from app.clients import SQLClient
 from app.constants import DATABASE_PLACEHOLDER, TENANT_ID
@@ -322,3 +363,113 @@ class MySQLApp(SqlApp):
             "attributes": attrs,
             "customAttributes": custom,
         }
+
+    def map_procedure(self, record: dict[str, Any], connection_qn: str) -> dict:
+        """Map raw procedure record to Atlan Procedure entity.
+
+        The ``definition`` field contains the stored procedure SQL body. The
+        publish-app's SQL parser reads this after ingestion to derive lineage
+        (Process / ColumnProcess entities) — mirroring the legacy Argo connector's
+        ``extras-procedure`` output which triggered the same SQL parser step.
+        """
+        catalog = record.get("procedure_catalog", DATABASE_PLACEHOLDER)
+        schema = record.get("procedure_schema", "")
+        name = record.get("procedure_name", "")
+        definition = record.get("procedure_definition", "") or ""
+        proc_type = record.get("procedure_type", "PROCEDURE")
+
+        db_qn = f"{connection_qn}/{catalog}"
+        schema_qn = f"{db_qn}/{schema}"
+        # Qualified name matches legacy format: connection/db/schema/_procedures_/name
+        proc_qn = f"{schema_qn}/_procedures_/{name}"
+
+        attrs: dict[str, Any] = {
+            "name": name,
+            "qualifiedName": proc_qn,
+            "connectionQualifiedName": connection_qn,
+            "connectorName": "mysql",
+            "databaseName": catalog,
+            "databaseQualifiedName": db_qn,
+            "schemaName": schema,
+            "schemaQualifiedName": schema_qn,
+            "definition": definition,
+            "subType": proc_type,
+            "tenantId": TENANT_ID,
+            "atlanSchema": {
+                "typeName": "Schema",
+                "uniqueAttributes": {"qualifiedName": schema_qn},
+            },
+        }
+
+        source_created = _epoch_ms(record.get("created"))
+        if source_created:
+            attrs["sourceCreatedAt"] = source_created
+        source_updated = _epoch_ms(record.get("last_altered"))
+        if source_updated:
+            attrs["sourceUpdatedAt"] = source_updated
+
+        return {
+            "typeName": "Procedure",
+            "tenantId": TENANT_ID,
+            "status": "ACTIVE",
+            "attributes": attrs,
+            "customAttributes": {},
+        }
+
+    async def run(  # type: ignore[override]
+        self, input: ExtractionInput
+    ) -> MySQLExtractionOutput:
+        """MySQL extraction: standard assets + procedures + lineage pipeline outputs.
+
+        1. Standard fetch/transform/upload (databases, schemas, tables, columns)
+        2. Stored procedures — writes ``extras-procedure/`` so the QI SQL parser
+           derives procedure-level lineage from ``definition`` fields
+        3. Returns extended output with view_lineage_output_prefix,
+           lineage_stage_prefix, and storage_bucket so the manifest DAG can
+           chain qi → lineage-app → lineage-publish nodes (Athena pattern)
+        """
+        base_result = await super().run(input)
+
+        if self.fetch_procedure_sql:
+            cred_ref = self._resolve_credential_ref(input)
+            proc_input = self.build_task_input(
+                FetchProceduresInput, input, cred_ref=cred_ref
+            )
+            await self.fetch_procedures(proc_input)
+            transform_input = self.build_task_input(
+                TransformInput, input, cred_ref=cred_ref
+            )
+            await self.transform_procedures(transform_input)
+
+        # Derive ObjectStore key prefixes from the resolved output_path.
+        # These are forwarded as workflow outputs so the manifest JSONPath
+        # expressions (e.g. $.extract.outputs.view_lineage_output_prefix)
+        # resolve to the correct bucket paths for qi / lineage-app.
+        base = input.output_path or ""
+        connection_qn = base_result.connection_qualified_name
+
+        return MySQLExtractionOutput(
+            connection_qualified_name=connection_qn,
+            transformed_data_prefix=get_object_store_prefix(
+                os.path.join(base, "transformed")
+            ),
+            publish_state_prefix=get_object_store_prefix(
+                os.path.join(base, "publish_state")
+            ),
+            current_state_prefix=get_object_store_prefix(
+                os.path.join(base, "current_state")
+            ),
+            view_lineage_output_prefix=get_object_store_prefix(
+                os.path.join(base, "view_lineage")
+            ),
+            lineage_stage_prefix=get_object_store_prefix(
+                os.path.join(base, "lineage_stage")
+            ),
+            lineage_publish_state_prefix=get_object_store_prefix(
+                os.path.join(base, "lineage_publish_state")
+            ),
+            lineage_current_state_prefix=get_object_store_prefix(
+                os.path.join(base, "lineage_current_state")
+            ),
+            storage_bucket=_S3_BUCKET,
+        )
