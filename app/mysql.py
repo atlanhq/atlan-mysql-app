@@ -20,6 +20,12 @@ from application_sdk.templates.contracts.sql_metadata import (
 )
 from application_sdk.templates.sql_app import SqlApp
 
+from app.clients import SQLClient
+from app.constants import DATABASE_PLACEHOLDER, TENANT_ID
+from app.handlers.mysql import (  # noqa: F401 — SDK discovers {AppClass}Handler by convention
+    MySQLAppHandler,
+)
+
 # S3 bucket for QI + lineage-app — forwarded as extract output so the manifest
 # JSONPath expressions ($.extract.outputs.storage_bucket) resolve correctly.
 _S3_BUCKET = os.environ.get("S3_BUCKET", "")
@@ -52,12 +58,6 @@ class MySQLExtractionOutput(Output):
     # Forwarded to QI + lineage-app via manifest JSONPath
     storage_bucket: str = ""
 
-
-from app.clients import SQLClient
-from app.constants import DATABASE_PLACEHOLDER, TENANT_ID
-from app.handlers.mysql import (  # noqa: F401 — SDK discovers {AppClass}Handler by convention
-    MySQLAppHandler,
-)
 
 # Read SQL files at module level
 _SQL_DIR = Path(__file__).parent / "sql"
