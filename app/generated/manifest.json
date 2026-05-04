@@ -64,7 +64,9 @@
           "current_state_prefix": "$.extract.outputs.current_state_prefix",
           "connection_creation_enabled": true,
           "executor_enabled": true,
-          "connection_entity": "{{connection}}"
+          "connection_entity": "{{connection}}",
+          "connection_cache_enabled": true,
+          "connection_cache_via_app_enabled": true
         }
       },
       "depends_on": {
@@ -121,7 +123,9 @@
           "connection_creation_enabled": false,
           "executor_enabled": true,
           "cache_namespace": "lineage",
-          "connection_entity": "{{connection}}"
+          "connection_entity": "{{connection}}",
+          "connection_cache_enabled": true,
+          "connection_cache_via_app_enabled": true
         }
       },
       "depends_on": {
