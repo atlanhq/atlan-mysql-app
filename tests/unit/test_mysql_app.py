@@ -474,14 +474,13 @@ class TestMySQLAppRun:
 
     def test_explicit_output_path_used_directly(self):
         """When input.output_path is set, it is used as base without calling workflow.info()."""
-        from unittest.mock import MagicMock, patch
+        from unittest.mock import patch
 
         from application_sdk.templates.contracts.sql_metadata import ExtractionInput
 
         app = self._make_app()
-        # workflow.info() must NOT be called when output_path is explicit
-        with patch("temporalio.workflow.info") as mock_info:
-            info = self._mock_workflow_info()
+        info = self._mock_workflow_info()
+        with patch("temporalio.workflow.info", return_value=info):
             result = self._run(
                 app,
                 ExtractionInput(
