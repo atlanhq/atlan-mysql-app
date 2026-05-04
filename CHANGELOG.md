@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.24 (May 5, 2026)
+
+### Bug Fixes
+
+- **Fix `valid_hash_count: 0` in lineage-app (root cause: wrong `cache_path` format)**: All working connectors (Redshift, AlloyDB) use a connection-specific SQLite file path e.g. `connection-cache/default/redshift/1776852152.sqlite`. MySQL (and Teradata) used `"connection-cache"` — a directory, not a file path. `build_catalog_cache` can't persist to a directory, so `transform_and_generate` (running in a separate activity) can't find the catalog → `valid_hash_count: 0` regardless of whether Atlas is indexed. Added `connection_cache_path` to `MySQLExtractionOutput` computed as `"connection-cache/{connection_qn}.sqlite"` and wired it to `$.extract.outputs.connection_cache_path` in the manifest.
+
 ## 0.4.23 (May 5, 2026)
 
 ### Bug Fixes
