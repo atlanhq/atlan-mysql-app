@@ -288,13 +288,23 @@ class MySQLApp(SqlApp):
             custom[key] = _safe_str(record.get(key))
         custom["is_transient"] = ""
 
-        return {
+        entity: dict[str, Any] = {
             "typeName": type_name,
             "tenantId": TENANT_ID,
             "status": "ACTIVE",
             "attributes": attrs,
             "customAttributes": custom,
         }
+
+        # QI reads column_mapping.defaultCatalogName / defaultSchemaName from the
+        # top-level entity fields (not from nested attributes) and writes them to
+        # each success.json row. Lineage-app uses these to resolve bare view/table
+        # names (e.g. "akshaycat") to fully-qualified Atlas entity paths.
+        if is_view:
+            entity["defaultCatalogName"] = db_name
+            entity["defaultSchemaName"] = schema_name
+
+        return entity
 
     def map_column(self, record: dict[str, Any], connection_qn: str) -> dict:
         """Map raw column record to Atlan Column entity."""
