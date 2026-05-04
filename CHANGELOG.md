@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.19 (May 5, 2026)
+
+### Bug Fixes
+
+- **Fix lineage-app resolving 0 relationships (view→table)**: MySQL's `information_schema.VIEWS.VIEW_DEFINITION` stores only the SELECT body (no `CREATE VIEW name AS` prefix). QI/gudusoft parsed this as a plain SELECT and correctly detected source tables, but produced `relationships: []` because it couldn't identify the target view. Fixed by prepending `` CREATE VIEW `schema`.`view` AS `` to each view's `definition` field in `map_table()`. With the full CREATE VIEW statement, gudusoft generates Process edges (source table → view), and lineage-app resolves them against the Atlas catalog. Verified by inspecting the QI `success.json` gudusoft output: previously `"relationships": []`, now populated.
+
 ## 0.4.18 (May 4, 2026)
 
 ### Bug Fixes
