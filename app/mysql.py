@@ -225,7 +225,16 @@ class MySQLApp(SqlApp):
 
         # View-specific fields
         if is_view:
-            attrs["definition"] = record.get("view_definition", "")
+            view_body = record.get("view_definition", "") or ""
+            if view_body:
+                # Prepend CREATE VIEW so QI/gudusoft can identify the target view
+                # and generate view→table lineage edges. MySQL's VIEW_DEFINITION
+                # stores only the SELECT body without the CREATE VIEW prefix.
+                attrs["definition"] = (
+                    f"CREATE OR REPLACE VIEW {table_name} AS {view_body}"
+                )
+            else:
+                attrs["definition"] = ""
             attrs["description"] = "VIEW"
 
         # Source timestamps
