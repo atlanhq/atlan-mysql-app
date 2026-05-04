@@ -125,6 +125,22 @@ class TestMySQLAppMappers:
         )
         assert result["attributes"]["description"] == "VIEW"
         assert "rowCount" not in result["attributes"]
+        # QI reads defaultCatalogName/defaultSchemaName from top-level entity fields
+        # to write them to success.json rows for lineage-app catalog resolution.
+        assert result["defaultCatalogName"] == "def"
+        assert result["defaultSchemaName"] == "mydb"
+
+    def test_map_table_table_has_no_default_catalog_fields(self, app, connection_qn):
+        """Tables must NOT have defaultCatalogName — only views need it for QI."""
+        record = {
+            "table_catalog": "def",
+            "table_schema": "mydb",
+            "table_name": "users",
+            "table_kind": "BASE TABLE",
+        }
+        result = app.map_table(record, connection_qn)
+        assert "defaultCatalogName" not in result
+        assert "defaultSchemaName" not in result
 
     def test_map_table_system_view(self, app, connection_qn):
         record = {
