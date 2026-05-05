@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.30 (May 5, 2026)
+
+### Bug Fixes
+
+- **Fix double credential form rendering in workflow setup**: The PKL `agent-json` field used `Config.AgentSelector` (widget type `agent`), which caused the Atlan UI to render the entire credential form a second time below the direct credentials with "Store Credential Path" placeholders. Removing `agentConfigEntries` didn't help — the second form was triggered by the `agent` widget type itself. Replaced with a hidden `Config.TextInput` so `agent-json` is still passed to the workflow but doesn't trigger the duplicate UI rendering. SDR remains functional via the AE orchestrator populating `agent_json` directly.
+
 ## 0.4.29 (May 5, 2026)
 
 ### Bug Fixes
