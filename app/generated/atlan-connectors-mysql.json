@@ -140,15 +140,26 @@
               "grid": 4
             }
           },
-          "db_username": {
-            "type": "string",
-            "required": true,
+          "extra": {
+            "type": "object",
             "ui": {
-              "widget": "input",
-              "label": "Database User",
-              "hidden": false,
-              "placeholder": "MySQL username for IAM token auth",
-              "grid": 4
+              "widget": "nested",
+              "label": "",
+              "header": "Advanced",
+              "hidden": false
+            },
+            "properties": {
+              "username": {
+                "type": "string",
+                "required": true,
+                "ui": {
+                  "widget": "input",
+                  "label": "Database User",
+                  "hidden": false,
+                  "placeholder": "MySQL username for IAM token auth",
+                  "grid": 4
+                }
+              }
             }
           }
         }
@@ -173,15 +184,26 @@
               "grid": 4
             }
           },
-          "aws_role_arn": {
-            "type": "string",
-            "required": true,
+          "extra": {
+            "type": "object",
             "ui": {
-              "widget": "input",
-              "label": "IAM Role ARN",
-              "hidden": false,
-              "placeholder": "arn:aws:iam::123456789012:role/MyRole",
-              "grid": 8
+              "widget": "nested",
+              "label": "",
+              "header": "Advanced",
+              "hidden": false
+            },
+            "properties": {
+              "aws_role_arn": {
+                "type": "string",
+                "required": true,
+                "ui": {
+                  "widget": "input",
+                  "label": "IAM Role ARN",
+                  "hidden": false,
+                  "placeholder": "arn:aws:iam::123456789012:role/MyRole",
+                  "grid": 8
+                }
+              }
             }
           }
         }

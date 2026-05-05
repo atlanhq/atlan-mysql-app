@@ -101,16 +101,13 @@ class SQLClient(AsyncBaseSQLClient):
         """
         extra = parse_credentials_extra(self.credentials)
 
-        # Legacy marketplace (nestedValue: false): username=access_key, password=secret_key
-        # New PKL form: aws_access_key_id / aws_secret_access_key at top level
-        aws_access_key_id = self.credentials.get(
-            "aws_access_key_id"
-        ) or self.credentials.get("username")
-        aws_secret_access_key = self.credentials.get(
-            "aws_secret_access_key"
-        ) or self.credentials.get("password")
-        # MySQL DB user: new PKL form uses db_username, legacy uses extra.username
-        user = self.credentials.get("db_username") or extra.get("username")
+        # Legacy marketplace mapping (matches PKL form using extraFields):
+        #   credentials.username        = AWS access key ID
+        #   credentials.password        = AWS secret access key
+        #   credentials.extra.username  = MySQL database user
+        aws_access_key_id = self.credentials.get("username")
+        aws_secret_access_key = self.credentials.get("password")
+        user = extra.get("username")
         host = self.credentials.get("host")
         port = self.credentials.get("port")
 
@@ -187,23 +184,16 @@ class SQLClient(AsyncBaseSQLClient):
             CommonError: If required credentials (aws_role_arn) are missing.
         """
         extra = parse_credentials_extra(self.credentials)
-        # New PKL form puts aws_role_arn at top level; legacy uses extra.aws_role_arn
-        aws_role_arn = extra.get("aws_role_arn") or self.credentials.get("aws_role_arn")
-        external_id = (
-            extra.get("aws_external_id")
-            or self.credentials.get("aws_external_id")
-            or None
-        )
-        # AWS credentials optional — new PKL uses top-level, legacy uses extra.*
-        aws_access_key_id = extra.get("aws_access_key_id") or self.credentials.get(
-            "aws_access_key_id"
-        )
-        aws_secret_access_key = extra.get(
-            "aws_secret_access_key"
-        ) or self.credentials.get("aws_secret_access_key")
-        username = self.credentials.get(
-            "username"
-        )  # MySQL DB user (correct in both old and new)
+        # Legacy marketplace mapping (matches PKL form using extraFields):
+        #   credentials.username             = MySQL database user
+        #   credentials.extra.aws_role_arn   = IAM role ARN
+        #   credentials.extra.aws_external_id (optional) = STS external ID
+        #   credentials.extra.aws_access_key_id / aws_secret_access_key (optional)
+        aws_role_arn = extra.get("aws_role_arn")
+        external_id = extra.get("aws_external_id") or None
+        aws_access_key_id = extra.get("aws_access_key_id")
+        aws_secret_access_key = extra.get("aws_secret_access_key")
+        username = self.credentials.get("username")  # MySQL DB user
         host = self.credentials.get("host")
         port = self.credentials.get("port")
         region = self._extract_region_from_hostname(host)
