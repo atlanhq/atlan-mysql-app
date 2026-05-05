@@ -5,6 +5,7 @@ Extends SqlApp with MySQL-specific SQL queries and asset mappers.
 
 from __future__ import annotations
 
+import json
 import math
 import os
 import time
@@ -12,6 +13,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 import pandas as pd
+from application_sdk.app.task import task
 from application_sdk.contracts.base import Output
 from application_sdk.execution._temporal.activity_utils import get_object_store_prefix
 from application_sdk.templates.contracts.base_metadata_extraction import UploadInput
@@ -33,6 +35,12 @@ from app.handlers.mysql import (  # noqa: F401 — SDK discovers {AppClass}Handl
 _S3_BUCKET = os.environ.get("S3_BUCKET", "")
 
 
+class BuildQiInputOutput(Output):
+    """Output from build_qi_input — number of SQL-bearing entities written."""
+
+    entity_count: int = 0
+
+
 class MySQLExtractionOutput(Output):
     """Extended extraction output for MySQL — includes lineage pipeline prefixes.
 
@@ -49,7 +57,12 @@ class MySQLExtractionOutput(Output):
     publish_state_prefix: str = ""
     current_state_prefix: str = ""
 
-    # QI inputs/outputs
+    # QI inputs/outputs — point to table/ only (not full transformed/) so QI
+    # only processes entity files that have SQL definitions (views). Passing the
+    # full transformed/ prefix creates io_pairs for column/database/schema too;
+    # parse_queries returns 0 results for those and newer QI workers skip writing
+    # the output file, causing postprocess to 404.
+    qi_input_prefix: str = ""
     view_lineage_output_prefix: str = ""
 
     # Lineage-app inputs/outputs
@@ -475,6 +488,52 @@ class MySQLApp(SqlApp):
             "customAttributes": {},
         }
 
+    @task(timeout_seconds=300, heartbeat_timeout_seconds=30, auto_heartbeat_seconds=15)
+    async def build_qi_input(self, input: TransformInput) -> BuildQiInputOutput:
+        """Merge View + Procedure entities into transformed/qi-input/entities.json.
+
+        QI's postprocess activity fails with 404 when parse_queries writes no
+        output file for a zero-query chunk (QI regression in newer workers).
+        Pointing QI at the full transformed/ prefix creates io_pairs for
+        column/database/schema too — none have SQL, so their output files are
+        never written.
+
+        This activity collects ONLY entities that carry a ``definition`` field
+        (View from table/entities.json and Procedure from
+        extras-procedure/entities.json) and writes them to
+        qi-input/entities.json, giving QI exactly one io_pair with real SQL.
+        """
+        output_path = self._resolve_output_path(input)
+        if not output_path:
+            return BuildQiInputOutput()
+
+        transformed = Path(output_path) / "transformed"
+        qi_dir = transformed / "qi-input"
+        qi_dir.mkdir(parents=True, exist_ok=True)
+
+        sources = [
+            transformed / "table" / "entities.json",
+            transformed / "extras-procedure" / "entities.json",
+        ]
+
+        count = 0
+        with open(qi_dir / "entities.json", "wb") as out:
+            for src in sources:
+                if not src.exists():
+                    continue
+                for line in src.read_bytes().splitlines():
+                    if not line.strip():
+                        continue
+                    try:
+                        entity = json.loads(line)
+                        attrs = entity.get("attributes", {})
+                        if attrs.get("definition"):
+                            out.write(line + b"\n")
+                            count += 1
+                    except (json.JSONDecodeError, AttributeError):
+                        pass
+        return BuildQiInputOutput(entity_count=count)
+
     async def run(  # type: ignore[override]
         self, input: ExtractionInput
     ) -> MySQLExtractionOutput:
@@ -499,7 +558,12 @@ class MySQLApp(SqlApp):
                 TransformInput, input, cred_ref=cred_ref
             )
             await self.transform_procedures(transform_input)
-            # Upload extras-procedure entities separately — super().run() uploads
+            # Merge View + Procedure entities into qi-input/ for QI to scan.
+            # QI postprocess 404s when parse_queries writes no output for empty
+            # chunks; building a dedicated qi-input/ with only SQL-bearing entities
+            # gives QI exactly one io_pair with actual definitions.
+            await self.build_qi_input(transform_input)
+            # Upload extras-procedure + qi-input entities — super().run() uploads
             # standard entities (database/schema/table/column) BEFORE procedures
             # are fetched, so we need a second upload pass for procedures.
             upload_input = UploadInput(output_path=input.output_path)
@@ -515,6 +579,9 @@ class MySQLApp(SqlApp):
             transformed_data_prefix=base_result.transformed_data_prefix,
             publish_state_prefix=base_result.publish_state_prefix,
             current_state_prefix=base_result.current_state_prefix,
+            qi_input_prefix=get_object_store_prefix(
+                os.path.join(base, "transformed", "qi-input")
+            ),
             view_lineage_output_prefix=get_object_store_prefix(
                 os.path.join(base, "view_lineage")
             ),
