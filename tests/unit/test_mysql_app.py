@@ -447,11 +447,6 @@ class TestMySQLAppRun:
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch.object(
-                MySQLApp,
-                "build_qi_input",
-                new=AsyncMock(return_value=MagicMock()),
-            ),
-            patch.object(
                 MySQLApp, "upload_to_atlan", new=AsyncMock(return_value=MagicMock())
             ),
             patch.object(MySQLApp, "_resolve_credential_ref", return_value=None),
