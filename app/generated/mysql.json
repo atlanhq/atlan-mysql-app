@@ -59,39 +59,7 @@
           "hidden": false,
           "help": "",
           "placeholder": "Agent JSON",
-          "grid": 8,
-          "agentConfigs": [
-            [
-              "atlan-connectors-mysql",
-              {
-                "properties": {
-                  "agent-type": {
-                    "type": "string",
-                    "ui": {
-                      "hidden": true
-                    }
-                  },
-                  "basic": {
-                    "properties": {
-                      "username": {
-                        "default": "",
-                        "ui": {
-                          "placeholder": "Store Credential Path"
-                        }
-                      },
-                      "password": {
-                        "default": "",
-                        "ui": {
-                          "widget": "",
-                          "placeholder": "Store Credential Path"
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            ]
-          ]
+          "grid": 8
         }
       },
       "connection": {
