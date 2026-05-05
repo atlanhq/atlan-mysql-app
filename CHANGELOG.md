@@ -2,6 +2,15 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.29 (May 5, 2026)
+
+### Bug Fixes
+
+- **Fix IAM User auth**: PKL form had wrong field names — `aws_access_key_id`/`aws_secret_access_key` went to `credentials.*` but client reads `credentials["username"]` (access key) and `credentials["password"]` (secret key). Fixed PKL to use `username`/`password` for AWS credentials and `db_username` for the MySQL database user. Client updated to read `db_username` as fallback alongside legacy `extra.username`.
+- **Fix IAM Role auth**: PKL stored `aws_role_arn` at `credentials["aws_role_arn"]` but client only checked `extra["aws_role_arn"]`. Client now also checks `credentials.get("aws_role_arn")` as fallback.
+- **Fix SDR basic auth**: agent_json passes credentials as `basic.username`/`basic.password` (dot notation). The `load()` method now flattens these to `username`/`password` before passing to the base SQL client.
+- **Remove unused `aws_region` field**: Region is auto-extracted from the RDS hostname (e.g. `*.ap-south-1.rds.amazonaws.com`); explicit field was redundant.
+
 ## 0.4.28 (May 5, 2026)
 
 ### New Features
