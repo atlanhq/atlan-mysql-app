@@ -51,14 +51,14 @@
         }
       },
       "agent-json": {
-        "type": "object",
+        "type": "string",
         "required": false,
         "ui": {
-          "widget": "agent",
+          "widget": "input",
           "label": "",
-          "hidden": false,
+          "hidden": true,
           "help": "",
-          "placeholder": "Agent JSON",
+          "placeholder": "",
           "grid": 8
         }
       },
