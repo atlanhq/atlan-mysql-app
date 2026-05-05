@@ -39,6 +39,44 @@ credentialAuthOptions {
       new FieldSpec { name = "password"; sensitive = true; displayName = "Password"; placeholder = "Password"; width = 4 }
     }
   }
+  ["iam_user"] = new AuthOption {
+    label = "IAM User"
+    fields {
+      new FieldSpec { name = "username"; displayName = "Database User"; placeholder = "Database username for IAM token auth"; width = 4 }
+      new FieldSpec { name = "aws_access_key_id"; displayName = "AWS Access Key ID"; placeholder = "AKIA..."; width = 4 }
+      new FieldSpec { name = "aws_secret_access_key"; sensitive = true; displayName = "AWS Secret Access Key"; placeholder = "Secret key"; width = 4 }
+      new FieldSpec { name = "aws_region"; displayName = "AWS Region"; placeholder = "us-east-1"; width = 4 }
+    }
+  }
+  ["iam_role"] = new AuthOption {
+    label = "IAM Role"
+    fields {
+      new FieldSpec { name = "username"; displayName = "Database User"; placeholder = "Database username for IAM token auth"; width = 4 }
+      new FieldSpec { name = "aws_role_arn"; displayName = "IAM Role ARN"; placeholder = "arn:aws:iam::123456789012:role/MyRole"; width = 8 }
+      new FieldSpec { name = "aws_region"; displayName = "AWS Region"; placeholder = "us-east-1"; width = 4 }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Agent config — passed to AgentSelector widget for SDR extraction
+// ---------------------------------------------------------------------------
+
+local mysqlAgentConfig: Listing = new {
+  new Listing {
+    "atlan-connectors-mysql"
+    new Mapping {
+      ["properties"] = new Mapping {
+        ["agent-type"] = new Mapping { ["type"] = "string"; ["ui"] = new Mapping { ["hidden"] = true } }
+        ["basic"] = new Mapping {
+          ["properties"] = new Mapping {
+            ["username"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "Store Credential Path" } }
+            ["password"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["widget"] = ""; ["placeholder"] = "Store Credential Path" } }
+          }
+        }
+      }
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -49,10 +87,31 @@ uiConfig {
   tasks {
     ["Credential"] {
       inputs {
+        ["extraction-method"] = new Config.ConditionalInput {
+          title = "Extraction method"
+          helpText = "Determines the method the package will use to extract metadata."
+          baseEnum { "direct" }
+          baseEnumNames { "Direct" }
+          default = "direct"
+          required = true
+          conditions {
+            new Config.Condition {
+              property = "labFlag"
+              value = "SECURE_AGENT_EXTRACTION"
+              overrideEnum { "direct"; "agent" }
+              overrideEnumNames { "Direct"; "Agent" }
+            }
+          }
+        }
         ["credential-guid"] = new Config.CredentialInput {
           title = ""
           credType = "atlan-connectors-mysql"
           placeholderText = "Credential Guid"
+        }
+        ["agent-json"] = new Config.AgentSelector {
+          title = ""
+          placeholderText = "Agent JSON"
+          agentConfigEntries = mysqlAgentConfig
         }
       }
     }
@@ -73,7 +132,6 @@ uiConfig {
           credentialType = "atlan-connectors-mysql"
           cred = "credential-guid"
           excludePatterns = List("^performance_schema$", "^information_schema.*", "^mysql$", "^sys$", "^METRICS_SCHEMA.*")
-          databaseExcludePatterns = List()
           width = 4
         }
         ["exclude-filter"] = new Config.SqlTree {
@@ -83,7 +141,6 @@ uiConfig {
           credentialType = "atlan-connectors-mysql"
           cred = "credential-guid"
           excludePatterns = List("^performance_schema$", "^information_schema.*", "^mysql$", "^sys$", "^METRICS_SCHEMA.*")
-          databaseExcludePatterns = List()
           width = 4
         }
         ["exclude-table-regex"] = new Config.TextInput {
@@ -99,6 +156,12 @@ uiConfig {
           }
         }
       }
+    }
+  }
+  rules {
+    new Config.UIRule {
+      whenInputs { ["extraction-method"] = "direct" }
+      required { "credential-guid"; "include-filter"; "exclude-filter"; "preflight-check" }
     }
   }
 }
