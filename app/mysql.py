@@ -60,12 +60,6 @@ class MySQLExtractionOutput(Output):
     # Forwarded to QI + lineage-app via manifest JSONPath
     storage_bucket: str = ""
 
-    # Persistent connection-specific SQLite catalog cache path for lineage-app.
-    # Pattern matches all working connectors: connection-cache/{connection_qn}.sqlite
-    # Without a specific file path, lineage-app can't persist the catalog between
-    # runs and transform_and_generate always gets valid_hash_count=0.
-    connection_cache_path: str = ""
-
 
 # Read SQL files at module level
 _SQL_DIR = Path(__file__).parent / "sql"
@@ -528,5 +522,4 @@ class MySQLApp(SqlApp):
                 os.path.join(base, "lineage_current_state")
             ),
             storage_bucket=_S3_BUCKET,
-            connection_cache_path=f"connection-cache/{connection_qn}.sqlite",
         )
