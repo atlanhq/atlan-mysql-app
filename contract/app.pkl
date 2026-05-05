@@ -39,6 +39,116 @@ credentialAuthOptions {
       new FieldSpec { name = "password"; sensitive = true; displayName = "Password"; placeholder = "Password"; width = 4 }
     }
   }
+  ["iam_user"] = new AuthOption {
+    label = "IAM User"
+    fields {
+      new FieldSpec { name = "username"; displayName = "Database User"; placeholder = "Database username for IAM token auth"; width = 4 }
+      new FieldSpec { name = "aws_access_key_id"; displayName = "AWS Access Key ID"; placeholder = "AKIA..."; width = 4 }
+      new FieldSpec { name = "aws_secret_access_key"; sensitive = true; displayName = "AWS Secret Access Key"; placeholder = "Secret key"; width = 4 }
+      new FieldSpec { name = "aws_region"; displayName = "AWS Region"; placeholder = "us-east-1"; width = 4 }
+    }
+  }
+  ["iam_role"] = new AuthOption {
+    label = "IAM Role"
+    fields {
+      new FieldSpec { name = "username"; displayName = "Database User"; placeholder = "Database username for IAM token auth"; width = 4 }
+      new FieldSpec { name = "aws_role_arn"; displayName = "IAM Role ARN"; placeholder = "arn:aws:iam::123456789012:role/MyRole"; width = 8 }
+      new FieldSpec { name = "aws_region"; displayName = "AWS Region"; placeholder = "us-east-1"; width = 4 }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Lineage pipeline — 5-node DAG: extract → qi+publish (parallel) → lineage-app → lineage-publish
+// ---------------------------------------------------------------------------
+
+extraNodes {
+  ["qi"] = new DAGNode {
+    displayName = "Parse View & Procedure Lineage"
+    workflowType = "QueryIntelligenceWorkflow"
+    appName = "automation-engine"
+    taskQueue = "atlan-query-intelligence-{deployment_name}"
+    args {
+      ["connection_qualified_name"] = "$.extract.outputs.connection_qualified_name"
+      ["vendor_name"] = "mysql"
+      ["sql_key"] = "attributes.definition"
+      ["catalog_key"] = "attributes.databaseName"
+      ["schema_key"] = "attributes.schemaName"
+      ["timestamp_key"] = ""
+      ["mine_output_type"] = "json"
+      ["parsing_mode"] = "competitive"
+      ["input_prefix"] = "$.extract.outputs.transformed_data_prefix"
+      ["output_prefix"] = "$.extract.outputs.view_lineage_output_prefix"
+    }
+    dependsOn { "extract" }
+  }
+  ["publish"] = new PublishNode {
+    args {
+      ["connection_cache_enabled"] = true
+      ["connection_cache_via_app_enabled"] = true
+      ["current_state_via_app_enabled"] = true
+    }
+  }
+  ["lineage-app"] = new DAGNode {
+    displayName = "Build Lineage Entities"
+    workflowType = "LineageWorkflow"
+    appName = "automation-engine"
+    taskQueue = "atlan-lineage-{deployment_name}"
+    args {
+      ["connection_qualified_name"] = "$.extract.outputs.connection_qualified_name"
+      ["connector_name"] = "mysql"
+      ["session_key"] = "view-lineage"
+      ["sql_unquoted_case"] = "lower"
+      ["ignore_all_case"] = false
+      ["input_path"] = ""
+      ["parsed_views_path"] = "$.extract.outputs.view_lineage_output_prefix"
+      ["lineage_output_path"] = "$.extract.outputs.lineage_stage_prefix"
+      ["cache_path"] = "connection-cache"
+      ["file_type"] = "json"
+    }
+    dependsOn { "qi"; "publish" }
+  }
+  ["lineage-publish"] = new DAGNode {
+    displayName = "Publish Lineage to Atlas"
+    workflowType = "PublishWorkflow"
+    appName = "publish"
+    taskQueue = "atlan-publish-{deployment_name}"
+    args {
+      ["connection_qualified_name"] = "$.extract.outputs.connection_qualified_name"
+      ["transformed_data_prefix"] = "$.extract.outputs.lineage_stage_prefix"
+      ["publish_state_prefix"] = "$.extract.outputs.lineage_publish_state_prefix"
+      ["current_state_prefix"] = "$.extract.outputs.lineage_current_state_prefix"
+      ["connection_creation_enabled"] = false
+      ["executor_enabled"] = true
+      ["cache_namespace"] = "lineage"
+      ["connection_cache_enabled"] = true
+      ["connection_cache_via_app_enabled"] = true
+      ["current_state_via_app_enabled"] = true
+      ["connection_entity"] = "{{connection}}"
+    }
+    dependsOn { "lineage-app" }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Agent config — passed to AgentSelector widget for SDR extraction
+// ---------------------------------------------------------------------------
+
+local mysqlAgentConfig: Listing = new {
+  new Listing {
+    "atlan-connectors-mysql"
+    new Mapping {
+      ["properties"] = new Mapping {
+        ["agent-type"] = new Mapping { ["type"] = "string"; ["ui"] = new Mapping { ["hidden"] = true } }
+        ["basic"] = new Mapping {
+          ["properties"] = new Mapping {
+            ["username"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "Store Credential Path" } }
+            ["password"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["widget"] = ""; ["placeholder"] = "Store Credential Path" } }
+          }
+        }
+      }
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -49,10 +159,31 @@ uiConfig {
   tasks {
     ["Credential"] {
       inputs {
+        ["extraction-method"] = new Config.ConditionalInput {
+          title = "Extraction method"
+          helpText = "Determines the method the package will use to extract metadata."
+          baseEnum { "direct" }
+          baseEnumNames { "Direct" }
+          default = "direct"
+          required = true
+          conditions {
+            new Config.Condition {
+              property = "labFlag"
+              value = "SECURE_AGENT_EXTRACTION"
+              overrideEnum { "direct"; "agent" }
+              overrideEnumNames { "Direct"; "Agent" }
+            }
+          }
+        }
         ["credential-guid"] = new Config.CredentialInput {
           title = ""
           credType = "atlan-connectors-mysql"
           placeholderText = "Credential Guid"
+        }
+        ["agent-json"] = new Config.AgentSelector {
+          title = ""
+          placeholderText = "Agent JSON"
+          agentConfigEntries = mysqlAgentConfig
         }
       }
     }
@@ -73,7 +204,6 @@ uiConfig {
           credentialType = "atlan-connectors-mysql"
           cred = "credential-guid"
           excludePatterns = List("^performance_schema$", "^information_schema.*", "^mysql$", "^sys$", "^METRICS_SCHEMA.*")
-          databaseExcludePatterns = List()
           width = 4
         }
         ["exclude-filter"] = new Config.SqlTree {
@@ -83,7 +213,6 @@ uiConfig {
           credentialType = "atlan-connectors-mysql"
           cred = "credential-guid"
           excludePatterns = List("^performance_schema$", "^information_schema.*", "^mysql$", "^sys$", "^METRICS_SCHEMA.*")
-          databaseExcludePatterns = List()
           width = 4
         }
         ["exclude-table-regex"] = new Config.TextInput {
@@ -99,6 +228,12 @@ uiConfig {
           }
         }
       }
+    }
+  }
+  rules {
+    new Config.UIRule {
+      whenInputs { ["extraction-method"] = "direct" }
+      required { "credential-guid"; "include-filter"; "exclude-filter"; "preflight-check" }
     }
   }
 }
