@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.27 (May 5, 2026)
+
+### Improvements
+
+- **Holistic `qi-input/` directory for QI**: Replaced the hardcoded `transformed/table/` workaround with a dedicated `build_qi_input` activity that collects ALL entities with `definition` fields (Views from `table/entities.json` + Procedures from `extras-procedure/entities.json`) and writes them to `transformed/qi-input/entities.json`. QI now scans exactly one io_pair containing only SQL-bearing entities, eliminating empty chunks that cause postprocess 404s and making the approach future-proof (any new entity type with SQL definitions is automatically included).
+
 ## 0.4.26 (May 5, 2026)
 
 ### Bug Fixes
