@@ -2,12 +2,10 @@
 # To regenerate: make generate
 from __future__ import annotations
 
-from typing import Annotated, Any, ClassVar
+from typing import ClassVar
 
-from application_sdk.contracts.types import ConnectionRef, FileReference, MaxItems
 from application_sdk.credentials.ref import CredentialRef
 from application_sdk.templates.contracts import ExtractionInput
-from pydantic import Field
 
 
 class AppInputContract(ExtractionInput):
