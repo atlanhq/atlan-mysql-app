@@ -123,24 +123,13 @@
             "required": true,
             "ui": {
               "widget": "input",
-              "label": "Database User",
-              "hidden": false,
-              "placeholder": "Database username for IAM token auth",
-              "grid": 4
-            }
-          },
-          "aws_access_key_id": {
-            "type": "string",
-            "required": true,
-            "ui": {
-              "widget": "input",
               "label": "AWS Access Key ID",
               "hidden": false,
               "placeholder": "AKIA...",
               "grid": 4
             }
           },
-          "aws_secret_access_key": {
+          "password": {
             "type": "string",
             "required": true,
             "ui": {
@@ -151,14 +140,14 @@
               "grid": 4
             }
           },
-          "aws_region": {
+          "db_username": {
             "type": "string",
             "required": true,
             "ui": {
               "widget": "input",
-              "label": "AWS Region",
+              "label": "Database User",
               "hidden": false,
-              "placeholder": "us-east-1",
+              "placeholder": "MySQL username for IAM token auth",
               "grid": 4
             }
           }
@@ -180,7 +169,7 @@
               "widget": "input",
               "label": "Database User",
               "hidden": false,
-              "placeholder": "Database username for IAM token auth",
+              "placeholder": "MySQL username for IAM token auth",
               "grid": 4
             }
           },
@@ -193,17 +182,6 @@
               "hidden": false,
               "placeholder": "arn:aws:iam::123456789012:role/MyRole",
               "grid": 8
-            }
-          },
-          "aws_region": {
-            "type": "string",
-            "required": true,
-            "ui": {
-              "widget": "input",
-              "label": "AWS Region",
-              "hidden": false,
-              "placeholder": "us-east-1",
-              "grid": 4
             }
           }
         }
