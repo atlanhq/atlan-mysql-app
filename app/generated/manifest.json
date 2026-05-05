@@ -24,6 +24,31 @@
         }
       }
     },
+    "qi": {
+      "activity_name": "execute_workflow",
+      "activity_display_name": "Parse View & Procedure Lineage",
+      "app_name": "automation-engine",
+      "inputs": {
+        "workflow_type": "QueryIntelligenceWorkflow",
+        "app_name": "automation-engine",
+        "task_queue": "atlan-query-intelligence-{deployment_name}",
+        "args": {
+          "connection_qualified_name": "$.extract.outputs.connection_qualified_name",
+          "vendor_name": "mysql",
+          "sql_key": "attributes.definition",
+          "catalog_key": "attributes.databaseName",
+          "schema_key": "attributes.schemaName",
+          "timestamp_key": "",
+          "mine_output_type": "json",
+          "parsing_mode": "competitive",
+          "input_prefix": "$.extract.outputs.transformed_data_prefix",
+          "output_prefix": "$.extract.outputs.view_lineage_output_prefix"
+        }
+      },
+      "depends_on": {
+        "node_id": "extract"
+      }
+    },
     "publish": {
       "activity_name": "execute_workflow",
       "activity_display_name": "Publish to Atlas",
@@ -39,11 +64,72 @@
           "current_state_prefix": "$.extract.outputs.current_state_prefix",
           "connection_creation_enabled": true,
           "executor_enabled": true,
-          "connection_entity": "{{connection}}"
+          "connection_entity": "{{connection}}",
+          "connection_cache_enabled": true,
+          "connection_cache_via_app_enabled": true
         }
       },
       "depends_on": {
         "node_id": "extract"
+      }
+    },
+    "lineage-app": {
+      "activity_name": "execute_workflow",
+      "activity_display_name": "Build Lineage Entities",
+      "app_name": "automation-engine",
+      "inputs": {
+        "workflow_type": "LineageWorkflow",
+        "app_name": "automation-engine",
+        "task_queue": "atlan-lineage-{deployment_name}",
+        "args": {
+          "connection_qualified_name": "$.extract.outputs.connection_qualified_name",
+          "connector_name": "mysql",
+          "session_key": "view-lineage",
+          "sql_unquoted_case": "lower",
+          "ignore_all_case": false,
+          "input_path": "",
+          "parsed_views_path": "$.extract.outputs.view_lineage_output_prefix",
+          "lineage_output_path": "$.extract.outputs.lineage_stage_prefix",
+          "cache_path": "connection-cache",
+          "file_type": "json"
+        }
+      },
+      "depends_on": {
+        "and_conditions": [
+          {
+            "node_id": "qi",
+            "tag": "success"
+          },
+          {
+            "node_id": "publish",
+            "tag": "success"
+          }
+        ]
+      }
+    },
+    "lineage-publish": {
+      "activity_name": "execute_workflow",
+      "activity_display_name": "Publish Lineage to Atlas",
+      "app_name": "publish",
+      "inputs": {
+        "workflow_type": "PublishWorkflow",
+        "app_name": "publish",
+        "task_queue": "atlan-publish-{deployment_name}",
+        "args": {
+          "connection_qualified_name": "$.extract.outputs.connection_qualified_name",
+          "transformed_data_prefix": "$.extract.outputs.lineage_stage_prefix",
+          "publish_state_prefix": "$.extract.outputs.lineage_publish_state_prefix",
+          "current_state_prefix": "$.extract.outputs.lineage_current_state_prefix",
+          "connection_creation_enabled": false,
+          "executor_enabled": true,
+          "cache_namespace": "lineage",
+          "connection_cache_enabled": true,
+          "connection_cache_via_app_enabled": true,
+          "connection_entity": "{{connection}}"
+        }
+      },
+      "depends_on": {
+        "node_id": "lineage-app"
       }
     }
   }
