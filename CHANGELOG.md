@@ -2,6 +2,14 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.28 (May 5, 2026)
+
+### New Features
+
+- **SDR / agent extraction support**: Added `extraction-method` ConditionalInput and `agent-json` AgentSelector to the PKL contract (MSSQL/Teradata pattern). Agent mode shows when the `SECURE_AGENT_EXTRACTION` lab flag is enabled.
+- **IAM auth in UI**: Added `iam_user` and `iam_role` auth options to the credential form — code already supported these, now the UI exposes them.
+- **Toolkit `0.2.9` → `0.9.0`**: Required for `AgentSelector` and `ConditionalInput` type compatibility; aligns with MSSQL.
+
 ## 0.4.25 (May 5, 2026)
 
 ### Bug Fixes
