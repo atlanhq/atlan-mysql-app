@@ -86,6 +86,7 @@ extraNodes {
     args {
       ["connection_cache_enabled"] = true
       ["connection_cache_via_app_enabled"] = true
+      ["current_state_via_app_enabled"] = true
     }
   }
   ["lineage-app"] = new DAGNode {
@@ -122,6 +123,7 @@ extraNodes {
       ["cache_namespace"] = "lineage"
       ["connection_cache_enabled"] = true
       ["connection_cache_via_app_enabled"] = true
+      ["current_state_via_app_enabled"] = true
       ["connection_entity"] = "{{connection}}"
     }
     dependsOn { "lineage-app" }
