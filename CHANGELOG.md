@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.31 (May 6, 2026)
+
+### Bug Fixes
+
+- **Fix IAM User / IAM Role auth via credential form**: Previous attempt added `db_username` (IAM User) and `aws_role_arn` (IAM Role) as top-level fields in the PKL credential form, but the Atlan credential UI silently drops custom top-level fields — only `host`/`port`/`username`/`password`/`extra` are forwarded. Switched to the `extraFields { ... }` block on each `AuthOption`, which renders nested credential fields and serializes them into `extra.*` (matching the legacy Argo MySQL form). Verified payload structure: IAM User now sends `extra.username` (MySQL DB user), IAM Role now sends `extra.aws_role_arn`. Client code reverted to the simpler legacy reads (no top-level fallbacks needed).
+
 ## 0.4.30 (May 5, 2026)
 
 ### Bug Fixes

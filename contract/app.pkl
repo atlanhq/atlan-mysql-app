@@ -42,19 +42,23 @@ credentialAuthOptions {
   ["iam_user"] = new AuthOption {
     label = "IAM User"
     fields {
-      // username=AWS access key, password=AWS secret key (legacy marketplace mapping)
+      // Legacy mapping: username=AWS access key, password=AWS secret (top-level)
       new FieldSpec { name = "username"; displayName = "AWS Access Key ID"; placeholder = "AKIA..."; width = 4 }
       new FieldSpec { name = "password"; sensitive = true; displayName = "AWS Secret Access Key"; placeholder = "Secret key"; width = 4 }
-      // MySQL database user — stored as db_username, client reads credentials.db_username
-      new FieldSpec { name = "db_username"; displayName = "Database User"; placeholder = "MySQL username for IAM token auth"; width = 4 }
+    }
+    extraFields {
+      // MySQL DB user goes into extra.username (legacy structure — read by client.get_iam_user_token)
+      new FieldSpec { name = "username"; displayName = "Database User"; placeholder = "MySQL username for IAM token auth"; width = 4 }
     }
   }
   ["iam_role"] = new AuthOption {
     label = "IAM Role"
     fields {
-      // username = MySQL DB user (client reads credentials.username for IAM role)
+      // Legacy mapping: username = MySQL DB user (top-level)
       new FieldSpec { name = "username"; displayName = "Database User"; placeholder = "MySQL username for IAM token auth"; width = 4 }
-      // aws_role_arn at top level — client now checks credentials.aws_role_arn as well as extra.aws_role_arn
+    }
+    extraFields {
+      // IAM Role ARN goes into extra.aws_role_arn (legacy structure)
       new FieldSpec { name = "aws_role_arn"; displayName = "IAM Role ARN"; placeholder = "arn:aws:iam::123456789012:role/MyRole"; width = 8 }
     }
   }
