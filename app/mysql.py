@@ -49,7 +49,12 @@ class MySQLExtractionOutput(Output):
     publish_state_prefix: str = ""
     current_state_prefix: str = ""
 
-    # QI inputs/outputs
+    # QI inputs/outputs — point to table/ only (not full transformed/) so QI
+    # only processes entity files that have SQL definitions (views). Passing the
+    # full transformed/ prefix creates io_pairs for column/database/schema too;
+    # parse_queries returns 0 results for those and newer QI workers skip writing
+    # the output file, causing postprocess to 404.
+    qi_input_prefix: str = ""
     view_lineage_output_prefix: str = ""
 
     # Lineage-app inputs/outputs
@@ -515,6 +520,9 @@ class MySQLApp(SqlApp):
             transformed_data_prefix=base_result.transformed_data_prefix,
             publish_state_prefix=base_result.publish_state_prefix,
             current_state_prefix=base_result.current_state_prefix,
+            qi_input_prefix=get_object_store_prefix(
+                os.path.join(base, "transformed", "table")
+            ),
             view_lineage_output_prefix=get_object_store_prefix(
                 os.path.join(base, "view_lineage")
             ),
