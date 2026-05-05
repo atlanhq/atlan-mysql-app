@@ -161,9 +161,9 @@ uiConfig {
           credType = "atlan-connectors-mysql"
           placeholderText = "Credential Guid"
         }
-        ["agent-json"] = new Config.AgentSelector {
+        ["agent-json"] = new Config.TextInput {
           title = ""
-          placeholderText = "Agent JSON"
+          hide = true
         }
       }
     }
