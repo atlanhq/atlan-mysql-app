@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.26 (May 5, 2026)
+
+### Bug Fixes
+
+- **Fix QI `postprocess` 404 after new QI worker update**: Newer QI worker no longer writes an empty output file when a chunk has 0 SQL queries; `postprocess` then 404s trying to download the missing file. QI was scanning the full `transformed/` prefix, creating 4 io_pairs (column/database/schema/table), but only `table/` has views with SQL. Added `qi_input_prefix` pointing to `transformed/table/` only — QI creates exactly 1 io_pair with actual SQL, eliminating empty chunks.
+
 ## 0.4.25 (May 5, 2026)
 
 ### Bug Fixes

@@ -41,7 +41,7 @@
           "timestamp_key": "",
           "mine_output_type": "json",
           "parsing_mode": "competitive",
-          "input_prefix": "$.extract.outputs.transformed_data_prefix",
+          "input_prefix": "$.extract.outputs.qi_input_prefix",
           "output_prefix": "$.extract.outputs.view_lineage_output_prefix"
         }
       },
