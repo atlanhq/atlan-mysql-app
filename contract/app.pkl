@@ -133,27 +133,6 @@ extraNodes {
 }
 
 // ---------------------------------------------------------------------------
-// Agent config — passed to AgentSelector widget for SDR extraction
-// ---------------------------------------------------------------------------
-
-local mysqlAgentConfig: Listing = new {
-  new Listing {
-    "atlan-connectors-mysql"
-    new Mapping {
-      ["properties"] = new Mapping {
-        ["agent-type"] = new Mapping { ["type"] = "string"; ["ui"] = new Mapping { ["hidden"] = true } }
-        ["basic"] = new Mapping {
-          ["properties"] = new Mapping {
-            ["username"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "Store Credential Path" } }
-            ["password"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["widget"] = ""; ["placeholder"] = "Store Credential Path" } }
-          }
-        }
-      }
-    }
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Workflow config
 // ---------------------------------------------------------------------------
 
@@ -182,10 +161,9 @@ uiConfig {
           credType = "atlan-connectors-mysql"
           placeholderText = "Credential Guid"
         }
-        ["agent-json"] = new Config.AgentSelector {
+        ["agent-json"] = new Config.TextInput {
           title = ""
-          placeholderText = "Agent JSON"
-          agentConfigEntries = mysqlAgentConfig
+          hide = true
         }
       }
     }
