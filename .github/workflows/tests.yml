@@ -190,13 +190,14 @@ jobs:
             echo "**$SUMMARY**" >> $GITHUB_STEP_SUMMARY
           fi
 
-      - name: Tail app log on failure (helps debug workflow activity errors)
+      - name: Capture app log on failure (helps debug workflow activity errors)
         if: failure()
         run: |
+          cp /tmp/app.log ./app.log || true
           echo "## App log tail" >> $GITHUB_STEP_SUMMARY
-          echo '```' >> $GITHUB_STEP_SUMMARY
-          tail -200 /tmp/app.log 2>&1 | tee -a $GITHUB_STEP_SUMMARY || true
-          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "<pre>" >> $GITHUB_STEP_SUMMARY
+          tail -200 ./app.log 2>/dev/null >> $GITHUB_STEP_SUMMARY || true
+          echo "</pre>" >> $GITHUB_STEP_SUMMARY
 
       - uses: actions/upload-artifact@v4
         if: always()
@@ -204,7 +205,7 @@ jobs:
           name: e2e-results
           path: |
             junit-e2e.xml
-            /tmp/app.log
+            app.log
 
   # ── E2E on K8s (make test-e2e-remote) ──────────────────────────────
   # TODO: add K8s e2e tests via port-forward to vcluster
