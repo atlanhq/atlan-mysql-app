@@ -83,8 +83,6 @@ extraNodes {
     timestampKey = ""
     mineOutputType = "json"
     parsingMode = "competitive"
-    lakeProvider = "aws"
-    storageBucket = "$.extract.outputs.storage_bucket"
     inputPrefix = "$.extract.outputs.transformed_data_prefix"
     outputPrefix = "$.extract.outputs.view_lineage_output_prefix"
   }
