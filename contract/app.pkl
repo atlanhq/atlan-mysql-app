@@ -74,24 +74,19 @@ credentialAuthOptions {
 // ---------------------------------------------------------------------------
 
 extraNodes {
-  ["qi"] = new DAGNode {
+  ["qi"] = new QueryIntelligenceNode {
     displayName = "Parse View & Procedure Lineage"
-    workflowType = "QueryIntelligenceWorkflow"
-    appName = "automation-engine"
-    taskQueue = "atlan-query-intelligence-{deployment_name}"
-    args {
-      ["connection_qualified_name"] = "$.extract.outputs.connection_qualified_name"
-      ["vendor_name"] = "mysql"
-      ["sql_key"] = "attributes.definition"
-      ["catalog_key"] = "attributes.databaseName"
-      ["schema_key"] = "attributes.schemaName"
-      ["timestamp_key"] = ""
-      ["mine_output_type"] = "json"
-      ["parsing_mode"] = "competitive"
-      ["input_prefix"] = "$.extract.outputs.transformed_data_prefix"
-      ["output_prefix"] = "$.extract.outputs.view_lineage_output_prefix"
-    }
-    dependsOn { "extract" }
+    vendorName = "mysql"
+    sqlKey = "attributes.definition"
+    catalogKey = "attributes.databaseName"
+    schemaKey = "attributes.schemaName"
+    timestampKey = ""
+    mineOutputType = "json"
+    parsingMode = "competitive"
+    lakeProvider = "aws"
+    storageBucket = "$.extract.outputs.storage_bucket"
+    inputPrefix = "$.extract.outputs.transformed_data_prefix"
+    outputPrefix = "$.extract.outputs.view_lineage_output_prefix"
   }
   ["publish"] = new PublishNode {
     args {
@@ -100,44 +95,31 @@ extraNodes {
       ["current_state_via_app_enabled"] = true
     }
   }
-  ["lineage-app"] = new DAGNode {
-    displayName = "Build Lineage Entities"
-    workflowType = "LineageWorkflow"
-    appName = "automation-engine"
-    taskQueue = "atlan-lineage-{deployment_name}"
-    args {
-      ["connection_qualified_name"] = "$.extract.outputs.connection_qualified_name"
-      ["connector_name"] = "mysql"
-      ["session_key"] = "view-lineage"
-      ["sql_unquoted_case"] = "lower"
-      ["ignore_all_case"] = false
-      ["input_path"] = ""
-      ["parsed_views_path"] = "$.extract.outputs.view_lineage_output_prefix"
-      ["lineage_output_path"] = "$.extract.outputs.lineage_stage_prefix"
-      ["cache_path"] = "connection-cache"
-      ["file_type"] = "json"
+  ["lineage-app"] = new LineageNode {
+    connectorName = "mysql"
+    sqlUnquotedCase = "lower"
+    ignoreAllCase = false
+    dependsOn = null
+    dependsOnCondition = new DependencyCondition {
+      andConditions {
+        new DependencyCondition {
+          nodeId = "qi"
+          tag = "success"
+        }
+        new DependencyCondition {
+          nodeId = "publish"
+          tag = "success"
+        }
+      }
     }
-    dependsOn { "qi"; "publish" }
   }
-  ["lineage-publish"] = new DAGNode {
-    displayName = "Publish Lineage to Atlas"
-    workflowType = "PublishWorkflow"
-    appName = "publish"
-    taskQueue = "atlan-publish-{deployment_name}"
-    args {
-      ["connection_qualified_name"] = "$.extract.outputs.connection_qualified_name"
-      ["transformed_data_prefix"] = "$.extract.outputs.lineage_stage_prefix"
-      ["publish_state_prefix"] = "$.extract.outputs.lineage_publish_state_prefix"
-      ["current_state_prefix"] = "$.extract.outputs.lineage_current_state_prefix"
-      ["connection_creation_enabled"] = false
-      ["executor_enabled"] = true
-      ["cache_namespace"] = "lineage"
-      ["connection_cache_enabled"] = true
-      ["connection_cache_via_app_enabled"] = true
-      ["current_state_via_app_enabled"] = true
-      ["connection_entity"] = "{{connection}}"
+  ["lineage-publish"] = new LineagePublishNode {
+    waitForAssetPublish = false
+    dependsOn = null
+    dependsOnCondition = new DependencyCondition {
+      nodeId = "lineage-app"
+      tag = "success"
     }
-    dependsOn { "lineage-app" }
   }
 }
 
