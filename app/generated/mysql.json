@@ -170,7 +170,7 @@
         }
       },
       "include-filter": {
-        "type": "object",
+        "type": "conditional",
         "required": false,
         "ui": {
           "widget": "sqltree",
@@ -190,13 +190,28 @@
           ],
           "description": "Only selected databases and schemas will be extracted. Exclude takes precedence over include for common schemas."
         },
+        "default": "{}",
+        "conditions": [
+          {
+            "property": "extraction-method",
+            "value": "agent",
+            "ui": {
+              "widget": "input",
+              "label": "Include Filter",
+              "hidden": false,
+              "help": "Only selected databases and schemas will be extracted. Use the syntax shown in placeholder. Defaults to empty string. Syntax: {\"^db$\": [\"^schema$\"]}",
+              "placeholder": "{\"^db$\": [\"^schema$\"]}",
+              "grid": 4,
+              "feedback": true
+            }
+          }
+        ],
         "additionalProperties": {
           "type": "array"
-        },
-        "default": "{}"
+        }
       },
       "exclude-filter": {
-        "type": "object",
+        "type": "conditional",
         "required": false,
         "ui": {
           "widget": "sqltree",
@@ -216,10 +231,25 @@
           ],
           "description": "Selected schemas wont be extracted."
         },
+        "default": "{}",
+        "conditions": [
+          {
+            "property": "extraction-method",
+            "value": "agent",
+            "ui": {
+              "widget": "input",
+              "label": "Exclude Filter",
+              "hidden": false,
+              "help": "Selected databases and schemas will not be extracted. Use the syntax shown in placeholder. Defaults to empty string. Syntax: {\"^db$\": [\"^schema$\"]}",
+              "placeholder": "{\"^db$\": [\"^schema$\"]}",
+              "grid": 4,
+              "feedback": true
+            }
+          }
+        ],
         "additionalProperties": {
           "type": "array"
-        },
-        "default": "{}"
+        }
       },
       "exclude-table-regex": {
         "type": "string",
@@ -234,23 +264,47 @@
         }
       },
       "preflight-check": {
-        "type": "string",
+        "type": "conditional",
         "required": false,
         "ui": {
           "widget": "sageV2",
           "label": "",
           "hidden": false,
           "help": "",
-          "grid": 8,
-          "config": [
-            {
-              "id": 1,
-              "name": "preflightCheck",
-              "title": "MySQL instance preflight check",
-              "loaderText": "Checking MySQL instance accessibility and permissions"
+          "grid": 8
+        },
+        "conditions": [
+          {
+            "property": "extraction-method",
+            "value": "direct",
+            "ui": {
+              "widget": "sageV2",
+              "label": "",
+              "hidden": false,
+              "help": "",
+              "grid": 8,
+              "config": [
+                {
+                  "id": 1,
+                  "name": "preflightCheck",
+                  "title": "MySQL instance preflight check",
+                  "loaderText": "Checking MySQL instance accessibility and permissions"
+                }
+              ]
             }
-          ]
-        }
+          },
+          {
+            "property": "extraction-method",
+            "value": "agent",
+            "ui": {
+              "widget": "sageV2",
+              "label": "",
+              "hidden": true,
+              "help": "",
+              "grid": 8
+            }
+          }
+        ]
       }
     },
     "anyOf": [
