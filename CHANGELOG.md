@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.36 (May 7, 2026)
+
+### Bug Fixes
+
+- **Bump application-sdk to pick up SDR credential resolution fix**: `SqlApp._init_sql_client` was skipping credential resolution in SDR mode (`extraction_method = "agent"`) because it only routed through the resolver when `credential_guid` was set. With SDR, only `agent_json` carries the credential payload, so the activity received `creds={}` and every `fetch_*` task failed with `ValueError: username is required`. Fixed in [application-sdk PR #1689](https://github.com/atlanhq/application-sdk/pull/1689) — `_init_sql_client` now routes both direct (credential_guid) and SDR (agent_spec) modes through `CredentialRef.resolve(input)`. SDK pin moves to `48c2a45e` on the `internal-ref` branch.
+
 ## 0.4.35 (May 7, 2026)
 
 ### Bug Fixes
