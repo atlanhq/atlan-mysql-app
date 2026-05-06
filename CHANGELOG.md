@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.35 (May 7, 2026)
+
+### Bug Fixes
+
+- **SDR mode: switch include/exclude/preflight filters to ConditionalInput**: in SDR (`extraction-method = "agent"`) mode the metadata step was emitting `Config.SqlTree` and `Config.SageV2` widgets unchanged, so the UI tried `POST /api/service/credentials/query?app_id=atlan-mysql` to live-browse schemas — that endpoint expects an `authType` field that the agent credential payload doesn't carry, returning `Request body has an error: doesn't match the schema: Property 'authType' is missing`. Mirrored the [atlan-trino-app](https://github.com/atlanhq/atlan-trino-app) and [atlan-cloudsql-postgres-app](https://github.com/atlanhq/atlan-cloudsql-postgres-app) pattern: `include-filter` and `exclude-filter` are now `Config.ConditionalInput` with a `sqltree` base for direct mode and a text-input override (`{"^db$": ["^schema$"]}` JSON regex) for agent mode; `preflight-check` is now `Config.ConditionalInput` that renders the SageV2 checks in direct mode and is hidden in agent mode (the agent has no live DB connection at form time). Fixes the "Please check your credentials and try again" error on the metadata step in SDR.
+
 ## 0.4.34 (May 6, 2026)
 
 ### Bug Fixes
