@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from application_sdk.credentials.ref import CredentialRef
 from application_sdk.templates.contracts import ExtractionInput
 
 
@@ -19,7 +18,6 @@ class AppInputContract(ExtractionInput):
     exclude_table_regex: str = ""
     """Regular expression to exclude temporary tables and views."""
     preflight_check: str = ""
-    mysql_credential: CredentialRef | None = None
     output_dir: str = ""
     """Directory for output JSONL files."""
     checkpoint_dir: str = ""
