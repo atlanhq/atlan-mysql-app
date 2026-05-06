@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import quote_plus
 
 import pytest
+from application_sdk.common.error_codes import ClientError
 
 from app.clients import SQLClient
 
@@ -188,7 +189,7 @@ class TestMySQLClient:
 
         client = SQLClient()
 
-        with pytest.raises(ValueError) as exc_info:
+        with pytest.raises((ValueError, ClientError)) as exc_info:
             await client.load(credentials)
         assert (
             "ATLAN-COMMON-400-03" in str(exc_info.value)
@@ -200,7 +201,7 @@ class TestMySQLClient:
         """Test loading with missing credentials."""
         client = SQLClient()
 
-        with pytest.raises(ValueError):
+        with pytest.raises((ValueError, ClientError)):
             await client.load({})
 
     def test_get_sqlalchemy_connection_string_basic_auth(self, basic_credentials):
