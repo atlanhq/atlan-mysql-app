@@ -51,15 +51,103 @@
         }
       },
       "agent-json": {
-        "type": "string",
+        "type": "object",
         "required": false,
         "ui": {
-          "widget": "input",
+          "widget": "agent",
           "label": "",
-          "hidden": true,
+          "hidden": false,
           "help": "",
-          "placeholder": "",
-          "grid": 8
+          "placeholder": "Agent JSON",
+          "grid": 8,
+          "agentConfigs": [
+            [
+              "atlan-connectors-mysql",
+              {
+                "properties": {
+                  "auth-type": {
+                    "enum": [
+                      "basic",
+                      "iam_user",
+                      "iam_role"
+                    ],
+                    "enumNames": [
+                      "Basic",
+                      "IAM User",
+                      "IAM Role"
+                    ]
+                  },
+                  "basic": {
+                    "properties": {
+                      "username": {
+                        "default": "",
+                        "ui": {
+                          "placeholder": "Store Credential Path"
+                        }
+                      },
+                      "password": {
+                        "default": "",
+                        "ui": {
+                          "widget": "",
+                          "placeholder": "Store Credential Path"
+                        }
+                      }
+                    }
+                  },
+                  "iam_user": {
+                    "properties": {
+                      "username": {
+                        "default": "",
+                        "ui": {
+                          "placeholder": "AWS Access Key (Store Path)"
+                        }
+                      },
+                      "password": {
+                        "default": "",
+                        "ui": {
+                          "widget": "",
+                          "placeholder": "AWS Secret (Store Path)"
+                        }
+                      },
+                      "extra": {
+                        "properties": {
+                          "username": {
+                            "default": "",
+                            "ui": {
+                              "placeholder": "MySQL DB User (Store Path)"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "iam_role": {
+                    "properties": {
+                      "username": {
+                        "default": "",
+                        "ui": {
+                          "placeholder": "MySQL DB User (Store Path)"
+                        }
+                      },
+                      "extra": {
+                        "properties": {
+                          "aws_role_arn": {
+                            "default": "",
+                            "ui": {
+                              "placeholder": "IAM Role ARN (Store Path)"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            [
+              "atlan-connectors-agent"
+            ]
+          ]
         }
       },
       "connection": {

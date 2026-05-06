@@ -137,6 +137,55 @@ extraNodes {
 }
 
 // ---------------------------------------------------------------------------
+// Agent selector config — drives SDR credential path collection.
+// Mirrors trino's pattern: each auth-type maps the same credential fields the
+// direct form has, with "Store Credential Path" placeholders so the agent
+// knows which vault paths to fetch credentials from.
+// ---------------------------------------------------------------------------
+
+local agentConfig: Listing = new {
+  new Listing {
+    "atlan-connectors-mysql"
+    new Mapping {
+      ["properties"] = new Mapping {
+        ["auth-type"] = new Mapping {
+          ["enum"] = new Listing { "basic"; "iam_user"; "iam_role" }
+          ["enumNames"] = new Listing { "Basic"; "IAM User"; "IAM Role" }
+        }
+        ["basic"] = new Mapping {
+          ["properties"] = new Mapping {
+            ["username"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "Store Credential Path" } }
+            ["password"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["widget"] = ""; ["placeholder"] = "Store Credential Path" } }
+          }
+        }
+        ["iam_user"] = new Mapping {
+          ["properties"] = new Mapping {
+            ["username"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "AWS Access Key (Store Path)" } }
+            ["password"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["widget"] = ""; ["placeholder"] = "AWS Secret (Store Path)" } }
+            ["extra"] = new Mapping {
+              ["properties"] = new Mapping {
+                ["username"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "MySQL DB User (Store Path)" } }
+              }
+            }
+          }
+        }
+        ["iam_role"] = new Mapping {
+          ["properties"] = new Mapping {
+            ["username"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "MySQL DB User (Store Path)" } }
+            ["extra"] = new Mapping {
+              ["properties"] = new Mapping {
+                ["aws_role_arn"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "IAM Role ARN (Store Path)" } }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  new Listing { "atlan-connectors-agent" }
+}
+
+// ---------------------------------------------------------------------------
 // Workflow config
 // ---------------------------------------------------------------------------
 
@@ -165,9 +214,10 @@ uiConfig {
           credType = "atlan-connectors-mysql"
           placeholderText = "Credential Guid"
         }
-        ["agent-json"] = new Config.TextInput {
+        ["agent-json"] = new Config.AgentSelector {
           title = ""
-          hide = true
+          placeholderText = "Agent JSON"
+          agentConfigEntries = agentConfig
         }
       }
     }
