@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.34 (May 6, 2026)
+
+### Bug Fixes
+
+- **Switch qi / lineage-app / lineage-publish to typed toolkit nodes**: previously declared as raw `DAGNode`s with hand-rolled snake_case args, which bypassed the toolkit's typed mappings. Converted to `QueryIntelligenceNode`, `LineageNode`, and `LineagePublishNode` (matching atlan-trino-app and atlan-cloudsql-postgres-app). The structural fix is the dependency wiring: `lineage-app` now uses `dependsOnCondition` with `andConditions` requiring `tag = "success"` on both `qi` and `publish`, and `lineage-publish` requires `tag = "success"` on `lineage-app` — previously raw `dependsOn { "qi"; "publish" }` only checked node existence, so a failed upstream node didn't block downstream nodes. Storage args: `qi` no longer emits `lake_provider` / `storage_bucket` (QI's worker doesn't read them — confirmed via grep of [atlan-query-intelligence-app](https://github.com/atlanhq/atlan-query-intelligence-app) `app/`; storage backend comes from the `CLOUD` / `S3_BUCKET` env vars Helm injects). `lineage-app` *does* keep `lake_provider: "aws"` and `cloud_storage_bucket: ...` because [atlan-lineage-app](https://github.com/atlanhq/atlan-lineage-app) `app/lib/ingest/artifact_loader.py` actively branches on these to decide between local and cloud artifact loading. Workflow IDs / queues / display names are unchanged.
+
 ## 0.4.33 (May 6, 2026)
 
 ### Bug Fixes
