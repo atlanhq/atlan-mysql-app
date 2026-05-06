@@ -224,23 +224,57 @@ uiConfig {
     }
     ["Metadata"] {
       inputs {
-        ["include-filter"] = new Config.SqlTree {
+        ["include-filter"] = new Config.ConditionalInput {
           title = "Include Metadata"
           desc = "Only selected databases and schemas will be extracted. Exclude takes precedence over include for common schemas."
+          baseWidgetType = "sqltree"
           sqlQuery = "show atlan schemas"
-          credentialType = "atlan-connectors-mysql"
-          cred = "credential-guid"
-          excludePatterns = List("^performance_schema$", "^information_schema.*", "^mysql$", "^sys$", "^METRICS_SCHEMA.*")
+          connectorConfig = "atlan-connectors-mysql"
+          credentialRef = "credential-guid"
+          schemaExcludePatterns = List("^performance_schema$", "^information_schema.*", "^mysql$", "^sys$", "^METRICS_SCHEMA.*")
+          default = "{}"
           width = 4
+          additionalProperties = new Dynamic { type = "array" }
+          conditions {
+            new Config.Condition {
+              property = "extraction-method"
+              value = "agent"
+              overrideUi = new Config.Widget {
+                widget = "input"
+                label = "Include Filter"
+                feedback = true
+                help = "Only selected databases and schemas will be extracted. Use the syntax shown in placeholder. Defaults to empty string. Syntax: {\"^db$\": [\"^schema$\"]}"
+                placeholder = "{\"^db$\": [\"^schema$\"]}"
+                grid = 4
+              }
+            }
+          }
         }
-        ["exclude-filter"] = new Config.SqlTree {
+        ["exclude-filter"] = new Config.ConditionalInput {
           title = "Exclude Metadata"
           desc = "Selected schemas wont be extracted."
+          baseWidgetType = "sqltree"
           sqlQuery = "show atlan schemas"
-          credentialType = "atlan-connectors-mysql"
-          cred = "credential-guid"
-          excludePatterns = List("^performance_schema$", "^information_schema.*", "^mysql$", "^sys$", "^METRICS_SCHEMA.*")
+          connectorConfig = "atlan-connectors-mysql"
+          credentialRef = "credential-guid"
+          schemaExcludePatterns = List("^performance_schema$", "^information_schema.*", "^mysql$", "^sys$", "^METRICS_SCHEMA.*")
+          default = "{}"
           width = 4
+          additionalProperties = new Dynamic { type = "array" }
+          conditions {
+            new Config.Condition {
+              property = "extraction-method"
+              value = "agent"
+              overrideUi = new Config.Widget {
+                widget = "input"
+                label = "Exclude Filter"
+                feedback = true
+                help = "Selected databases and schemas will not be extracted. Use the syntax shown in placeholder. Defaults to empty string. Syntax: {\"^db$\": [\"^schema$\"]}"
+                placeholder = "{\"^db$\": [\"^schema$\"]}"
+                grid = 4
+              }
+            }
+          }
         }
         ["exclude-table-regex"] = new Config.TextInput {
           title = "Exclude regex for tables & views"
@@ -248,10 +282,29 @@ uiConfig {
           placeholderText = ".*_TMP|.*_TEMP|TMP:*|TEMP:*"
           width = 8
         }
-        ["preflight-check"] = new Config.SageV2 {
+        ["preflight-check"] = new Config.ConditionalInput {
           title = ""
-          checks {
-            new Dynamic { id = 1; name = "preflightCheck"; title = "MySQL instance preflight check"; loaderText = "Checking MySQL instance accessibility and permissions" }
+          baseWidgetType = "sageV2"
+          conditions {
+            new Config.Condition {
+              property = "extraction-method"
+              value = "direct"
+              overrideUi = new Config.Widget {
+                widget = "sageV2"
+                `hidden` = false
+                config = new Listing<Dynamic> {
+                  new Dynamic { id = 1; name = "preflightCheck"; title = "MySQL instance preflight check"; loaderText = "Checking MySQL instance accessibility and permissions" }
+                }
+              }
+            }
+            new Config.Condition {
+              property = "extraction-method"
+              value = "agent"
+              overrideUi = new Config.Widget {
+                widget = "sageV2"
+                `hidden` = true
+              }
+            }
           }
         }
       }
