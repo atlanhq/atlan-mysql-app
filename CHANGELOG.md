@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.33 (May 6, 2026)
+
+### Bug Fixes
+
+- **Align SDR contract with Trino / cloudsql-postgres reference apps**: Diffed against latest main of `atlan-trino-app` (`b8bacce`) and `atlan-cloudsql-postgres-app`. The trino dev confirmed the same double-config render appears once SDR is enabled in their contract too, so this fix focuses on contract parity rather than UI behavior. Changes: (1) added `flatManifestArgs = true` and `credentialFieldName = null` to drop the unused `mysql_credential` alias from the generated `AppInputContract`; (2) added the missing `agent` `UIRule` so `anyOf` declares both `direct` and `agent` validation branches (was emitting only `direct`); (3) aligned `extraction-method` with Trino — `baseWidgetType = "radio"`, `placeholderText`, `validationRules`, "Self-Deployed Runtime" label, and Direct/SDR clarification helpText. Generated `mysql.json` is now structurally identical to `trino.json` for the credential step.
+
 ## 0.4.32 (May 6, 2026)
 
 ### Bug Fixes

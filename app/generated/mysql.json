@@ -11,8 +11,15 @@
           "widget": "radio",
           "label": "Extraction method",
           "hidden": false,
-          "help": "Determines the method the package will use to extract metadata.",
-          "grid": 8
+          "help": "Determines the method the package will use to extract metadata. 'Direct' means the package will directly connect to MySQL. 'Self-Deployed Runtime' means the package will fetch metadata via the Atlan secure agent installed by the customer.",
+          "placeholder": "Direct",
+          "grid": 8,
+          "rules": [
+            {
+              "required": true,
+              "message": "Please select a valid metadata extraction strategy"
+            }
+          ]
         },
         "default": "direct",
         "conditions": [
@@ -25,7 +32,7 @@
             ],
             "enumNames": [
               "Direct",
-              "Agent"
+              "Self-Deployed Runtime"
             ]
           }
         ],
@@ -258,6 +265,18 @@
           "include-filter",
           "exclude-filter",
           "preflight-check"
+        ]
+      },
+      {
+        "properties": {
+          "extraction-method": {
+            "const": "agent"
+          }
+        },
+        "required": [
+          "agent-json",
+          "include-filter",
+          "exclude-filter"
         ]
       }
     ],
