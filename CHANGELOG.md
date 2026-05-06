@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.32 (May 6, 2026)
+
+### Bug Fixes
+
+- **Restore SDR (Self-Deployed Runtime) credential mapping UI**: Earlier we replaced `Config.AgentSelector` with a hidden `Config.TextInput` to suppress what looked like duplicate credential rendering in Direct mode. That removed the agent picker entirely — selecting "Self-Deployed Runtime" showed nothing. Reverted to `Config.AgentSelector` (matching Trino's pattern) with a proper `agentConfig` covering all three auth types (basic, iam_user, iam_role) and their `extra.*` fields. The "second" credential form visible alongside Direct mode is the standard Atlan SDR credential-path mapping UX, used by all dual-mode connectors.
+
 ## 0.4.31 (May 6, 2026)
 
 ### Bug Fixes
