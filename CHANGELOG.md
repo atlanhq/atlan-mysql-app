@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.34 (May 6, 2026)
+
+### Bug Fixes
+
+- **Fix QI gudusoft parse failure by switching DAG nodes to typed toolkit nodes**: QI worker on `atlanimp01` was failing inside the gudusoft Java parser (`subprocess.CalledProcessError ... returned non-zero exit status 1`) because the qi/lineage/lineage-publish nodes were declared as raw `DAGNode`s with hand-rolled snake_case args. That bypassed the toolkit's typed mappings, so `lake_provider` and `storage_bucket` (qi) and `cloud_storage_bucket` (lineage) — which the workers use to talk to the object store — were never sent. Converted to the typed `QueryIntelligenceNode`, `LineageNode`, and `LineagePublishNode` (matching atlan-trino-app and atlan-cloudsql-postgres-app). The `qi` node now emits `lake_provider: "aws"` and `storage_bucket: "$.extract.outputs.storage_bucket"`; `lineage-app` now emits `lake_provider: "aws"` and `cloud_storage_bucket: ...`; dependency wiring uses `dependsOnCondition` (with `andConditions` for lineage-app) so the DAG honors `tag = "success"` instead of mere existence. Workflow IDs / queues are unchanged.
+
 ## 0.4.33 (May 6, 2026)
 
 ### Bug Fixes
