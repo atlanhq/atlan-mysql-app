@@ -42,9 +42,7 @@
           "timestamp_key": "",
           "mine_output_type": "json",
           "parsing_mode": "competitive",
-          "vendor_name": "mysql",
-          "lake_provider": "aws",
-          "storage_bucket": "$.extract.outputs.storage_bucket"
+          "vendor_name": "mysql"
         }
       },
       "depends_on": {
