@@ -7,9 +7,14 @@ name = "mysql"
 displayName = "MySQL Assets"
 connector = Connectors.MYSQL
 workflowType = "mysql"
+flatManifestArgs = true
 icon = "https://www.mysql.com/common/logos/mysql-logo.svg"
 logo = "https://www.mysql.com/common/logos/mysql-logo.svg"
 credentialConnectorType = "jdbc"
+
+// The workflow reads the SDK-level credential_ref / credential_guid fields.
+// Avoid generating an unused mysql_credential alias.
+credentialFieldName = null
 
 // ---------------------------------------------------------------------------
 // Credential config
@@ -195,7 +200,9 @@ uiConfig {
       inputs {
         ["extraction-method"] = new Config.ConditionalInput {
           title = "Extraction method"
-          helpText = "Determines the method the package will use to extract metadata."
+          helpText = "Determines the method the package will use to extract metadata. 'Direct' means the package will directly connect to MySQL. 'Self-Deployed Runtime' means the package will fetch metadata via the Atlan secure agent installed by the customer."
+          placeholderText = "Direct"
+          baseWidgetType = "radio"
           baseEnum { "direct" }
           baseEnumNames { "Direct" }
           default = "direct"
@@ -205,7 +212,13 @@ uiConfig {
               property = "labFlag"
               value = "SECURE_AGENT_EXTRACTION"
               overrideEnum { "direct"; "agent" }
-              overrideEnumNames { "Direct"; "Agent" }
+              overrideEnumNames { "Direct"; "Self-Deployed Runtime" }
+            }
+          }
+          validationRules {
+            new Dynamic {
+              required = true
+              message = "Please select a valid metadata extraction strategy"
             }
           }
         }
@@ -268,6 +281,10 @@ uiConfig {
     new Config.UIRule {
       whenInputs { ["extraction-method"] = "direct" }
       required { "credential-guid"; "include-filter"; "exclude-filter"; "preflight-check" }
+    }
+    new Config.UIRule {
+      whenInputs { ["extraction-method"] = "agent" }
+      required { "agent-json"; "include-filter"; "exclude-filter" }
     }
   }
 }
