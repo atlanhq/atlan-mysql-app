@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.50 (May 8, 2026)
+
+### Documentation
+
+- **SDR credential UI form: spell out which value goes in which field**: contributors hit `Access denied for user 'SDR_MYSQL_USERNAME'@…` after pasting `.env` var names (or literal credentials) into the Atlan UI workflow form. The form's Username/Password fields take *bundle keys* (`ATLAN_MYSQL_USERNAME`, `ATLAN_MYSQL_PASSWORD`) — labels the SDK looks up inside the JSON bundle stored in `MYSQL_SECRETS`. [`values-override.yaml.tmpl`](sdr-dev/values-override.yaml.tmpl) and [`sdr-dev/README.md`](sdr-dev/README.md) now spell this out as a table with the exact value to type into each field.
+
 ## 0.4.49 (May 8, 2026)
 
 ### Bug Fixes

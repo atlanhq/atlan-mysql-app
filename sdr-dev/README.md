@@ -68,6 +68,33 @@ The template defaults to **multi-key bundle** (PATTERN A in
 `MYSQL_SECRETS` holding a JSON dict of all credential fields. Widely
 SDK-compatible.
 
+When configuring the workflow in the Atlan UI, **the username/password
+fields take *bundle keys*, not real credentials**. To keep things easy
+to remember, the bundle keys deliberately match the `.env` var names —
+type the same string in both places.
+
+**Pattern A — multi-key bundle:**
+
+| UI form field | Value to type | Role |
+|---|---|---|
+| Secret Path / Secret Name in Secret Manager | `MYSQL_SECRETS` | env var on the pod holding the JSON bundle |
+| Username | `SDR_MYSQL_USERNAME` | bundle key — SDK looks it up in the JSON dict |
+| Password | `SDR_MYSQL_PASSWORD` | bundle key — same idea, for password |
+
+**Pattern B — single-key (SDK ≥ BLDX-968):**
+
+| UI form field | Value to type | Role |
+|---|---|---|
+| Secret Path | _(leave empty)_ | not used in single-key mode |
+| `key-type` | `single-key` | tells the SDK to do per-field lookups |
+| Username | `SDR_MYSQL_USERNAME` | env var name on the pod (resolves via secret store) |
+| Password | `SDR_MYSQL_PASSWORD` | env var name on the pod |
+
+Common mistake: pasting the literal username (e.g. `atlan`) into the UI
+Username field. The SDK sends whatever you type as the MySQL username,
+which fails as `Access denied for user 'atlan'@…` (technically it would
+work for the real username, but won't substitute via the bundle).
+
 If you're on SDK ≥ BLDX-968 (or 3.7+), you can switch to **single-key per
 field** (PATTERN B): one env var per credential field, set
 `key-type: single-key` in the Atlan UI workflow form, leave Secret Path
