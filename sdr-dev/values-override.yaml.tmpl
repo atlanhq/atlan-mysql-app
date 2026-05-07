@@ -37,27 +37,30 @@ env:
     value: "${SDR_S3_BUCKET}"
 
   # ── Credential resolution ────────────────────────────────────────────────
-  # Two patterns supported (pick one — comment the other out):
+  # Bundle keys deliberately match the .env var names so contributors type
+  # the same string in .env and in the Atlan UI form. Two patterns supported
+  # (pick one — comment the other out):
   #
   # PATTERN A — Multi-key bundle (default; widest SDK compatibility):
-  # The agent credential resolver fetches one secret bundle (a JSON dict) from
-  # the secret store and substitutes individual agent_json field values
-  # (e.g. "basic.username" = "ATLAN_MYSQL_USERNAME") if they appear as keys
-  # in the bundle. With secretstores.local.env the bundle path is the env
-  # var name of a JSON-encoded dict.
-  # In the Atlan UI workflow form set:
-  #   Secret Path/Name in Secret Manager: MYSQL_SECRETS
+  # The SDK fetches the JSON bundle below from the secret store and looks
+  # up each Atlan-UI field value as a bundle key, replacing it with the
+  # real credential. Atlan UI workflow form:
+  #   Secret Path / Secret Name in Secret Manager: MYSQL_SECRETS
+  #   Username field:                              SDR_MYSQL_USERNAME
+  #   Password field:                              SDR_MYSQL_PASSWORD
   - name: MYSQL_SECRETS
-    value: '{"ATLAN_MYSQL_USERNAME":"${SDR_MYSQL_USERNAME}","ATLAN_MYSQL_PASSWORD":"${SDR_MYSQL_PASSWORD}"}'
+    value: '{"SDR_MYSQL_USERNAME":"${SDR_MYSQL_USERNAME}","SDR_MYSQL_PASSWORD":"${SDR_MYSQL_PASSWORD}"}'
   #
   # PATTERN B — Single-key per-field (cleaner; requires SDK internal-ref / 3.7+):
-  # Each credential field maps to its own env var. In the Atlan UI workflow
-  # form leave Secret Path empty and set:
-  #   key-type: single-key
+  # Each credential field is its own env var on the pod. Atlan UI workflow form:
+  #   Secret Path: (leave empty)
+  #   key-type:    single-key
+  #   Username:    SDR_MYSQL_USERNAME    (env var name on the pod)
+  #   Password:    SDR_MYSQL_PASSWORD
   # Then uncomment these env vars (and comment out MYSQL_SECRETS above):
-  # - name: ATLAN_MYSQL_USERNAME
+  # - name: SDR_MYSQL_USERNAME
   #   value: "${SDR_MYSQL_USERNAME}"
-  # - name: ATLAN_MYSQL_PASSWORD
+  # - name: SDR_MYSQL_PASSWORD
   #   value: "${SDR_MYSQL_PASSWORD}"
 
 dapr:
