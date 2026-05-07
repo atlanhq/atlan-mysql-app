@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.37 (May 7, 2026)
+
+### Bug Fixes
+
+- **Switch SDK pin to consolidated `BLDX-968` branch**: previously pinned to commit `206050c0` (the PR #1690 fix branch). Both [PR #1689](https://github.com/atlanhq/application-sdk/pull/1689) (SDR credential resolution) and [PR #1690](https://github.com/atlanhq/application-sdk/pull/1690) (direct-mode follow-up) have been folded into the parent [BLDX-968 PR #1589](https://github.com/atlanhq/application-sdk/pull/1589) along with a new single-key per-field secret resolution path for `key-type: single-key` agent specs. The mysql-app pin now follows the `BLDX-968` branch directly so future fixes land without re-pinning.
+
 ## 0.4.36 (May 7, 2026)
 
 ### Bug Fixes
