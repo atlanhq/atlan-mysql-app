@@ -139,7 +139,8 @@ make sdr-install             # helm upgrade --install (current kubectl context)
 make sdr-status              # pods + helm status
 make sdr-logs                # tail logs
 make sdr-port-forward        # SDR pod :8000 → localhost:8000
-make sdr-uninstall           # helm uninstall
+make sdr-uninstall           # helm uninstall (keeps namespace)
+make sdr-teardown            # helm uninstall + delete namespace + remove rendered values
 ```
 
 The `sdr-dev/` directory is excluded from the Docker image via
@@ -213,7 +214,8 @@ make clean            # Remove caches and artifacts
 # ── SDR (Self-Deployed Runtime) — see sdr-dev/README.md ──
 make sdr-render       # Render sdr-dev/values-override.yaml from .env
 make sdr-install      # helm upgrade --install
-make sdr-uninstall    # helm uninstall
+make sdr-uninstall    # helm uninstall (keeps namespace)
+make sdr-teardown     # helm uninstall + delete namespace + remove rendered values
 make sdr-status       # Pods + helm status
 make sdr-logs         # Tail SDR pod logs
 make sdr-port-forward # Port-forward SDR pod :8000 → localhost

@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.41 (May 8, 2026)
+
+### Features
+
+- **`make sdr-teardown` for full cluster cleanup**: helm uninstall + delete namespace + remove rendered `values-override.yaml`. Complements the existing `make sdr-uninstall` (helm-only, keeps namespace for fast re-install). Both targets are documented in [README.md](README.md) and [sdr-dev/README.md](sdr-dev/README.md).
+
 ## 0.4.40 (May 8, 2026)
 
 ### Refactor

@@ -57,7 +57,9 @@ make sdr-logs                # tail logs
 make sdr-port-forward        # pod :8000 → localhost:8000
 
 # 5. tear down when done
-make sdr-uninstall
+make sdr-uninstall   # helm uninstall, keep namespace for fast re-install
+# or, for a full clean (helm uninstall + delete namespace + remove rendered values):
+make sdr-teardown
 ```
 
 ## Credential resolution: multi-key bundle vs single-key

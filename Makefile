@@ -15,14 +15,16 @@
 #   ── SDR (Self-Deployed Runtime) — see sdr-dev/README.md ──
 #   make sdr-render       Render sdr-dev/values-override.yaml from .env
 #   make sdr-install      helm upgrade --install (requires kubectl context)
-#   make sdr-uninstall    helm uninstall
+#   make sdr-uninstall    helm uninstall (keeps namespace)
+#   make sdr-teardown     helm uninstall + delete namespace (full cleanup)
 #   make sdr-status       kubectl get pods + helm status
 #   make sdr-logs         Tail SDR pod logs
 #   make sdr-port-forward Forward SDR pod :8000 → localhost:$(LOCAL_PORT)
 
 .PHONY: install test test-e2e test-e2e-remote test-cov lint format pre-commit \
         dev start-deps stop build clean \
-        sdr-render sdr-install sdr-uninstall sdr-status sdr-logs sdr-port-forward
+        sdr-render sdr-install sdr-uninstall sdr-teardown sdr-status \
+        sdr-logs sdr-port-forward
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -143,6 +145,13 @@ sdr-install: sdr-render
 
 sdr-uninstall:
 	helm uninstall $(SDR_RELEASE_NAME) --namespace $(SDR_NAMESPACE) || true
+
+sdr-teardown:
+	@echo "Tearing down $(SDR_RELEASE_NAME) and namespace $(SDR_NAMESPACE)..."
+	helm uninstall $(SDR_RELEASE_NAME) --namespace $(SDR_NAMESPACE) || true
+	kubectl delete namespace $(SDR_NAMESPACE) --ignore-not-found
+	@echo "Removing rendered values file..."
+	rm -f $(SDR_VALUES_RENDERED)
 
 sdr-status:
 	@echo "── helm status ──"; helm status $(SDR_RELEASE_NAME) --namespace $(SDR_NAMESPACE) || true
