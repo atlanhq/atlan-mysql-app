@@ -20,7 +20,8 @@ global:
 
 image:
   # Repository is fixed for this app — only the tag is bumped per-test.
-  repository: atlanhq/atlan-mysql-app
+  # Atlan publishes the runtime image to GHCR (not Docker Hub).
+  repository: ghcr.io/atlanhq/atlan-mysql-app
   tag: "${SDR_IMAGE_TAG}"
   pullPolicy: IfNotPresent
 

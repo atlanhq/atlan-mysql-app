@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.49 (May 8, 2026)
+
+### Bug Fixes
+
+- **SDR install: image repo and pull secret bootstrap**: the chart pointed at Docker Hub (`atlanhq/atlan-mysql-app`) but Atlan's runtime image is published to GHCR. Updated to `ghcr.io/atlanhq/atlan-mysql-app`. Additionally, `make sdr-install` now creates the namespace if missing and copies the `atlan-docker-secret` from `mysql-sdr-imp01` (configurable via `SDR_PULL_SECRET_SRC_NAMESPACE`) so the GHCR pull works end-to-end without manual setup.
+
 ## 0.4.48 (May 8, 2026)
 
 ### Refactor
