@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.40 (May 8, 2026)
+
+### Refactor
+
+- **`SDR_DEPLOYMENT_IMAGE` replaces split `SDR_IMAGE_REPO` + `SDR_IMAGE_TAG`**: contributors now set one combined `repo:tag` env var (e.g. `SDR_DEPLOYMENT_IMAGE=atlanhq/atlan-mysql-app:main-decd72f`) — the natural form pasted from registries / CI builds. `sdr-dev/render.sh` splits it into the two values the chart's `image.repository` / `image.tag` still need, with a clear error when the colon is missing. `.env.example` and `sdr-dev/README.md` updated to match.
+
 ## 0.4.39 (May 8, 2026)
 
 ### Features
