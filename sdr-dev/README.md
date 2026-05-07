@@ -35,8 +35,7 @@ empty template). All are required by [`render.sh`](render.sh):
 | `SDR_INSTANCE_NAME` | `tenant-instance` | `ATLAN_INSTANCE_NAME` env on the pod |
 | `SDR_S3_BUCKET` | `atlan-vcluster-…` | S3 bucket for app + lineage storage |
 | `SDR_S3_REGION` | `ap-south-1` | S3 region for the dapr binding |
-| `SDR_IMAGE_REPO` | `atlanhq/atlan-mysql-app` | container image to deploy |
-| `SDR_IMAGE_TAG` | `main-<sha>` | image tag (use a known-good build) |
+| `SDR_DEPLOYMENT_IMAGE` | `atlanhq/atlan-mysql-app:main-<sha>` | container image to deploy (`repo:tag`); split inside `render.sh` into the chart's `image.repository` / `image.tag` |
 | `SDR_MYSQL_USERNAME` | `atlan` | MySQL credential (substituted into bundle) |
 | `SDR_MYSQL_PASSWORD` | (secret) | MySQL credential (substituted into bundle) |
 
