@@ -129,9 +129,15 @@ clean:
 # Helm-based install used for in-cluster dev/test against a real tenant.
 # All knobs come from .env; see sdr-dev/README.md for the variable list.
 
-SDR_DIR              ?= sdr-dev
-SDR_NAMESPACE        ?= mysql-app-sdr
-SDR_VALUES_RENDERED  := $(SDR_DIR)/values-override.yaml
+SDR_DIR                       ?= sdr-dev
+SDR_NAMESPACE                 ?= mysql-app-sdr
+SDR_VALUES_RENDERED           := $(SDR_DIR)/values-override.yaml
+# Source namespace to copy the GHCR pull secret from. The chart references
+# `atlan-docker-secret` for image pulls; we copy it from an existing in-cluster
+# install (typically a deployed app namespace) so the SDR pod can pull from
+# ghcr.io/atlanhq. Override if your cluster has it under a different name.
+SDR_PULL_SECRET_NAME          ?= atlan-docker-secret
+SDR_PULL_SECRET_SRC_NAMESPACE ?= mysql-sdr-imp01
 
 # All SDR targets re-source .env in a fresh shell so the file is the single
 # source of truth — no need for `source .env` between edits, and stale env
@@ -159,6 +165,15 @@ sdr-render:
 
 sdr-install: sdr-render
 	@$(SDR_LOAD_ENV) \
+	  echo "Ensuring namespace $(SDR_NAMESPACE) and pull secret $(SDR_PULL_SECRET_NAME)..."; \
+	  kubectl create namespace $(SDR_NAMESPACE) --dry-run=client -o yaml | kubectl apply -f -; \
+	  if ! kubectl get secret $(SDR_PULL_SECRET_NAME) -n $(SDR_NAMESPACE) >/dev/null 2>&1; then \
+	    echo "  copying $(SDR_PULL_SECRET_NAME) from $(SDR_PULL_SECRET_SRC_NAMESPACE)/..."; \
+	    kubectl get secret $(SDR_PULL_SECRET_NAME) -n $(SDR_PULL_SECRET_SRC_NAMESPACE) -o yaml \
+	      | sed -e "s/^  namespace: .*/  namespace: $(SDR_NAMESPACE)/" \
+	            -e '/resourceVersion:\|uid:\|creationTimestamp:\|annotations:\|kubectl\.kubernetes\.io\/last-applied-configuration:/d' \
+	      | kubectl apply -f - || { echo "    secret copy failed — check that $(SDR_PULL_SECRET_NAME) exists in $(SDR_PULL_SECRET_SRC_NAMESPACE)" >&2; exit 1; }; \
+	  fi; \
 	  echo "Installing $$SDR_RELEASE_NAME in namespace $(SDR_NAMESPACE)..."; \
 	  helm upgrade --install $$SDR_RELEASE_NAME $(SDR_DIR)/chart \
 	    --namespace $(SDR_NAMESPACE) --create-namespace \
