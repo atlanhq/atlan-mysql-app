@@ -1,0 +1,16 @@
+{{- if and .Values.enabled .Values.daprMetrics.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "app.fullname" . }}-dapr
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+spec:
+  endpoints:
+  - interval: 15s
+    path: /metrics
+    targetPort: 3100
+  selector:
+    matchLabels:
+      {{- include "app.selectorLabels" . | nindent 8 }}
+{{- end }}
