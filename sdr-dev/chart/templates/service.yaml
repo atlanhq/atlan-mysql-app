@@ -1,0 +1,24 @@
+---
+{{- if and .Values.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "app.fullname" . }}
+  labels:
+    {{- include "app.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type | default "ClusterIP" }}
+  ports:
+    - name: http
+      port: 8000
+      targetPort: {{ .Values.containerPort }}
+      protocol: {{ .Values.service.serviceProtocol | quote }}
+  {{- if .Values.daprMetrics.enabled }}
+    - name: dapr-metrics
+      port: {{ .Values.daprMetrics.port }}
+      targetPort: {{ .Values.daprMetrics.port }}
+      protocol: {{ .Values.service.serviceProtocol | quote }}
+  {{- end }}
+  selector:
+    {{- include "app.selectorLabels" . | nindent 4 }}
+{{- end }}
