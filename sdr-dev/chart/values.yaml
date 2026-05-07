@@ -10,7 +10,7 @@ deploymentName: "agent" # modify deploymentName as needed
 global:
   # Base URLs
   atlanBaseUrl: "{{tenant}}.atlan.com"
-  
+
   # Authentication
   clientId: ""
   clientSecret: ""
