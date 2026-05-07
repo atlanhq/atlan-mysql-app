@@ -2,6 +2,52 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.48 (May 8, 2026)
+
+### Refactor
+
+- **`SDR_RELEASE_NAME` is now the single source of truth in `.env`** (was `SDR_DEPLOYMENT_NAME`). Contributors set the full helm release name (e.g. `mysql-app-sdr-dev`) and the Atlan-side suffix (`dev`) is derived by stripping the `mysql-app-sdr-` prefix. Avoids the recurring confusion of "is this a suffix or a release name?" — now it's always a release name. The Makefile and `render.sh` both validate the prefix and fail-fast with a clear error if it's missing.
+- **`render.sh` standalone is now also conflict-proof**: when invoked directly (without `make sdr-render`) it unsets every `SDR_*` env var found in the shell before sourcing `.env`, matching the Makefile's behavior. Stale shell exports can never override `.env`.
+
+## 0.4.47 (May 8, 2026)
+
+### Bug Fixes
+
+- **`make sdr-*` unsets every `SDR_*` env var before sourcing `.env`**: previously only `SDR_RELEASE_NAME` was unset, so a stale shell value for `SDR_DEPLOYMENT_NAME` (or any other `SDR_*` var) survived when the corresponding line was commented out in `.env`. Now the `SDR_LOAD_ENV` macro enumerates all `SDR_*` vars in the env and unsets them, so a removed/commented line is honored on the next run without restarting the shell.
+- **Tighter guard in `render.sh`**: catches both the bare prefix `mysql-app-sdr` and the full release name `mysql-app-sdr-<suffix>` when accidentally set as `SDR_DEPLOYMENT_NAME`. The suggested fix in the error message strips the prefix correctly for both forms.
+
+## 0.4.46 (May 8, 2026)
+
+### Refactor
+
+- **`make sdr-*` targets self-source `.env`**: every SDR target now re-sources the file in a fresh subshell with `SDR_RELEASE_NAME` unset first, so contributors don't need to `source .env` manually between edits and stale shell vars from a prior `source` can't poison the run.
+- **Release name pattern: `mysql-app-sdr-{deployment}`** (was `mysql-sdr-{deployment}`). Aligns with the chart name `mysql-app` and makes the SDR-vs-prod distinction explicit. Namespace also moves from `mysql-sdr` → `mysql-app-sdr`. The double-prefix guard in `render.sh` now catches `mysql-app-sdr-*` accidentally pasted into `SDR_DEPLOYMENT_NAME`.
+- **`SDR_DEPLOYMENT_NAME` defaults to `dev`** if unset, so a freshly cloned `.env` runs without further config.
+
+## 0.4.45 (May 8, 2026)
+
+### Bug Fixes
+
+- **`render.sh` catches the "full release name in `SDR_DEPLOYMENT_NAME`" mistake**: pasting `mysql-sdr-dev` (the release name) into `SDR_DEPLOYMENT_NAME` instead of just the suffix `dev` produces a double-prefix release `mysql-sdr-mysql-sdr-dev` and a confusing Atlan-side queue. Guard now fails fast with the suggested fix.
+
+## 0.4.44 (May 8, 2026)
+
+### Bug Fixes
+
+- **`make sdr-render` ignores stale `SDR_RELEASE_NAME` in the shell**: a previous `source .env` (when the file still had `SDR_RELEASE_NAME` as an explicit line) would leak the old value into later runs even after the line was removed, because `source` only adds env vars and never removes them. Both the Makefile (now uses `override SDR_RELEASE_NAME := mysql-sdr-$(SDR_DEPLOYMENT_NAME)`) and `sdr-dev/render.sh` (uses `=` instead of `:=` to force-overwrite) now always derive the release name from `SDR_DEPLOYMENT_NAME`. Contributors only manage `SDR_DEPLOYMENT_NAME`.
+
+## 0.4.43 (May 8, 2026)
+
+### Refactor
+
+- **Auto-derive `SDR_RELEASE_NAME` from `SDR_DEPLOYMENT_NAME`**: contributors only set `SDR_DEPLOYMENT_NAME` (the agent suffix / queue tail); release name defaults to `mysql-sdr-${SDR_DEPLOYMENT_NAME}`. Override `SDR_RELEASE_NAME` explicitly only for non-standard cases. `render.sh` substitutes both, `Makefile` derives the same way for `helm uninstall` / `sdr-teardown`.
+
+## 0.4.42 (May 8, 2026)
+
+### Refactor
+
+- **Simpler SDR env vars**: replaces `SDR_DEPLOYMENT_IMAGE` (the combined `repo:tag`) with just `SDR_IMAGE_TAG` — the image repo `atlanhq/atlan-mysql-app` is fixed for this app, so only the tag is worth templating. Avoids the visual collision between `SDR_DEPLOYMENT_NAME` and `SDR_DEPLOYMENT_IMAGE` in `.env`. Also clarifies that `SDR_MYSQL_USERNAME` / `SDR_MYSQL_PASSWORD` are independent of the e2e `MYSQL_*` creds (the SDR pod typically targets a different DB) — `.env.example` shows both the literal-value pattern and the `${MYSQL_USER}` alias pattern.
+
 ## 0.4.41 (May 8, 2026)
 
 ### Features

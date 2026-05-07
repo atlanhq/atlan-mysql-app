@@ -130,36 +130,61 @@ clean:
 # All knobs come from .env; see sdr-dev/README.md for the variable list.
 
 SDR_DIR              ?= sdr-dev
-SDR_NAMESPACE        ?= mysql-sdr
-SDR_RELEASE_NAME     ?= mysql-sdr-dev
+SDR_NAMESPACE        ?= mysql-app-sdr
 SDR_VALUES_RENDERED  := $(SDR_DIR)/values-override.yaml
 
+# All SDR targets re-source .env in a fresh shell so the file is the single
+# source of truth — no need for `source .env` between edits, and stale env
+# vars from a prior shell can't poison the run. We unset every SDR_* var
+# before sourcing so a removed/commented line in .env is honored even when
+# the shell still carries the old export.
+#
+# SDR_RELEASE_NAME is the user-facing knob. Defaults to "mysql-app-sdr-dev".
+# Must start with "mysql-app-sdr-" — the suffix after that prefix is what the
+# Atlan side uses for the agent / queue (e.g. release "mysql-app-sdr-dev"
+# yields agent "mysql-dev" and queue "atlan-mysql-dev").
+define SDR_LOAD_ENV
+for v in $$(env | sed -n 's/^\(SDR_[A-Z_]*\)=.*/\1/p'); do unset $$v; done; \
+set -a; [ -f .env ] && . ./.env; set +a; \
+SDR_RELEASE_NAME="$${SDR_RELEASE_NAME:-mysql-app-sdr-dev}"; \
+case "$$SDR_RELEASE_NAME" in \
+  mysql-app-sdr-?*) ;; \
+  *) echo "Error: SDR_RELEASE_NAME must start with 'mysql-app-sdr-' (got: $$SDR_RELEASE_NAME)" >&2; exit 1;; \
+esac; \
+SDR_DEPLOYMENT_NAME="$${SDR_RELEASE_NAME#mysql-app-sdr-}";
+endef
+
 sdr-render:
-	@$(SDR_DIR)/render.sh
+	@$(SDR_LOAD_ENV) $(SDR_DIR)/render.sh
 
 sdr-install: sdr-render
-	@echo "Installing $(SDR_RELEASE_NAME) in namespace $(SDR_NAMESPACE)..."
-	helm upgrade --install $(SDR_RELEASE_NAME) $(SDR_DIR)/chart \
-	  --namespace $(SDR_NAMESPACE) --create-namespace \
-	  --values $(SDR_VALUES_RENDERED)
+	@$(SDR_LOAD_ENV) \
+	  echo "Installing $$SDR_RELEASE_NAME in namespace $(SDR_NAMESPACE)..."; \
+	  helm upgrade --install $$SDR_RELEASE_NAME $(SDR_DIR)/chart \
+	    --namespace $(SDR_NAMESPACE) --create-namespace \
+	    --values $(SDR_VALUES_RENDERED)
 
 sdr-uninstall:
-	helm uninstall $(SDR_RELEASE_NAME) --namespace $(SDR_NAMESPACE) || true
+	@$(SDR_LOAD_ENV) \
+	  helm uninstall $$SDR_RELEASE_NAME --namespace $(SDR_NAMESPACE) || true
 
 sdr-teardown:
-	@echo "Tearing down $(SDR_RELEASE_NAME) and namespace $(SDR_NAMESPACE)..."
-	helm uninstall $(SDR_RELEASE_NAME) --namespace $(SDR_NAMESPACE) || true
-	kubectl delete namespace $(SDR_NAMESPACE) --ignore-not-found
-	@echo "Removing rendered values file..."
-	rm -f $(SDR_VALUES_RENDERED)
+	@$(SDR_LOAD_ENV) \
+	  echo "Tearing down $$SDR_RELEASE_NAME and namespace $(SDR_NAMESPACE)..."; \
+	  helm uninstall $$SDR_RELEASE_NAME --namespace $(SDR_NAMESPACE) || true; \
+	  kubectl delete namespace $(SDR_NAMESPACE) --ignore-not-found; \
+	  rm -f $(SDR_VALUES_RENDERED)
 
 sdr-status:
-	@echo "── helm status ──"; helm status $(SDR_RELEASE_NAME) --namespace $(SDR_NAMESPACE) || true
-	@echo "── pods ──"; kubectl get pods -n $(SDR_NAMESPACE) -l app.kubernetes.io/instance=$(SDR_RELEASE_NAME)
+	@$(SDR_LOAD_ENV) \
+	  echo "── helm status ──"; helm status $$SDR_RELEASE_NAME --namespace $(SDR_NAMESPACE) || true; \
+	  echo "── pods ──"; kubectl get pods -n $(SDR_NAMESPACE) -l app.kubernetes.io/instance=$$SDR_RELEASE_NAME
 
 sdr-logs:
-	kubectl logs -n $(SDR_NAMESPACE) -l app.kubernetes.io/instance=$(SDR_RELEASE_NAME) --tail=200 -f
+	@$(SDR_LOAD_ENV) \
+	  kubectl logs -n $(SDR_NAMESPACE) -l app.kubernetes.io/instance=$$SDR_RELEASE_NAME --tail=200 -f
 
 sdr-port-forward:
-	@echo "Forwarding $(SDR_NAMESPACE)/$(SDR_RELEASE_NAME) → localhost:$(LOCAL_PORT)..."
-	kubectl port-forward -n $(SDR_NAMESPACE) deployment/$(SDR_RELEASE_NAME) $(LOCAL_PORT):8000
+	@$(SDR_LOAD_ENV) \
+	  echo "Forwarding $(SDR_NAMESPACE)/$$SDR_RELEASE_NAME → localhost:$(LOCAL_PORT)..."; \
+	  kubectl port-forward -n $(SDR_NAMESPACE) deployment/$$SDR_RELEASE_NAME $(LOCAL_PORT):8000
