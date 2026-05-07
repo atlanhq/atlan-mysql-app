@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.39 (May 8, 2026)
+
+### Features
+
+- **In-repo SDR helm install for dev/test (`sdr-dev/`)**: ships a patched copy of the mysql-app helm chart, an `envsubst`-based `render.sh`, and `make sdr-{render,install,uninstall,status,logs,port-forward}` targets so contributors can install the app as a Self-Deployed Runtime against a real tenant without copying YAML between repos. All knobs come from `.env` (`SDR_*` vars added to `.env.example`); the rendered `values-override.yaml` is gitignored. Added a top-level `.dockerignore` that excludes `sdr-dev/`, `tests/`, `local/`, etc. so dev tooling never lands in the runtime image. README updated with a new SDR section + Makefile reference; `sdr-dev/README.md` documents the chart patches (in-cluster Temporal, OAuth disabled, secretstore name) and credential-resolution patterns (multi-key bundle vs single-key).
+
 ## 0.4.38 (May 7, 2026)
 
 ### Bug Fixes

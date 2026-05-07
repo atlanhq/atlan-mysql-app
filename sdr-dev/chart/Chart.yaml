@@ -1,0 +1,17 @@
+apiVersion: v2
+appVersion: main-97b8c95
+description: A Helm chart for Atlan Apps (Redshift, Snowflake, BigQuery, etc.)
+home: http://atlan.com/
+icon: https://website-assets.atlan.com/img/atlan-blue.svg
+keywords:
+- apps
+- paas
+- atlan
+maintainers:
+- email: contact@example.com
+  name: Ujala Singh
+- email: contact@example.com
+  name: Nishant Munjal
+name: mysql-app
+type: application
+version: 0.1.11

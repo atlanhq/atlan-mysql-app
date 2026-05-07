@@ -1,0 +1,93 @@
+# SDR (Self-Deployed Runtime) values override — TEMPLATE.
+#
+# This file is rendered by `dev/sdr/render.sh` (or `make sdr-render`) using
+# values from .env. Do NOT put real credentials here — they go in .env, which
+# is gitignored.
+#
+# Mirrors the in-cluster mysql-server topology used on dev-tenant:
+# in-cluster Temporal, no Cloudflare in path, OAuth disabled.
+# The chart's deployment.yaml + dapr-components-cm.yaml in dev/sdr/chart are
+# patched to support this; see comments in those files.
+
+nameOverride: "${SDR_RELEASE_NAME}"
+fullnameOverride: "${SDR_RELEASE_NAME}"
+
+deploymentName: "${SDR_DEPLOYMENT_NAME}"
+
+global:
+  atlanBaseUrl: "${SDR_TENANT_DOMAIN}"
+  # Auth disabled at deployment.yaml level; clientId/Secret intentionally omitted.
+
+image:
+  repository: "${SDR_IMAGE_REPO}"
+  tag: "${SDR_IMAGE_TAG}"
+  pullPolicy: IfNotPresent
+
+imagePullSecrets:
+  - name: atlan-docker-secret
+
+env:
+  - name: ATLAN_INSTANCE_NAME
+    value: "${SDR_INSTANCE_NAME}"
+  # Read by app/mysql.py to populate MySQLExtractionOutput.storage_bucket,
+  # which the manifest forwards to qi + lineage-app's cloud_storage_bucket arg.
+  - name: S3_BUCKET
+    value: "${SDR_S3_BUCKET}"
+
+  # ── Credential resolution ────────────────────────────────────────────────
+  # Two patterns supported (pick one — comment the other out):
+  #
+  # PATTERN A — Multi-key bundle (default; widest SDK compatibility):
+  # The agent credential resolver fetches one secret bundle (a JSON dict) from
+  # the secret store and substitutes individual agent_json field values
+  # (e.g. "basic.username" = "ATLAN_MYSQL_USERNAME") if they appear as keys
+  # in the bundle. With secretstores.local.env the bundle path is the env
+  # var name of a JSON-encoded dict.
+  # In the Atlan UI workflow form set:
+  #   Secret Path/Name in Secret Manager: MYSQL_SECRETS
+  - name: MYSQL_SECRETS
+    value: '{"ATLAN_MYSQL_USERNAME":"${SDR_MYSQL_USERNAME}","ATLAN_MYSQL_PASSWORD":"${SDR_MYSQL_PASSWORD}"}'
+  #
+  # PATTERN B — Single-key per-field (cleaner; requires SDK internal-ref / 3.7+):
+  # Each credential field maps to its own env var. In the Atlan UI workflow
+  # form leave Secret Path empty and set:
+  #   key-type: single-key
+  # Then uncomment these env vars (and comment out MYSQL_SECRETS above):
+  # - name: ATLAN_MYSQL_USERNAME
+  #   value: "${SDR_MYSQL_USERNAME}"
+  # - name: ATLAN_MYSQL_PASSWORD
+  #   value: "${SDR_MYSQL_PASSWORD}"
+
+dapr:
+  components:
+    # Disabled — in-cluster mysql-server doesn't use this binding either.
+    # The chart's atlan_objectstore template needs OAuth client creds
+    # (clientId/Secret) which we deliberately omit since
+    # ATLAN_AUTH_ENABLED=false in our patched template.
+    atlan_objectstore:
+      enabled: false
+    objectstore:
+      enabled: true
+      spec:
+        type: bindings.aws.s3
+        version: v1
+        metadata:
+          - name: bucket
+            value: "${SDR_S3_BUCKET}"
+          - name: region
+            value: "${SDR_S3_REGION}"
+          # accessKey/secretKey omitted intentionally — pod uses node IAM role
+          # (matches existing in-cluster mysql-objectstore config).
+    secretstore:
+      enabled: true
+      spec:
+        type: secretstores.local.env
+        version: v1
+    deployment_secrets:
+      enabled: true
+      multiKeySecretPath: ""
+      spec:
+        type: secretstores.local.env
+        version: v1
+    eventstore:
+      enabled: true
