@@ -188,7 +188,7 @@ wheels = [
 [[package]]
 name = "atlan-application-sdk"
 version = "3.6.1"
-source = { git = "https://github.com/atlanhq/application-sdk?rev=206050c0347ce8167f5fc7c18068461019b19b17#206050c0347ce8167f5fc7c18068461019b19b17" }
+source = { git = "https://github.com/atlanhq/application-sdk?branch=BLDX-968#03f01ceccb374e473dfdb0b3dab03fb004472ead" }
 dependencies = [
     { name = "aiohttp" },
     { name = "fastapi", extra = ["standard"] },
@@ -272,7 +272,7 @@ test = [
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.13.3" },
     { name = "aiomysql", specifier = ">=0.3.0" },
-    { name = "atlan-application-sdk", extras = ["daft", "iam-auth", "pandas", "sql", "workflows"], git = "https://github.com/atlanhq/application-sdk?rev=206050c0347ce8167f5fc7c18068461019b19b17" },
+    { name = "atlan-application-sdk", extras = ["daft", "iam-auth", "pandas", "sql", "workflows"], git = "https://github.com/atlanhq/application-sdk?branch=BLDX-968" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.6.1" },
     { name = "cryptography", specifier = ">=46.0.5" },
     { name = "docker", marker = "extra == 'test'", specifier = ">=7.0.0" },
