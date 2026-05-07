@@ -2,6 +2,18 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.5.0 (May 8, 2026)
+
+### Features
+
+- **Bump SDK pin to latest BLDX-968 (`bc91f17c`)**: picks up the post-review fixes on [application-sdk PR #1589](https://github.com/atlanhq/application-sdk/pull/1589):
+  - `[BUG]` `SqlApp.map_procedure()` stub added — `transform_procedures()` task no longer raises `AttributeError` when a connector hasn't overridden it; correctly raises `NotImplementedError` instead.
+  - `[QUAL]` Removed duplicate `CredentialRef` import.
+  - `[ARCH]` Switched a private `_temporal.activity_utils` import to the public `application_sdk.execution` re-export.
+  - `[QUAL]` `agent.py:_try_fetch` now logs swallowed secret-store probe errors at debug with `exc_info=True` so transient store outages surface under verbose logging.
+  - `[TEST]` Converted three `TestRunOutputPrefixes` tests from `asyncio.run()` (sync def) to native `async def` / `await` to match the project's `asyncio_mode = "auto"` convention.
+- **Version bump to 0.5.0**: marks the cumulative work landed across PRs #81-#84 — SDR credential resolution fixes, single-key per-field secret support, `sdr-dev/` in-repo helm install with `make sdr-*` targets, and the new `SDR_RELEASE_NAME`-driven config flow.
+
 ## 0.4.50 (May 8, 2026)
 
 ### Documentation
