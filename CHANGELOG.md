@@ -2,6 +2,18 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.38 (May 7, 2026)
+
+### Bug Fixes
+
+- **Bump SDK to latest internal-ref (`03f01cec`)**: picks up the new single-key per-field secret resolution path on `application_sdk.credentials.agent` (honors `key-type: single-key`), the latest `origin/main` merge into internal-ref (contract toolkit move internal-ref, IPv4 SDR Temporal/auth pin, `run_dev_combined` env-var fallbacks), and the regenerated SDK capability manifest.
+
+## 0.4.37 (May 7, 2026)
+
+### Bug Fixes
+
+- **Switch SDK pin to consolidated `internal-ref` branch**: previously pinned to commit `206050c0` (the PR #1690 fix branch). Both [PR #1689](https://github.com/atlanhq/application-sdk/pull/1689) (SDR credential resolution) and [PR #1690](https://github.com/atlanhq/application-sdk/pull/1690) (direct-mode follow-up) have been folded into the parent [internal-ref PR #1589](https://github.com/atlanhq/application-sdk/pull/1589) along with a new single-key per-field secret resolution path for `key-type: single-key` agent specs. The mysql-app pin now follows the `internal-ref` branch directly so future fixes land without re-pinning.
+
 ## 0.4.36 (May 7, 2026)
 
 ### Bug Fixes
