@@ -50,3 +50,6 @@ components
 local
 
 test-scripts/
+
+# SDR rendered values — contains creds substituted from .env
+sdr-dev/values-override.yaml
