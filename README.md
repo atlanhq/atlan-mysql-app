@@ -133,7 +133,6 @@ For dev / test against a real tenant we ship a templated helm chart at
 committed YAML.
 
 ```bash
-source .env                  # SDR_* vars defined here (see .env.example)
 make sdr-render              # render sdr-dev/values-override.yaml from .env
 make sdr-install             # helm upgrade --install (current kubectl context)
 make sdr-status              # pods + helm status
@@ -142,6 +141,9 @@ make sdr-port-forward        # SDR pod :8000 → localhost:8000
 make sdr-uninstall           # helm uninstall (keeps namespace)
 make sdr-teardown            # helm uninstall + delete namespace + remove rendered values
 ```
+
+The `make sdr-*` targets re-source `.env` in a fresh subshell, so you don't need
+to `source .env` between edits — just edit the file and re-run.
 
 The `sdr-dev/` directory is excluded from the Docker image via
 [`.dockerignore`](.dockerignore). The rendered `values-override.yaml`
