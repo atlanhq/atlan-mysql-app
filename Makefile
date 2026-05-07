@@ -11,9 +11,18 @@
 #   make lint             Run ruff linter
 #   make format           Auto-format code
 #   make pre-commit       Run all pre-commit hooks
+#
+#   ── SDR (Self-Deployed Runtime) — see sdr-dev/README.md ──
+#   make sdr-render       Render sdr-dev/values-override.yaml from .env
+#   make sdr-install      helm upgrade --install (requires kubectl context)
+#   make sdr-uninstall    helm uninstall
+#   make sdr-status       kubectl get pods + helm status
+#   make sdr-logs         Tail SDR pod logs
+#   make sdr-port-forward Forward SDR pod :8000 → localhost:$(LOCAL_PORT)
 
 .PHONY: install test test-e2e test-e2e-remote test-cov lint format pre-commit \
-        dev start-deps stop build clean
+        dev start-deps stop build clean \
+        sdr-render sdr-install sdr-uninstall sdr-status sdr-logs sdr-port-forward
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -113,3 +122,35 @@ build:
 
 clean:
 	rm -rf .pytest_cache htmlcov .coverage local/dapr/objectstore/artifacts
+
+# ── SDR (Self-Deployed Runtime) ───────────────────────────────────────────────
+# Helm-based install used for in-cluster dev/test against a real tenant.
+# All knobs come from .env; see sdr-dev/README.md for the variable list.
+
+SDR_DIR              ?= sdr-dev
+SDR_NAMESPACE        ?= mysql-sdr
+SDR_RELEASE_NAME     ?= mysql-sdr-dev
+SDR_VALUES_RENDERED  := $(SDR_DIR)/values-override.yaml
+
+sdr-render:
+	@$(SDR_DIR)/render.sh
+
+sdr-install: sdr-render
+	@echo "Installing $(SDR_RELEASE_NAME) in namespace $(SDR_NAMESPACE)..."
+	helm upgrade --install $(SDR_RELEASE_NAME) $(SDR_DIR)/chart \
+	  --namespace $(SDR_NAMESPACE) --create-namespace \
+	  --values $(SDR_VALUES_RENDERED)
+
+sdr-uninstall:
+	helm uninstall $(SDR_RELEASE_NAME) --namespace $(SDR_NAMESPACE) || true
+
+sdr-status:
+	@echo "── helm status ──"; helm status $(SDR_RELEASE_NAME) --namespace $(SDR_NAMESPACE) || true
+	@echo "── pods ──"; kubectl get pods -n $(SDR_NAMESPACE) -l app.kubernetes.io/instance=$(SDR_RELEASE_NAME)
+
+sdr-logs:
+	kubectl logs -n $(SDR_NAMESPACE) -l app.kubernetes.io/instance=$(SDR_RELEASE_NAME) --tail=200 -f
+
+sdr-port-forward:
+	@echo "Forwarding $(SDR_NAMESPACE)/$(SDR_RELEASE_NAME) → localhost:$(LOCAL_PORT)..."
+	kubectl port-forward -n $(SDR_NAMESPACE) deployment/$(SDR_RELEASE_NAME) $(LOCAL_PORT):8000

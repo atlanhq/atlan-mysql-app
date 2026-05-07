@@ -126,6 +126,28 @@ make test-e2e-remote    # port-forwards to deployed app, runs e2e suite
 
 Requires `APP_NAMESPACE`, `APP_DEPLOYMENT`, `REMOTE_CREDENTIAL_GUID` env vars.
 
+### Self-Deployed Runtime (SDR)
+
+For dev / test against a real tenant we ship a templated helm chart at
+[`sdr-dev/`](sdr-dev/). All knobs are read from `.env` — no creds in
+committed YAML.
+
+```bash
+source .env                  # SDR_* vars defined here (see .env.example)
+make sdr-render              # render sdr-dev/values-override.yaml from .env
+make sdr-install             # helm upgrade --install (current kubectl context)
+make sdr-status              # pods + helm status
+make sdr-logs                # tail logs
+make sdr-port-forward        # SDR pod :8000 → localhost:8000
+make sdr-uninstall           # helm uninstall
+```
+
+The `sdr-dev/` directory is excluded from the Docker image via
+[`.dockerignore`](.dockerignore). The rendered `values-override.yaml`
+(with substituted creds) is gitignored. See
+[`sdr-dev/README.md`](sdr-dev/README.md) for required env vars, chart
+patches, and credential-resolution patterns (multi-key bundle vs single-key).
+
 ## Project Structure
 
 ```
@@ -155,6 +177,12 @@ tests/
     ├── conftest.py         # Testcontainers MySQL + Dapr credential setup
     ├── fixtures/seed.sql   # 5 databases, 99 tables, 1500+ columns
     └── test_mysql_e2e.py   # Handler + workflow + artifact validation
+
+sdr-dev/                  # SDR helm install for dev/test (excluded from image)
+├── README.md              # Required env vars + workflow + chart patch notes
+├── chart/                 # Patched mysql-app helm chart
+├── render.sh              # envsubst wrapper — reads .env, validates
+└── values-override.yaml.tmpl  # Templated values; rendered output is gitignored
 ```
 
 ## CI/CD
@@ -181,4 +209,12 @@ make format           # Ruff format + fix
 make pre-commit       # Run all pre-commit hooks
 make build            # Docker build
 make clean            # Remove caches and artifacts
+
+# ── SDR (Self-Deployed Runtime) — see sdr-dev/README.md ──
+make sdr-render       # Render sdr-dev/values-override.yaml from .env
+make sdr-install      # helm upgrade --install
+make sdr-uninstall    # helm uninstall
+make sdr-status       # Pods + helm status
+make sdr-logs         # Tail SDR pod logs
+make sdr-port-forward # Port-forward SDR pod :8000 → localhost
 ```

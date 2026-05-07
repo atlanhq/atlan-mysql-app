@@ -1,0 +1,44 @@
+# Files / directories excluded from `docker build` context.
+# Keep this in sync with the Dockerfile's `COPY . .` step — anything not
+# explicitly needed at runtime should be excluded so it does not bloat the
+# image or leak source-only artifacts (creds, dev tooling) into containers.
+
+# Source control
+.git
+.gitignore
+.github
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+.venv
+.mypy_cache
+.pytest_cache
+.ruff_cache
+.coverage*
+coverage.xml
+htmlcov
+
+# Tests + local dev state
+tests
+local
+
+# Dev tooling — SDR helm install lives outside the runtime image
+sdr-dev
+
+# Docs + screenshots
+docs
+*.md
+!README.md
+
+# Editor / OS junk
+.idea
+.vscode
+.cursor
+.DS_Store
+
+# Local secrets — must never end up in an image
+.env
+.env.dev
+.env.local
