@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.38 (May 7, 2026)
+
+### Bug Fixes
+
+- **Bump SDK to latest BLDX-968 (`03f01cec`)**: picks up the new single-key per-field secret resolution path on `application_sdk.credentials.agent` (honors `key-type: single-key`), the latest `origin/main` merge into BLDX-968 (contract toolkit move BLDX-1048, IPv4 SDR Temporal/auth pin, `run_dev_combined` env-var fallbacks), and the regenerated SDK capability manifest.
+
 ## 0.4.37 (May 7, 2026)
 
 ### Bug Fixes
