@@ -188,7 +188,7 @@ wheels = [
 [[package]]
 name = "atlan-application-sdk"
 version = "3.6.1"
-source = { git = "https://github.com/atlanhq/application-sdk?branch=BLDX-968#03f01ceccb374e473dfdb0b3dab03fb004472ead" }
+source = { git = "https://github.com/atlanhq/application-sdk?branch=BLDX-968#bc91f17ca9b258c0f42ab9d06ff90ec4074d9380" }
 dependencies = [
     { name = "aiohttp" },
     { name = "fastapi", extra = ["standard"] },
