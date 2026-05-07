@@ -37,31 +37,30 @@ env:
     value: "${SDR_S3_BUCKET}"
 
   # ── Credential resolution ────────────────────────────────────────────────
-  # Bundle keys deliberately match the .env var names so contributors type
-  # the same string in .env and in the Atlan UI form. Two patterns supported
-  # (pick one — comment the other out):
+  # Both env-var keys and bundle keys deliberately match the .env var names
+  # so contributors type the same string in .env and in the Atlan UI form.
+  # Two patterns supported (pick one — comment the other out):
   #
-  # PATTERN A — Multi-key bundle (default; widest SDK compatibility):
-  # The SDK fetches the JSON bundle below from the secret store and looks
-  # up each Atlan-UI field value as a bundle key, replacing it with the
-  # real credential. Atlan UI workflow form:
-  #   Secret Path / Secret Name in Secret Manager: MYSQL_SECRETS
-  #   Username field:                              SDR_MYSQL_USERNAME
-  #   Password field:                              SDR_MYSQL_PASSWORD
-  - name: MYSQL_SECRETS
-    value: '{"SDR_MYSQL_USERNAME":"${SDR_MYSQL_USERNAME}","SDR_MYSQL_PASSWORD":"${SDR_MYSQL_PASSWORD}"}'
-  #
-  # PATTERN B — Single-key per-field (cleaner; requires SDK internal-ref / 3.7+):
+  # PATTERN A — Single-key per-field (default; SDK ≥ internal-ref / 3.7+):
   # Each credential field is its own env var on the pod. Atlan UI workflow form:
   #   Secret Path: (leave empty)
   #   key-type:    single-key
-  #   Username:    SDR_MYSQL_USERNAME    (env var name on the pod)
+  #   Username:    SDR_MYSQL_USERNAME    (env var name on the pod, resolved by secret store)
   #   Password:    SDR_MYSQL_PASSWORD
-  # Then uncomment these env vars (and comment out MYSQL_SECRETS above):
-  # - name: SDR_MYSQL_USERNAME
-  #   value: "${SDR_MYSQL_USERNAME}"
-  # - name: SDR_MYSQL_PASSWORD
-  #   value: "${SDR_MYSQL_PASSWORD}"
+  - name: SDR_MYSQL_USERNAME
+    value: "${SDR_MYSQL_USERNAME}"
+  - name: SDR_MYSQL_PASSWORD
+    value: "${SDR_MYSQL_PASSWORD}"
+  #
+  # PATTERN B — Multi-key bundle (older SDKs without single-key support):
+  # The SDK fetches the JSON bundle below from the secret store and looks
+  # up each Atlan-UI field value as a bundle key. Atlan UI workflow form:
+  #   Secret Path / Secret Name in Secret Manager: MYSQL_SECRETS
+  #   Username:                                    SDR_MYSQL_USERNAME
+  #   Password:                                    SDR_MYSQL_PASSWORD
+  # Then uncomment this env var (and comment out the per-field ones above):
+  # - name: MYSQL_SECRETS
+  #   value: '{"SDR_MYSQL_USERNAME":"${SDR_MYSQL_USERNAME}","SDR_MYSQL_PASSWORD":"${SDR_MYSQL_PASSWORD}"}'
 
 dapr:
   components:
