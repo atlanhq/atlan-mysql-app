@@ -2,6 +2,24 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.4.41 (May 8, 2026)
+
+### Features
+
+- **`make sdr-teardown` for full cluster cleanup**: helm uninstall + delete namespace + remove rendered `values-override.yaml`. Complements the existing `make sdr-uninstall` (helm-only, keeps namespace for fast re-install). Both targets are documented in [README.md](README.md) and [sdr-dev/README.md](sdr-dev/README.md).
+
+## 0.4.40 (May 8, 2026)
+
+### Refactor
+
+- **`SDR_DEPLOYMENT_IMAGE` replaces split `SDR_IMAGE_REPO` + `SDR_IMAGE_TAG`**: contributors now set one combined `repo:tag` env var (e.g. `SDR_DEPLOYMENT_IMAGE=atlanhq/atlan-mysql-app:main-decd72f`) — the natural form pasted from registries / CI builds. `sdr-dev/render.sh` splits it into the two values the chart's `image.repository` / `image.tag` still need, with a clear error when the colon is missing. `.env.example` and `sdr-dev/README.md` updated to match.
+
+## 0.4.39 (May 8, 2026)
+
+### Features
+
+- **In-repo SDR helm install for dev/test (`sdr-dev/`)**: ships a patched copy of the mysql-app helm chart, an `envsubst`-based `render.sh`, and `make sdr-{render,install,uninstall,status,logs,port-forward}` targets so contributors can install the app as a Self-Deployed Runtime against a real tenant without copying YAML between repos. All knobs come from `.env` (`SDR_*` vars added to `.env.example`); the rendered `values-override.yaml` is gitignored. Added a top-level `.dockerignore` that excludes `sdr-dev/`, `tests/`, `local/`, etc. so dev tooling never lands in the runtime image. README updated with a new SDR section + Makefile reference; `sdr-dev/README.md` documents the chart patches (in-cluster Temporal, OAuth disabled, secretstore name) and credential-resolution patterns (multi-key bundle vs single-key).
+
 ## 0.4.38 (May 7, 2026)
 
 ### Bug Fixes
