@@ -29,34 +29,33 @@ empty template). All are required by [`render.sh`](render.sh):
 
 | Var | Example | Purpose |
 |---|---|---|
-| `SDR_RELEASE_NAME` | `mysql-sdr-dev` | helm release + chart `nameOverride`/`fullnameOverride` |
-| `SDR_DEPLOYMENT_NAME` | `dev` | suffix appended to the agent name visible in Atlan |
+| `SDR_RELEASE_NAME` | `mysql-app-sdr-dev` | full helm release name. Must start with `mysql-app-sdr-`. The Atlan-side agent identifier (`mysql-dev`) and temporal queue (`atlan-mysql-dev`) are derived by stripping the prefix. Defaults to `mysql-app-sdr-dev`. |
 | `SDR_TENANT_DOMAIN` | `tenant.atlan.com` | sets `global.atlanBaseUrl` |
 | `SDR_INSTANCE_NAME` | `tenant-instance` | `ATLAN_INSTANCE_NAME` env on the pod |
 | `SDR_S3_BUCKET` | `atlan-vcluster-…` | S3 bucket for app + lineage storage |
 | `SDR_S3_REGION` | `ap-south-1` | S3 region for the dapr binding |
-| `SDR_DEPLOYMENT_IMAGE` | `atlanhq/atlan-mysql-app:main-<sha>` | container image to deploy (`repo:tag`); split inside `render.sh` into the chart's `image.repository` / `image.tag` |
-| `SDR_MYSQL_USERNAME` | `atlan` | MySQL credential (substituted into bundle) |
-| `SDR_MYSQL_PASSWORD` | (secret) | MySQL credential (substituted into bundle) |
+| `SDR_IMAGE_TAG` | `main-<sha>` | container image tag (image repo `atlanhq/atlan-mysql-app` is hardcoded in the template — only the tag changes per-test) |
+| `SDR_MYSQL_USERNAME` | `atlan` | MySQL credential (substituted into the credential bundle). Independent of the e2e `MYSQL_USER` — the SDR pod typically targets a different DB. Alias `${MYSQL_USER}` in `.env` if you do want to reuse. |
+| `SDR_MYSQL_PASSWORD` | (secret) | Same — independent of e2e `MYSQL_PASSWORD`. |
 
 ## Workflow
 
-```bash
-# 1. one-time per shell: load .env so render.sh sees the SDR_* vars
-source .env
+The `make sdr-*` targets re-source `.env` in a fresh subshell, so you don't
+need to `source .env` between edits — just edit the file and re-run.
 
-# 2. render values-override.yaml from .env
+```bash
+# 1. render values-override.yaml from .env
 make sdr-render
 
-# 3. install / upgrade the chart in-cluster (uses current kubectl context)
+# 2. install / upgrade the chart in-cluster (uses current kubectl context)
 make sdr-install
 
-# 4. inspect / interact
+# 3. inspect / interact
 make sdr-status              # pod + helm status
 make sdr-logs                # tail logs
 make sdr-port-forward        # pod :8000 → localhost:8000
 
-# 5. tear down when done
+# 4. tear down when done
 make sdr-uninstall   # helm uninstall, keep namespace for fast re-install
 # or, for a full clean (helm uninstall + delete namespace + remove rendered values):
 make sdr-teardown
@@ -68,6 +67,33 @@ The template defaults to **multi-key bundle** (PATTERN A in
 [`values-override.yaml.tmpl`](values-override.yaml.tmpl)) — one env var
 `MYSQL_SECRETS` holding a JSON dict of all credential fields. Widely
 SDK-compatible.
+
+When configuring the workflow in the Atlan UI, **the username/password
+fields take *bundle keys*, not real credentials**. To keep things easy
+to remember, the bundle keys deliberately match the `.env` var names —
+type the same string in both places.
+
+**Pattern A — multi-key bundle:**
+
+| UI form field | Value to type | Role |
+|---|---|---|
+| Secret Path / Secret Name in Secret Manager | `MYSQL_SECRETS` | env var on the pod holding the JSON bundle |
+| Username | `SDR_MYSQL_USERNAME` | bundle key — SDK looks it up in the JSON dict |
+| Password | `SDR_MYSQL_PASSWORD` | bundle key — same idea, for password |
+
+**Pattern B — single-key (SDK ≥ BLDX-968):**
+
+| UI form field | Value to type | Role |
+|---|---|---|
+| Secret Path | _(leave empty)_ | not used in single-key mode |
+| `key-type` | `single-key` | tells the SDK to do per-field lookups |
+| Username | `SDR_MYSQL_USERNAME` | env var name on the pod (resolves via secret store) |
+| Password | `SDR_MYSQL_PASSWORD` | env var name on the pod |
+
+Common mistake: pasting the literal username (e.g. `atlan`) into the UI
+Username field. The SDK sends whatever you type as the MySQL username,
+which fails as `Access denied for user 'atlan'@…` (technically it would
+work for the real username, but won't substitute via the bundle).
 
 If you're on SDK ≥ BLDX-968 (or 3.7+), you can switch to **single-key per
 field** (PATTERN B): one env var per credential field, set

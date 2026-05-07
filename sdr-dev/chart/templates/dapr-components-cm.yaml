@@ -30,7 +30,7 @@
         {{- if .Values.global.clientSecret }}
           value: "{{ .Values.global.clientSecret }}"
         {{- else }}
-          secretKeyRef:            
+          secretKeyRef:
             {{- if .Values.dapr.components.deployment_secrets.multiKeySecretPath }}
             name: "{{ .Values.dapr.components.deployment_secrets.multiKeySecretPath }}"
             {{- else }}
@@ -57,7 +57,7 @@
     {{- range .Values.dapr.components.objectstore.spec.metadata }}
       - name: {{ .name }}
         value: {{ .value }}
-    {{- end }}  
+    {{- end }}
   {{- end }}
   {{- if .Values.dapr.components.secretstore.enabled }}
   secretstore.yaml: |
