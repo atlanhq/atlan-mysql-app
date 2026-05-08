@@ -19,7 +19,6 @@ import unittest
 import uuid
 from pathlib import Path
 
-import pandas as pd
 import requests
 
 logger = logging.getLogger("e2e")
@@ -207,7 +206,7 @@ class TestMySQLE2E(unittest.TestCase):
         if not output_path:
             return
 
-        # ── Validate raw extraction (parquet) ────────────────────────
+        # ── Validate raw extraction (JSONL — one record per line) ───
         raw_dir = Path(output_path) / "raw"
         self.assertTrue(raw_dir.exists(), f"No raw/ directory at {output_path}")
 
@@ -220,10 +219,14 @@ class TestMySQLE2E(unittest.TestCase):
             )
 
         for entity in ("database", "schema", "table", "column"):
-            parquets = list((raw_dir / entity).glob("*.parquet"))
+            raw_file = raw_dir / entity / "records.json"
             self.assertTrue(
-                len(parquets) > 0,
-                f"No parquet files in raw/{entity}/",
+                raw_file.exists(),
+                f"Missing raw/{entity}/records.json",
+            )
+            self.assertTrue(
+                raw_file.stat().st_size > 0,
+                f"raw/{entity}/records.json is empty",
             )
 
         # ── Validate transformed output (JSONL) ─────────────────────
@@ -293,10 +296,10 @@ class TestMySQLE2E(unittest.TestCase):
 
         for entity in ("database", "schema", "table", "column"):
             raw_count = 0
-            raw_entity_dir = raw_dir / entity
-            if raw_entity_dir.exists():
-                for pf in raw_entity_dir.glob("*.parquet"):
-                    raw_count += len(pd.read_parquet(str(pf)))
+            raw_file = raw_dir / entity / "records.json"
+            if raw_file.exists():
+                with raw_file.open("rb") as f:
+                    raw_count = sum(1 for line in f if line.strip())
 
             transformed_count = 0
             sample_name = ""
