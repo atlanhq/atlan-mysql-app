@@ -406,27 +406,27 @@ class TestMySQLAppRun:
             patch("temporalio.workflow.info", return_value=wf_info),
             patch.object(
                 MySQLApp,
-                "fetch_databases",
+                "extract_databases",
                 new=AsyncMock(return_value=MagicMock(total_record_count=1)),
             ),
             patch.object(
                 MySQLApp,
-                "fetch_schemas",
+                "extract_schemas",
                 new=AsyncMock(return_value=MagicMock(total_record_count=1)),
             ),
             patch.object(
                 MySQLApp,
-                "fetch_tables",
+                "extract_tables",
                 new=AsyncMock(return_value=MagicMock(total_record_count=2)),
             ),
             patch.object(
                 MySQLApp,
-                "fetch_columns",
+                "extract_columns",
                 new=AsyncMock(return_value=MagicMock(total_record_count=5)),
             ),
             patch.object(
                 MySQLApp,
-                "fetch_procedures",
+                "extract_procedures",
                 new=AsyncMock(return_value=MagicMock(total_record_count=1)),
             ),
             patch.object(
