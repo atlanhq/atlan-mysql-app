@@ -17,8 +17,7 @@ from application_sdk.execution._temporal.activity_utils import get_object_store_
 from application_sdk.templates.contracts.base_metadata_extraction import UploadInput
 from application_sdk.templates.contracts.sql_metadata import (
     ExtractionInput,
-    FetchProceduresInput,
-    TransformInput,
+    ExtractionTaskInput,
 )
 from application_sdk.templates.sql_app import SqlApp
 
@@ -486,16 +485,15 @@ class MySQLApp(SqlApp):
         if self.fetch_procedure_sql:
             cred_ref = self._resolve_credential_ref(input)
             proc_input = self.build_task_input(
-                FetchProceduresInput, input, cred_ref=cred_ref
+                ExtractionTaskInput, input, cred_ref=cred_ref
             )
-            await self.fetch_procedures(proc_input)
-            transform_input = self.build_task_input(
-                TransformInput, input, cred_ref=cred_ref
-            )
-            await self.transform_procedures(transform_input)
+            # Two-phase per the SDK contract: extract writes raw JSONL,
+            # transform reads it and runs map_procedure → entities.json.
+            await self.extract_procedures(proc_input)
+            await self.transform_procedures(proc_input)
             # Upload extras-procedure entities separately — super().run() uploads
             # standard entities (database/schema/table/column) BEFORE procedures
-            # are fetched, so we need a second upload pass for procedures.
+            # are extracted, so we need a second upload pass for procedures.
             upload_input = UploadInput(output_path=input.output_path)
             await self.upload_to_atlan(upload_input)
 

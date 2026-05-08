@@ -10,12 +10,34 @@ Reference: tests/e2e/fixtures/parity_spec.json + /tmp/legacy-mysql-transformed/
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
+from typing import Any
 
 import pytest
-from application_sdk.templates.sql_app import SqlApp
 
 from app.mysql import MySQLApp
+
+
+def _sanitize_for_json(obj: Any) -> Any:
+    """Recursively replace NaN, Inf, NaT with None for valid JSON.
+
+    Defensive helper for the case where a source DB stores real NaN/Inf in a
+    numeric column. SqlApp used to do this; the new architecture leaves
+    values native, which is correct for the common case but leaks invalid
+    JSON for the rare NaN-in-DOUBLE case. Connector-side defensive
+    sanitisation keeps the JSONL output spec-clean.
+    """
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_for_json(v) for v in obj]
+    if isinstance(obj, float) and (math.isnan(obj) or math.isinf(obj)):
+        return None
+    if hasattr(obj, "__class__") and obj.__class__.__name__ in ("NaTType", "NAType"):
+        return None
+    return obj
+
 
 PARITY_SPEC = json.loads(
     (Path(__file__).parent.parent / "e2e" / "fixtures" / "parity_spec.json").read_text()
@@ -366,7 +388,7 @@ class TestJsonSerialization:
         }
         entity = app.map_column(record, CONNECTION_QN)
         # SDK sanitizes NaN before writing — simulate that here
-        sanitized = SqlApp._sanitize_nan(entity)
+        sanitized = _sanitize_for_json(entity)
         serialized = json.dumps(sanitized)
         assert "NaN" not in serialized, "NaN found in JSON output"
         assert "Infinity" not in serialized, "Infinity found in JSON output"
@@ -384,7 +406,7 @@ class TestJsonSerialization:
             "column_size": float("-inf"),
         }
         entity = app.map_column(record, CONNECTION_QN)
-        sanitized = SqlApp._sanitize_nan(entity)
+        sanitized = _sanitize_for_json(entity)
         serialized = json.dumps(sanitized)
         assert "Infinity" not in serialized
 
@@ -398,7 +420,7 @@ class TestJsonSerialization:
             "row_count": float("nan"),
         }
         entity = app.map_table(record, CONNECTION_QN)
-        sanitized = SqlApp._sanitize_nan(entity)
+        sanitized = _sanitize_for_json(entity)
         serialized = json.dumps(sanitized)
         assert "NaN" not in serialized
 

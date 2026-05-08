@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.5.2 (May 8, 2026)
+
+### Bug Fixes
+
+- **Bump SDK pin to latest BLDX-968 (`8584e0db`, application-sdk 3.7.0)**: picks up the architecture refactor that drops the parquet round-trip from `SqlApp` (separate `extract_*` and `transform_*` activities, JSONL intermediate, no pandas / no pyarrow), plus the round-2 review fixes (allow_unbounded_fields removed, orjson swap, full-jitter Temporal retry, regenerated capability manifest, post-main merge conflict resolution). Mirror change on the connector side: `MySQLApp.run()` override now calls `extract_procedures()` + `transform_procedures()` instead of the removed `fetch_procedures()` / `transform_procedures(TransformInput)` pair.
+
 ## 0.5.1 (May 8, 2026)
 
 ### Bug Fixes
