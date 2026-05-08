@@ -2,6 +2,16 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.5.1 (May 8, 2026)
+
+### Bug Fixes
+
+- **Bump SDK pin to latest BLDX-968 (`ef755e2d`)**: picks up the round-2 review fixes on [application-sdk PR #1589](https://github.com/atlanhq/application-sdk/pull/1589):
+  - `[contracts]` Removed `allow_unbounded_fields=True` across `templates/contracts/` (22 spots). `FilterMap` and `workflow_args` now have explicit `MaxItems` bounds. Surfaces upstream-contract drift loudly instead of silently accepting extras.
+  - `[orjson]` `templates/contracts/sql_metadata.py`: stdlib `json` swapped for `orjson` (already a core dep). Same semantics, faster.
+  - `[retry]` `_temporal/backend.py`: Temporal connect retry now uses full-jitter exponential backoff (AWS pattern). Same 5s cap, just spreads concurrent reconnects across the window.
+  - Plus the regenerated SDK capability manifest.
+
 ## 0.5.0 (May 8, 2026)
 
 ### Features
