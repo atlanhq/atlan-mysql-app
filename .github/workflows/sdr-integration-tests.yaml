@@ -19,12 +19,12 @@ name: SDR Integration Tests
 
 on:
   pull_request:
-    # labeled       — initial trigger when the engineer applies the label
-    # synchronize   — re-run on every push while the label is still on
-    # reopened      — re-run if the PR is closed/reopened
-    # The job's `if:` below filters to the sdr-e2e-test label so PRs
-    # without it stay free.
-    types: [labeled, synchronize, reopened]
+    # Run on every PR push. Earlier iterations gated on the
+    # `sdr-e2e-test` label, but the tests are quick (~3 min) and the
+    # signal-per-PR value beats the CI minute savings — the org-common
+    # "auto on every push" model wins. Drop the gate; keep the label
+    # for ad-hoc retriggers via toggle if needed.
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
     inputs:
       application_sdk_ref:
@@ -46,11 +46,7 @@ on:
 
 jobs:
   sdr-tests:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event_name == 'pull_request' &&
-       (github.event.action == 'labeled' && github.event.label.name == 'sdr-e2e-test'
-        || github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'sdr-e2e-test')))
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     concurrency:
