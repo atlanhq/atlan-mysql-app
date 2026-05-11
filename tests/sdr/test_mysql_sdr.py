@@ -184,23 +184,23 @@ class TestMySQLSdr(BaseSDRIntegrationTest):
         # =====================================================================
         # Preflight
         # ---------------------------------------------------------------------
-        # Mysql's preflight handler returns PreflightOutput
-        # { status, checks: list[PreflightCheck{name, passed, message}],
-        #   message, total_duration_ms } — distinct from the mssql nested
-        # { connectivity, schemasCheck, tablesCheck } shape. Assertions
-        # stay at the top-level + data: is_dict level so the test class
-        # works across both shapes without per-connector branching.
+        # The SDK's preflight service wraps PreflightOutput's checks list
+        # into camelCase top-level keys on data (see
+        # application_sdk.handler.service.preflight_check — each
+        # PreflightCheck.name becomes a key, value is
+        # {success, message}). mysql's handler emits checks named
+        # "auth" and "connectivity" → data.auth / data.connectivity
+        # in the response.
         # =====================================================================
         Scenario(
             name="preflight_valid_configuration",
             api="preflight",
             assert_that={
                 "success": equals(True),
-                "data": is_dict(),
-                "data.status": is_string(),
-                "data.checks": is_list(),
+                "data.auth.success": equals(True),
+                "data.connectivity.success": equals(True),
             },
-            description="Valid configuration passes preflight",
+            description="Valid configuration passes auth + connectivity preflight checks",
         ),
         Scenario(
             name="preflight_invalid_credentials",
@@ -208,10 +208,10 @@ class TestMySQLSdr(BaseSDRIntegrationTest):
             credentials={**_valid_creds_base, "password": "definitely_wrong"},
             assert_that={
                 "success": equals(False),
-                "data": is_dict(),
-                "data.status": is_string(),
+                "data.auth.success": equals(False),
+                "data.auth.message": is_string(),
             },
-            description="Invalid credentials fail preflight",
+            description="Invalid credentials fail the auth preflight check",
         ),
         # =====================================================================
         # Full workflow scenarios — deferred follow-up.
