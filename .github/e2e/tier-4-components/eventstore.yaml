@@ -1,0 +1,32 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: eventstore
+spec:
+  type: bindings.aws.s3
+  version: v1
+  # Same shared bucket / region as the objectstore — the SDK publishes
+  # workflow lifecycle events to this binding. Mirrors the tenant
+  # production setup where extract/publish + event publishes share a
+  # bucket. `ignoreErrors: true` so a transient binding hiccup doesn't
+  # take the whole DAG down (cf. internal-ref — missing eventstore broke
+  # every workflow activity with HTTP 500).
+  ignoreErrors: true
+  metadata:
+    - name: bucket
+      value: <vcluster-bucket>
+    - name: region
+      value: ap-south-1
+    - name: forcePathStyle
+      value: "true"
+    - name: accessKey
+      secretKeyRef:
+        name: AWS_ACCESS_KEY_ID
+    - name: secretKey
+      secretKeyRef:
+        name: AWS_SECRET_ACCESS_KEY
+    - name: sessionToken
+      secretKeyRef:
+        name: AWS_SESSION_TOKEN
+auth:
+  secretStore: deployment-secret-store

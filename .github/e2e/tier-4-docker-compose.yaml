@@ -1,0 +1,51 @@
+# Tier-4 (e2e-sdr-full) compose overlay. Sits on top of the
+# configurator-generated base + SDK CI defaults; replaces the tier-3
+# overlay (localstorage + hermetic seed) with:
+#
+#   1. Sibling mysql:8.0 with the SAME .github/e2e/seed.sql so the
+#      hermetic dataset is reused for deterministic asset counts.
+#   2. AWS_* env vars propagated to the connector container so the
+#      Dapr S3 binding can write to the tenant bucket.
+#   3. ATLAN_DEPLOYMENT_NAME=ci-<github.run_id> so the connector
+#      registers on a unique Temporal task queue (atlan-mysql-ci-<run_id>)
+#      — the AE workflow's extract activity dispatches to that queue
+#      via agent-name routing.
+
+services:
+  mysql:
+    image: mysql:8.0.40
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    environment:
+      MYSQL_ROOT_PASSWORD: root_e2e_pass
+      MYSQL_DATABASE: e2e_main
+      MYSQL_USER: e2e_user
+      MYSQL_PASSWORD: e2e_pass
+    volumes:
+      - ${GITHUB_WORKSPACE}/.github/e2e/seed.sql:/docker-entrypoint-initdb.d/seed.sql:ro
+    expose:
+      - "3306"
+
+  atlan-app:
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      # Unique per-run deployment name. The SDK derives the Temporal
+      # task queue from this — ATLAN_DEPLOYMENT_NAME=ci-<run_id> →
+      # queue=atlan-mysql-ci-<run_id>. The AE workflow's agent_json
+      # specifies agent-name=ci-<run_id>, so AE dispatches to this
+      # specific queue and nobody else picks it up.
+      - ATLAN_DEPLOYMENT_NAME=ci-${GITHUB_RUN_ID}
+      # AWS creds for the Dapr S3 binding. Read by the
+      # deployment-secret-store (secretstores.local.env) Dapr component
+      # the SDR action provisions by default; the bindings.aws.s3
+      # objectstore.yaml in tier-4-components/ references these via
+      # secretKeyRef.
+      - AWS_ACCESS_KEY_ID
+      - AWS_SECRET_ACCESS_KEY
+      - AWS_SESSION_TOKEN
