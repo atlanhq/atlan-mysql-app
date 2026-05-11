@@ -1,0 +1,120 @@
+name: SDR Integration Tests
+
+# Runs the MySQL connector inside a hermetic SDR stack (atlan-configurator
+# generated compose + sibling mysql:8.0 + Dapr embedded + Temporal on the
+# CI test tenant). The seed DB is mounted from .github/e2e/seed.sql; no
+# external database secrets are needed.
+#
+# Two trigger surfaces:
+#
+# 1. Connector-side PRs — label `sdr-e2e-test` validates connector
+#    changes against the SDK pinned in pyproject.toml.
+#
+# 2. Cross-repo dispatch from application-sdk PRs — workflow_dispatch
+#    with `application_sdk_ref` validates SDK changes against this
+#    connector. Triggered by the apps-sdk `sdr-e2e-apps` job, gated on
+#    the matching `sdr-e2e-test` label on the SDK PR. The composite
+#    action handles re-pinning pyproject.toml so both the Docker image
+#    and the host-side pytest runtime use the dispatched SDK ref.
+
+on:
+  pull_request:
+    # labeled       — initial trigger when the engineer applies the label
+    # synchronize   — re-run on every push while the label is still on
+    # reopened      — re-run if the PR is closed/reopened
+    # The job's `if:` below filters to the sdr-e2e-test label so PRs
+    # without it stay free.
+    types: [labeled, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      application_sdk_ref:
+        description: >-
+          application-sdk commit SHA or ref to test against. When supplied,
+          the composite action re-pins atlan-application-sdk in pyproject.toml
+          to this ref before building the image and running tests.
+        required: false
+        default: ""
+        type: string
+      distinct_id:
+        description: >-
+          Identifier used by codex-/return-dispatch to locate this run
+          from the calling apps-sdk workflow. Echoed in the
+          "distinct-id" step name; never read by test code.
+        required: false
+        default: ""
+        type: string
+
+jobs:
+  sdr-tests:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       (github.event.action == 'labeled' && github.event.label.name == 'sdr-e2e-test'
+        || github.event.action != 'labeled' && contains(github.event.pull_request.labels.*.name, 'sdr-e2e-test')))
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    concurrency:
+      group: sdr-integration-tests-${{ github.ref }}-${{ github.event.inputs.application_sdk_ref || 'pinned' }}
+      cancel-in-progress: true
+    permissions:
+      pull-requests: write
+      contents: read
+      statuses: write
+      packages: write
+    env:
+      # Tenant + OAuth — required by the composite action's configurator
+      # step and the docker-compose env-var bridges. Set as repo-level
+      # GitHub Actions secrets (same pair as atlan-mssql-app).
+      CI_TENANT_DOMAIN: ${{ secrets.SDR_TEST_TENANT }}
+      CI_CLIENT_ID: ${{ secrets.SDR_CLIENT_ID }}
+      CI_CLIENT_SECRET: ${{ secrets.SDR_CLIENT_SECRET }}
+    steps:
+      # Echo the distinct_id so codex-/return-dispatch on the apps-sdk
+      # side can match this run back to its caller. The step's *name* is
+      # what return-dispatch scans for. Always-run, no-op.
+      - name: distinct-id ${{ github.event.inputs.distinct_id }}
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.distinct_id != ''
+        shell: bash
+        run: echo "Dispatched from apps-sdk; SDK ref=${{ github.event.inputs.application_sdk_ref }}"
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Path A — connector-side PRs: use the SDK action at @main against
+      # the SDK pinned in pyproject.toml. This is the normal flow.
+      - name: Run SDR tests (against pinned SDK)
+        if: github.event_name == 'pull_request' || github.event.inputs.application_sdk_ref == ''
+        # TODO: switch back to @main once internal-ref-sdr-cross-repo-trigger merges.
+        # Branch pin is required for validation — the atlan.yaml fix + the
+        # application-sdk-ref input live on the SDK PR, not main.
+        uses: atlanhq/application-sdk/.github/actions/sdr-e2e@internal-ref-sdr-cross-repo-trigger
+        with:
+          app-name: mysql
+          app-image-name: atlan-mysql-app
+          secrets-script: .github/e2e/make-secrets.py
+
+      # Path B — apps-sdk-dispatched runs: check out the SDK at the
+      # dispatched ref so we can invoke the composite action via a local
+      # path. GitHub Actions does not allow expressions in `uses:` refs,
+      # so this is the only way to exercise action.yaml changes from an
+      # apps-sdk PR. The `application-sdk-ref` input also re-pins
+      # pyproject.toml inside the action so both the built image and the
+      # host pytest runtime use the dispatched SDK.
+      - name: Checkout application-sdk at dispatched ref
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.application_sdk_ref != ''
+        uses: actions/checkout@v4
+        with:
+          repository: atlanhq/application-sdk
+          ref: ${{ github.event.inputs.application_sdk_ref }}
+          path: .application-sdk
+          persist-credentials: false
+
+      - name: Run SDR tests (against dispatched SDK ref)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.application_sdk_ref != ''
+        uses: ./.application-sdk/.github/actions/sdr-e2e
+        with:
+          app-name: mysql
+          app-image-name: atlan-mysql-app
+          secrets-script: .github/e2e/make-secrets.py
+          application-sdk-ref: ${{ github.event.inputs.application_sdk_ref }}
