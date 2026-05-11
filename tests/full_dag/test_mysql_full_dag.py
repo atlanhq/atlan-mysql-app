@@ -112,4 +112,9 @@ class TestMySQLFullDAG(BaseFullDAGE2ETest):
         )
 
     def agent_spec(self) -> AgentSpec:
-        return AgentSpec(agent_name=f"ci-{self.run_id}")
+        # agent_name carries the connector prefix — Argo cluster template
+        # routes task_queue = atlan-<agent_name>. Without the `mysql-`
+        # prefix the worker (registered on atlan-mysql-ci-<run_id>) and
+        # AE (dispatching to atlan-ci-<run_id>) end up on different
+        # queues and the workflow stalls "No Workers Running".
+        return AgentSpec(agent_name=f"mysql-ci-{self.run_id}")
