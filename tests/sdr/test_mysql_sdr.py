@@ -57,6 +57,7 @@ from application_sdk.testing.integration import (  # noqa: E402
     equals,
     is_dict,
     is_list,
+    is_not_empty,
     is_string,
 )
 from application_sdk.testing.sdr import BaseSDRIntegrationTest  # noqa: E402
@@ -214,14 +215,60 @@ class TestMySQLSdr(BaseSDRIntegrationTest):
             description="Invalid credentials fail the auth preflight check",
         ),
         # =====================================================================
-        # Full workflow scenarios — deferred follow-up.
+        # Full workflow + output validation
         # ---------------------------------------------------------------------
-        # The SDR test OAuth client (sdr-test-mysql-app) has realm-admin
-        # in Keycloak which is enough for Temporal connect, but the
-        # tenant's Temporal namespace authz requires a connector-specific
-        # role mapping that this client doesn't yet have. workflow_start
-        # surfaces as "Request unauthorized." until that role is granted.
-        # Tracked separately — internal-ref specifically covers wiring the
-        # pipeline, not connector-side workflow runs.
+        # _execute_scenario polls GET /workflows/v1/status/{wf}/{run}
+        # until COMPLETED or workflow_timeout seconds elapse. Seed dataset
+        # is tiny (~20 rows across 3 dbs) so the workflow runs end-to-end
+        # in well under the budget.
+        #
+        # Temporal namespace authz on the OAuth client is via the
+        # temporal-app-permissions-scope client scope on Keycloak —
+        # injects ["default:read","default:write"] under the `permissions`
+        # claim that Temporal's default claim mapper reads.
         # =====================================================================
+        Scenario(
+            name="workflow_include_main_db",
+            api="workflow",
+            metadata={
+                "exclude-filter": "{}",
+                "include-filter": json.dumps({f"^{_MYSQL_DATABASE}$": []}),
+                "temp-table-regex": "",
+                "extraction-method": "agent",
+            },
+            assert_that={
+                "success": equals(True),
+                "data.workflow_id": is_not_empty(),
+                "data.run_id": is_not_empty(),
+            },
+            extracted_output_base_path=_SDR_OUTPUT_BASE,
+            workflow_timeout=300,
+            polling_interval=10,
+            description=(
+                "Full SDR workflow runs to COMPLETED on tenant Temporal "
+                "with include-filter pinned to the seed DB"
+            ),
+        ),
+        Scenario(
+            name="workflow_mixed_filters",
+            api="workflow",
+            metadata={
+                "exclude-filter": '{"^e2e_excluded$":[]}',
+                "include-filter": '{".*": []}',
+                "temp-table-regex": "",
+                "extraction-method": "agent",
+            },
+            assert_that={
+                "success": equals(True),
+                "data.workflow_id": is_not_empty(),
+                "data.run_id": is_not_empty(),
+            },
+            extracted_output_base_path=_SDR_OUTPUT_BASE,
+            workflow_timeout=300,
+            polling_interval=10,
+            description=(
+                "Mixed include + exclude filters — excludes the legacy "
+                "schema, includes the other two seeded databases"
+            ),
+        ),
     ]
