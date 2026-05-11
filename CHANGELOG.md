@@ -2,6 +2,20 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.6.0 (May 11, 2026)
+
+### Chore
+
+- **Bump SDK pin to apps-sdk `main` (`dd80501d`).** BLDX-968 (SqlApp template consolidation + SDR credential routing) is in mainline now, so the connector tracks `main` again instead of the feature branch.
+
+### Features
+
+- **[BLDX-1254] Wire up SDR integration test pipeline.** Adds `.github/workflows/sdr-integration-tests.yaml`, which exercises the connector inside a customer-style SDR stack (atlan-configurator-generated compose, Dapr embedded, Temporal on the CI test tenant) via the shared `atlanhq/application-sdk/.github/actions/sdr-e2e` composite action. Two trigger surfaces:
+  - **Connector-side PRs** — label `sdr-e2e-test` runs the full SDR suite against the SDK pinned in `pyproject.toml`. Sits alongside unit + integration as a third tier of CI checks.
+  - **Cross-repo dispatch** — `workflow_dispatch` with `application_sdk_ref` input runs the same suite against a specific application-sdk SHA. Mirrors the openapi-spec cross-repo pattern: an apps-sdk PR labeled `sdr-e2e-test` fans out and dispatches this workflow with the PR's head SHA, validating SDK changes against the mysql connector before merge.
+- **Hermetic test database via docker-compose overlay.** `.github/e2e/docker-compose.ci.yml` brings up a sibling `mysql:8.0` service on the same compose network as the connector container, seeded by `.github/e2e/seed.sql` (three databases, multiple tables/views, ~20 rows total — enough to exercise include/exclude filter scenarios in <60s). No external `E2E_MYSQL_HOST/PORT/USERNAME/PASSWORD/DATABASE` secrets required.
+- **SDR test suite.** `tests/sdr/test_mysql_sdr.py` adds 10 scenarios across auth (4), preflight (4), and full workflow runs (2). Uses `BaseSDRIntegrationTest` for workflow-completion polling and agent-credential routing via `agent_spec_template`. Credentials resolve through the Dapr `local.file` secret store (`.github/e2e/make-secrets.py` writes the bundle under key `mysql-credentials`).
+
 ## 0.5.2 (May 8, 2026)
 
 ### Bug Fixes
