@@ -18,12 +18,16 @@ import os
 
 # Must match the MYSQL_USER/MYSQL_PASSWORD in tier-4-docker-compose.yaml
 # (and seed.sql's GRANT statements).
-bundle = {
+#
+# Tier-4 uses agent `key-type: single-key`, which makes the SDK fetch
+# each ref-key as a separate top-level entry from the Dapr secret store
+# (see application_sdk.credentials.agent._fetch_per_key_bundle).
+# So the bundle file is FLAT — not nested under `mysql-credentials`
+# like tier-3 (which uses `secret-path` / multi-key bundle mode).
+out = {
     "SDR_MYSQL_USERNAME": "e2e_user",
     "SDR_MYSQL_PASSWORD": "e2e_pass",
 }
-
-out = {"mysql-credentials": json.dumps(bundle)}
 
 os.makedirs(".github/e2e/secrets", exist_ok=True)
 with open(".github/e2e/secrets/credentials.json", "w") as f:
