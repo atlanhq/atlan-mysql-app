@@ -39,7 +39,6 @@ Credentials are CI-only constants pinned in
 
 from __future__ import annotations
 
-import json
 from typing import Any, Dict
 
 import pytest
@@ -118,9 +117,17 @@ class TestMySQLSdr(BaseSDRIntegrationTest):
 
     default_credentials: Dict[str, Any] = dict(_valid_creds_base)
 
+    # SDK's _prepare_sql only runs normalize_filters() when the filter
+    # value is a dict; JSON-encoded strings get used as raw regex and
+    # blow up on MySQL ("Syntax error in regular expression on line 1,
+    # character 1" when the SQL ends up with REGEXP '{...}'). Pass
+    # plain anchored regex strings instead — `^def\.e2e_main$` matches
+    # the CONCAT(DATABASE(), '.', SCHEMA_NAME) shape mysql extract SQL
+    # uses, `^$` (matches only empty string) effectively means "exclude
+    # nothing".
     default_metadata: Dict[str, Any] = {
-        "exclude-filter": "{}",
-        "include-filter": json.dumps({f"^{_MYSQL_DATABASE}$": []}),
+        "exclude-filter": "^$",
+        "include-filter": rf"^def\.{_MYSQL_DATABASE}$",
         "temp-table-regex": "",
         "extraction-method": "direct",
     }
@@ -231,8 +238,8 @@ class TestMySQLSdr(BaseSDRIntegrationTest):
             name="workflow_include_main_db",
             api="workflow",
             metadata={
-                "exclude-filter": "{}",
-                "include-filter": json.dumps({f"^{_MYSQL_DATABASE}$": []}),
+                "exclude-filter": "^$",
+                "include-filter": rf"^def\.{_MYSQL_DATABASE}$",
                 "temp-table-regex": "",
                 "extraction-method": "agent",
             },
@@ -253,8 +260,8 @@ class TestMySQLSdr(BaseSDRIntegrationTest):
             name="workflow_mixed_filters",
             api="workflow",
             metadata={
-                "exclude-filter": '{"^e2e_excluded$":[]}',
-                "include-filter": '{".*": []}',
+                "exclude-filter": r"^def\.e2e_excluded$",
+                "include-filter": r"^def\..*$",
                 "temp-table-regex": "",
                 "extraction-method": "agent",
             },
