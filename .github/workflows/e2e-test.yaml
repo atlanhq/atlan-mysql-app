@@ -17,7 +17,7 @@ jobs:
     if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' || contains(github.event.pull_request.labels.*.name, 'e2e-test-1m') || contains(github.event.pull_request.labels.*.name, 'e2e-test') }}
 
     steps:
-      - uses: actions/checkout@v4.0.0
+      - uses: actions/checkout@v6
         with:
           token: ${{ secrets.ORG_PAT_GITHUB }}
 
@@ -331,7 +331,7 @@ jobs:
 
       - name: Comment workflow status on Pull Request
         if: ${{ github.event_name == 'pull_request' }}
-        uses: mshick/add-pr-comment@b8f338c590a895d50bcbfa6c5859251edc8952fc # v2.8.2 https://github.com/mshick/add-pr-comment/releases/tag/v2.8.2
+        uses: mshick/add-pr-comment@8e4927817251f1ff60c001f04568532b38e0b4a0 # v3.11.0 https://github.com/mshick/add-pr-comment/releases/tag/v3.11.0
         with:
           message-id: "workflow_status"
           message-path: metrics.md
@@ -349,7 +349,7 @@ jobs:
 
       - name: Commit scalene.json file
         if: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop' }}
-        uses: stefanzweifel/git-auto-commit-action@b863ae1933cb653a53c021fe36dbb774e1fb9403 # v5.2.0 https://github.com/stefanzweifel/git-auto-commit-action/releases/tag/v5.2.0
+        uses: stefanzweifel/git-auto-commit-action@04702edda442b2e678b25b537cec683a1493fcb9 # v7.1.0 https://github.com/stefanzweifel/git-auto-commit-action/releases/tag/v7.1.0
         with:
           commit_message: "[skip ci] chore: update scalene.json with latest performance metrics"
           file_pattern: "scalene.json"
