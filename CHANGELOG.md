@@ -2,6 +2,19 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.0 (May 12, 2026)
+
+### Features
+
+- **[BLDX-1254] Full-DAG e2e workflow (`.github/workflows/e2e-full.yaml`).** Manual-trigger workflow that runs this PR's connector image end-to-end through the tenant's system-apps DAG (extract → qi → publish → lineage-app → lineage-publish) on devex and asserts the resulting Atlas footprint: Connection envelope + per-typeName asset counts (Database / Schema / Table / View / Column) + at least one lineage Process row. Test class `TestMySQLFullDAG` in `tests/full_dag/` configures the seed thresholds (Database≥1, Schema≥1, Table≥2, View≥1, Column≥10) that match `seed.sql` under the `e2e_main` include-filter.
+- **OAuth-via-blobstorage proxy for S3 access.** Replaces the original AWS STS-input plumbing on the full-DAG workflow with a long-lived OAuth client (provisioned once via `POST /api/service/oauth-clients` with `events-app-permissions-scope` + `temporal-app-permissions-scope`). The Dapr `bindings.aws.s3` component (`.github/e2e/e2e-full-components/objectstore.yaml`) SigV4-signs requests with the client_id / client_secret as accessKey / secretKey; the tenant's `/api/blobstorage` ingress validates the pair via Heracles and forwards to the actual S3 bucket. No STS refresh cycle, no workflow_dispatch credential paste, no GH OIDC trust setup.
+- **`$admin` role resolved via pyatlan `role_cache`.** Connection ACL in the test no longer hardcodes a tenant-specific role UUID — the test class' `connection_spec()` calls `AtlanClient.role_cache.get_id_for_name("$admin")` at run time, so the same code is portable across tenants.
+
+### Chore
+
+- **Bump SDK pin to apps-sdk `aryaman/bldx-1254-sdr-cross-repo-trigger` (`b650e6ec`).** Picks up the new `application_sdk.testing.full_dag` harness (`BaseFullDAGE2ETest`, `AEWorkflowClient`, asset-count / lineage probes), the SDR composite action's buildx GHA cache backend, and pyatlan-async-based parallel asset searches. Branch-pinned until [#1710](https://github.com/atlanhq/application-sdk/pull/1710) merges; tracked under "Revert temp pins post-merge".
+- **Rename `tier-4-*` → `e2e-full-*` across the harness surface.** `tier-*` numbering was internal jargon that became misleading once the workflow grew to span multiple extraction modes. Affected: workflow file, compose overlay, components dir, secrets script. Test directory `tests/full_dag/` stays as-is (matches the SDK namespace `application_sdk.testing.full_dag`).
+
 ## 0.6.0 (May 11, 2026)
 
 ### Chore
