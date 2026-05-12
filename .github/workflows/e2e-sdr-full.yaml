@@ -1,4 +1,4 @@
-name: SDR Full-DAG E2E (tier 4)
+name: e2e-sdr-full
 
 # Tier-4 test — runs the connector's code (this PR's image) end-to-end
 # through the tenant's full system-apps DAG: extract → qi → publish →
