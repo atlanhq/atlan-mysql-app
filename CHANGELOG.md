@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.3 (May 12, 2026)
+
+### Bug Fixes
+
+- **[BLDX-1254] Retry AE submit on HTTP 5xx.** AE's `POST /api/service/package-workflows?submit=true` occasionally returns `AE-COMMON-500-01: An unexpected error occurred` for a few seconds after `publish_version` succeeds — without any Temporal workflow being dispatched. The harness now retries the submit up to 4 times at 5s intervals (same pattern `create_version` already uses for the 404 indexing window). Bumps SDK pin to `af7a319d`.
+
 ## 0.7.2 (May 12, 2026)
 
 ### Bug Fixes
