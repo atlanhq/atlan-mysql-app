@@ -100,11 +100,18 @@ class TestMySQLFullDAG(BaseFullDAGE2ETest):
     # probe gets ATLAS-403-00-001) and any tenant admin who wants to
     # inspect the run afterwards — no per-user hardcoding required.
 
-    # Slightly tighter timeouts than the BaseFullDAGE2ETest defaults:
-    # the hermetic seed dataset is small (~20 rows total) so extract +
-    # publish complete in well under 10 min, and the AE poll loop
-    # should hear back even faster.
+    # Tighter than the BaseFullDAGE2ETest defaults: the hermetic
+    # seed.sql is tiny (~20 rows, 4 entity types) so the AE DAG runs
+    # in 60-90s wall-time. Polling every 5s instead of 10s catches
+    # terminal state ~5s earlier on average; the Atlas indexer
+    # likewise turns the Connection over in <60s for small datasets,
+    # so we don't need the SDK's 30s default. Total wall-time saving
+    # ~30-60s per run vs the SDK defaults — meaningful at ~100 CI
+    # invocations per week, and the bandwidth cost is negligible
+    # (4 short polls per minute, GETs only).
+    ae_poll_interval_seconds = 5
     ae_poll_timeout_seconds = 600
+    atlas_poll_interval_seconds = 10
     atlas_poll_timeout_seconds = 900
 
     # Expected Atlas inventory for the hermetic seed.sql restricted to
