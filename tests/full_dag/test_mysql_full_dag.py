@@ -92,21 +92,38 @@ class TestMySQLFullDAG(BaseFullDAGE2ETest):
     connection_name_prefix = "e2e-full-ci"
     include_filter = '{"^def$":["^e2e_main$"]}'
     exclude_filter = "{}"
-    # `aryaman` on adminUsers is purely for post-run human debugging in
-    # Atlas. The crucial entry — the API-key service account that runs
-    # the back-side probe — is injected via `connection_spec()` below,
-    # which resolves the tenant's `$admin` role GUID at run time so we
-    # don't have to hardcode either the service-account username or a
-    # tenant-specific role UUID. (Without that role on adminRoles, the
-    # harness's GET on the Connection asset returns 403 — `$admin` is
-    # the role every tenant's API service account belongs to.)
-    connection_admin_users = ("aryaman",)
+    # adminUsers / adminGroups intentionally left as the base-class
+    # defaults (empty tuples). The Connection's admin ACL is set by
+    # `connection_spec()` below, which resolves the tenant's `$admin`
+    # role GUID via pyatlan's role_cache at run time. That role covers
+    # both the API-key service account (without which the harness
+    # probe gets ATLAS-403-00-001) and any tenant admin who wants to
+    # inspect the run afterwards — no per-user hardcoding required.
+
     # Slightly tighter timeouts than the BaseFullDAGE2ETest defaults:
     # the hermetic seed dataset is small (~20 rows total) so extract +
     # publish complete in well under 10 min, and the AE poll loop
     # should hear back even faster.
     ae_poll_timeout_seconds = 600
     atlas_poll_timeout_seconds = 900
+
+    # Expected Atlas inventory for the hermetic seed.sql restricted to
+    # `e2e_main` (the include_filter above). Seed.sql under e2e_main
+    # creates: one database, one schema (`def`), two tables (customers,
+    # orders), one view (v_customer_order_totals), and 4+4+3=11 columns.
+    # Floors only — Atlas can land more (e.g. system columns) without
+    # breaking the assertion. Numbers chosen conservatively to avoid
+    # CI flakiness on transient indexer lag for the trailing rows.
+    expected_min_asset_counts = {
+        "Database": 1,
+        "Schema": 1,
+        "Table": 2,
+        "View": 1,
+        "Column": 10,
+    }
+    # v_customer_order_totals reads from customers + orders, so view
+    # lineage parsing in QI should emit at least one Process row.
+    expect_lineage = True
 
     def connection_spec(self) -> ConnectionSpec:
         # Resolve the tenant's `$admin` role GUID via pyatlan's
