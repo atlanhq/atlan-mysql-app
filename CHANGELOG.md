@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.2 (May 12, 2026)
+
+### Bug Fixes
+
+- **Full-DAG e2e: unblock `qi` node + populate downstream CQN.** The seed DAG's `qi` input referenced `$.extract.outputs.view_data_prefix` — a field mssql-style connectors emit when they write view definitions to a dedicated subfolder, but mysql's v3 extract bundles views into the main transformed output. AE failed `qi` with `Jsonpath ... did not match any value`, which left `lineage-app` / `lineage-publish` Pending and stalled the DAG. Independently, all downstream nodes (qi / publish / lineage-app / lineage-publish) were reading their `connection_qualified_name` from `$.extract.outputs.connection_qualified_name`, but v3 connectors don't echo the input CQN back on extract's output — so publish ran with empty CQN and emitted 0 entities even though everything else "succeeded". The SDK harness now (a) exposes `qi_input_prefix_field` as a class attr (set to `transformed_data_prefix` on the mysql test), and (b) inlines `connection.qualified_name` directly on the seed DAG instead of routing it through extract's output dance. Bumps SDK pin to `e51dc7f2`.
+
 ## 0.7.1 (May 12, 2026)
 
 ### Bug Fixes

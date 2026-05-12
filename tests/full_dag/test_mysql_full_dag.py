@@ -101,6 +101,13 @@ class TestMySQLFullDAG(BaseFullDAGE2ETest):
     # extract_schema.sql); the schema is the actual database name.
     include_filter = r"^def\.e2e_main$"
     exclude_filter = ""
+    # mysql's v3 extract bundles view definitions into the main
+    # transformed output rather than a dedicated `view_data_prefix`
+    # subfolder. Without this override AE fails the qi node with
+    # `Jsonpath '$.extract.outputs.view_data_prefix' did not match any
+    # value` and the lineage nodes get stuck Pending — blocking the
+    # whole DAG and silently producing 0 published entities.
+    qi_input_prefix_field = "transformed_data_prefix"
     # adminUsers / adminGroups intentionally left as the base-class
     # defaults (empty tuples). The Connection's admin ACL is set by
     # `connection_spec()` below, which resolves the tenant's `$admin`
