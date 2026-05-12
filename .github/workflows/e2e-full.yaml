@@ -1,16 +1,18 @@
-name: e2e-sdr-full
+name: e2e-full
 
-# Tier-4 test — runs the connector's code (this PR's image) end-to-end
-# through the tenant's full system-apps DAG: extract → qi → publish →
-# lineage-app → lineage-publish. Asserts the resulting Connection
-# asset lands in Atlas.
+# Full-DAG end-to-end test — runs the connector's code (this PR's
+# image) all the way through the tenant's system-apps DAG: extract
+# → qi → publish → lineage-app → lineage-publish. Asserts the
+# resulting Connection asset lands in Atlas with descendant assets
+# (Database / Schema / Table / View / Column) and lineage Process
+# rows.
 #
 # Manual-trigger only — runs are expensive (~10 min compose + 5-15 min
 # AE DAG + ~5 min Atlas poll) and create real Connection assets in Atlas
 # that don't get cleaned up by this workflow. Trigger before merging a
 # meaningful connector change to validate the integration contract with
-# the tenant's system apps; per-PR signal comes from tier-3
-# (sdr-integration-tests.yaml).
+# the tenant's system apps; per-PR signal comes from the standard SDR
+# integration suite (sdr-integration-tests.yaml).
 #
 # S3 access flows through the tenant's /api/blobstorage proxy via an
 # OAuth client (provisioned once per tenant via POST /api/service/
@@ -21,11 +23,12 @@ name: e2e-sdr-full
 # STS tokens, no 12h refresh, no GH OIDC trust to set up.
 #
 # The pair lives as GH secrets SDR_OAUTH_CLIENT_ID /
-# SDR_OAUTH_CLIENT_SECRET (set the same OAuth client_id /
-# client_secret the configurator was provisioned with for tier-3 —
-# named distinctly here to make the OAuth-via-S3-proxy purpose
-# explicit at the workflow level). They're propagated into the
-# worker container's env via the tier-4-docker-compose overlay.
+# SDR_OAUTH_CLIENT_SECRET (set to the same OAuth client_id /
+# client_secret the configurator was provisioned with for the
+# per-PR integration suite — named distinctly here to make the
+# OAuth-via-S3-proxy purpose explicit at the workflow level).
+# They're propagated into the worker container's env via the
+# e2e-full-docker-compose overlay.
 
 on:
   workflow_dispatch:
@@ -37,11 +40,11 @@ on:
         default: ""
 
 jobs:
-  e2e-sdr-full:
+  e2e-full:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     concurrency:
-      group: e2e-sdr-full-${{ github.ref }}
+      group: e2e-full-${{ github.ref }}
       cancel-in-progress: false  # don't kill an in-flight tenant workflow
     permissions:
       pull-requests: write
@@ -49,11 +52,11 @@ jobs:
       statuses: write
       packages: write
     env:
-      # Tenant + OAuth — same secrets tier-3 uses (already provisioned
-      # on this repo per BLDX-1254). CI_* are read by the configurator
-      # to wire app-side auth; ATLAN_AUTH_* are read by the Dapr S3
-      # binding in tier-4-components/objectstore.yaml for tenant S3
-      # uploads via /api/blobstorage.
+      # Tenant + OAuth — same secrets the per-PR SDR integration suite
+      # uses (already provisioned on this repo per BLDX-1254). CI_* are
+      # read by the configurator to wire app-side auth; ATLAN_AUTH_*
+      # are read by the Dapr S3 binding in e2e-full-components/
+      # objectstore.yaml for tenant S3 uploads via /api/blobstorage.
       CI_TENANT_DOMAIN: ${{ secrets.SDR_TEST_TENANT }}
       CI_CLIENT_ID: ${{ secrets.SDR_CLIENT_ID }}
       CI_CLIENT_SECRET: ${{ secrets.SDR_CLIENT_SECRET }}
@@ -78,14 +81,14 @@ jobs:
           fi
           echo "Using agent-name=$(grep '^name=' "$GITHUB_OUTPUT" | cut -d= -f2)"
 
-      # Same composite action as tier-3 — different inputs steer it to
-      # the tier-4 stack:
+      # Same composite action as the per-PR SDR integration suite —
+      # different inputs steer it to the full-DAG stack:
       #   - test-path:  tests/full_dag/ (the BaseFullDAGE2ETest suite)
-      #   - components-dir: .github/e2e/tier-4-components (OAuth-proxy
+      #   - components-dir: .github/e2e/e2e-full-components (OAuth-proxy
       #     S3 binding pointing at /api/blobstorage)
-      #   - compose-overlay: .github/e2e/tier-4-docker-compose.yaml
+      #   - compose-overlay: .github/e2e/e2e-full-docker-compose.yaml
       #     (sibling mysql + ATLAN_AUTH_* env + unique deployment_name)
-      #   - secrets-script: tier-4 bundle (SDR_MYSQL_USERNAME keys)
+      #   - secrets-script: e2e-full bundle (SDR_MYSQL_USERNAME keys)
       #
       # TODO: switch back to @main once aryaman/bldx-1254-sdr-cross-repo-trigger
       # merges. Branch-pin required because components-dir +
@@ -95,13 +98,14 @@ jobs:
           app-name: mysql
           app-image-name: atlan-mysql-app
           test-path: tests/full_dag/
-          secrets-script: .github/e2e/make-secrets-tier-4.py
-          components-dir: .github/e2e/tier-4-components
-          compose-overlay: .github/e2e/tier-4-docker-compose.yaml
+          secrets-script: .github/e2e/make-secrets-e2e-full.py
+          components-dir: .github/e2e/e2e-full-components
+          compose-overlay: .github/e2e/e2e-full-docker-compose.yaml
           # Bump the container-health wait because the worker has to
           # establish the Temporal connection with TLS + auth before
           # /server/health turns green.
           container-health-timeout-seconds: "120"
           # Run pytest with -s to see the harness's poll-loop output
-          # streamed in real time (default tier-3 buffering hides it).
+          # streamed in real time (the SDR action's default pytest
+          # buffering hides it).
           pytest-extra-args: "-s"
