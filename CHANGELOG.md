@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.5 (May 12, 2026)
+
+### Features
+
+- **[BLDX-1254] Heartbeat log every 30s during AE polling.** Lineage stages take 2-5 min on small datasets and keep the status string unchanged across many poll iterations, so the previous "log on change" approach produced ~2-min silent gaps in CI output — particularly disorienting right after a transient 5xx warning. The harness now logs a `still polling, elapsed=Ns` heartbeat every 30s regardless of status change. Bumps SDK pin to `b4005a63`.
+
 ## 0.7.4 (May 12, 2026)
 
 ### Bug Fixes
