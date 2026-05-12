@@ -146,7 +146,19 @@ class TestMySQLFullDAG(BaseFullDAGE2ETest):
                 base_url=os.environ["ATLAN_BASE_URL"],
                 api_key=os.environ["ATLAN_API_KEY"],
             )
-            self._admin_role_guid = client.role_cache.get_id_for_name("$admin")
+            guid = client.role_cache.get_id_for_name("$admin")
+            if guid is None:
+                # role_cache returns None when the role doesn't exist on
+                # this tenant. `$admin` is a built-in Atlan role so this
+                # would only fire on a misconfigured tenant — fail loud
+                # rather than silently dropping the back-side probe ACL.
+                raise RuntimeError(
+                    "pyatlan role_cache could not resolve `$admin` role GUID "
+                    f"against {os.environ['ATLAN_BASE_URL']} — Connection "
+                    "would land with empty adminRoles and the harness probe "
+                    "would 403."
+                )
+            self._admin_role_guid = guid
         return ConnectionSpec(
             name=self.connection_display_name,
             qualified_name=self.connection_qualified_name,
