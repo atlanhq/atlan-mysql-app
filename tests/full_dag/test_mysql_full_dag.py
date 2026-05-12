@@ -54,8 +54,10 @@ if not os.environ.get("ATLAN_BASE_URL") or not os.environ.get("ATLAN_API_KEY"):
 from application_sdk.testing.full_dag import BaseFullDAGE2ETest, RunMode  # noqa: E402
 from application_sdk.testing.full_dag.payload import (  # noqa: E402
     AgentSpec,
+    ConnectionSpec,
     DatabaseSpec,
 )
+from pyatlan.client.atlan import AtlanClient  # noqa: E402
 
 
 class TestMySQLFullDAG(BaseFullDAGE2ETest):
@@ -90,8 +92,15 @@ class TestMySQLFullDAG(BaseFullDAGE2ETest):
     connection_name_prefix = "e2e-full-ci"
     include_filter = '{"^def$":["^e2e_main$"]}'
     exclude_filter = "{}"
+    # `aryaman` on adminUsers is purely for post-run human debugging in
+    # Atlas. The crucial entry — the API-key service account that runs
+    # the back-side probe — is injected via `connection_spec()` below,
+    # which resolves the tenant's `$admin` role GUID at run time so we
+    # don't have to hardcode either the service-account username or a
+    # tenant-specific role UUID. (Without that role on adminRoles, the
+    # harness's GET on the Connection asset returns 403 — `$admin` is
+    # the role every tenant's API service account belongs to.)
     connection_admin_users = ("aryaman",)
-    connection_admin_roles = ("30502f8b-f748-4771-9b71-2a3b3b5faae0",)
 
     # Slightly tighter timeouts than the BaseFullDAGE2ETest defaults:
     # the hermetic seed dataset is small (~20 rows total) so extract +
@@ -99,6 +108,29 @@ class TestMySQLFullDAG(BaseFullDAGE2ETest):
     # should hear back even faster.
     ae_poll_timeout_seconds = 600
     atlas_poll_timeout_seconds = 900
+
+    def connection_spec(self) -> ConnectionSpec:
+        # Resolve the tenant's `$admin` role GUID via pyatlan's
+        # role_cache so the API-key service account (which is in `$admin`
+        # by default) ends up on the Connection's admin ACL — required
+        # for the harness's back-side probe (without it, the GET returns
+        # ATLAS-403-00-001). Cached on `self` so we don't pay the lookup
+        # cost on every call inside the harness.
+        if not hasattr(self, "_admin_role_guid"):
+            client = AtlanClient(
+                base_url=os.environ["ATLAN_BASE_URL"],
+                api_key=os.environ["ATLAN_API_KEY"],
+            )
+            self._admin_role_guid = client.role_cache.get_id_for_name("$admin")
+        return ConnectionSpec(
+            name=self.connection_display_name,
+            qualified_name=self.connection_qualified_name,
+            connector_name=self.connector_short_name,
+            source_logo=f"https://assets.atlan.com/assets/{self.connector_short_name}.png",
+            admin_users=self.connection_admin_users,
+            admin_groups=self.connection_admin_groups,
+            admin_roles=(self._admin_role_guid,),
+        )
 
     def database_spec(self) -> DatabaseSpec:
         # `host=mysql` resolves over the compose default network to
