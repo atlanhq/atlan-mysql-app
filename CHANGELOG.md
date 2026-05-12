@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.4 (May 12, 2026)
+
+### Bug Fixes
+
+- **[BLDX-1254] Tolerate transient `native-status` 5xx during DAG polling.** The tenant's Temporal occasionally blips for a few seconds mid-run and AE surfaces `AE-COMMON-500-01: An unexpected error occurred` on `get_native_status`, then recovers. The harness used to raise on the first 5xx and fail the whole test despite a healthy underlying workflow. `poll_native_status` now logs a warning with the streak count and keeps polling — up to 5 consecutive failures before re-raising (treats a sustained outage as a real failure, a blip as noise). Bumps SDK pin to `559bfa55`.
+
 ## 0.7.3 (May 12, 2026)
 
 ### Bug Fixes
