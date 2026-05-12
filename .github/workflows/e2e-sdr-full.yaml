@@ -12,33 +12,24 @@ name: e2e-sdr-full
 # the tenant's system apps; per-PR signal comes from tier-3
 # (sdr-integration-tests.yaml).
 #
-# AWS creds are pasted as workflow_dispatch inputs because:
-#   1. The IAM Identity Center role we have access to is SSO-only (no
-#      IAM:CreateRole, so we can't set up GH OIDC trust without platform).
-#   2. STS session tokens expire in <= 12h, so storing them in GH
-#      secrets isn't viable.
-#   3. Each run is < 30 min, so a fresh STS bundle pasted at trigger
-#      time outlasts the run comfortably.
+# S3 access flows through the tenant's /api/blobstorage proxy via an
+# OAuth client (provisioned once per tenant via POST /api/service/
+# oauth-clients with the events-app- + temporal-app-permissions-scope
+# scopes — see internal-ref). The Dapr S3 binding SigV4-signs requests
+# using the OAuth client_id as accessKey and client_secret as secretKey;
+# the tenant proxy validates and forwards to the actual S3 bucket. No
+# STS tokens, no 12h refresh, no GH OIDC trust to set up.
 #
-# Get fresh STS creds from the AWS access portal:
-#   Customer-Prod India (677185614191) → S3-Development-Bucket-role
-#   → "Get credentials" → Option 1 (Set AWS environment variables)
+# The pair lives as GH secrets SDR_OAUTH_CLIENT_ID /
+# SDR_OAUTH_CLIENT_SECRET (set the same OAuth client_id /
+# client_secret the configurator was provisioned with for tier-3 —
+# named distinctly here to make the OAuth-via-S3-proxy purpose
+# explicit at the workflow level). They're propagated into the
+# worker container's env via the tier-4-docker-compose overlay.
 
 on:
   workflow_dispatch:
     inputs:
-      aws_access_key_id:
-        description: STS access key id (AWS IAM Identity Center, S3-Development-Bucket-role)
-        required: true
-        type: string
-      aws_secret_access_key:
-        description: STS secret access key
-        required: true
-        type: string
-      aws_session_token:
-        description: STS session token
-        required: true
-        type: string
       agent_name_override:
         description: Override agent-name (default ci-<run_id>; useful when re-running against a worker that's already up).
         required: false
@@ -59,46 +50,20 @@ jobs:
       packages: write
     env:
       # Tenant + OAuth — same secrets tier-3 uses (already provisioned
-      # on this repo per internal-ref).
+      # on this repo per internal-ref). CI_* are read by the configurator
+      # to wire app-side auth; ATLAN_AUTH_* are read by the Dapr S3
+      # binding in tier-4-components/objectstore.yaml for tenant S3
+      # uploads via /api/blobstorage.
       CI_TENANT_DOMAIN: ${{ secrets.SDR_TEST_TENANT }}
       CI_CLIENT_ID: ${{ secrets.SDR_CLIENT_ID }}
       CI_CLIENT_SECRET: ${{ secrets.SDR_CLIENT_SECRET }}
+      ATLAN_AUTH_CLIENT_ID: ${{ secrets.SDR_OAUTH_CLIENT_ID }}
+      ATLAN_AUTH_CLIENT_SECRET: ${{ secrets.SDR_OAUTH_CLIENT_SECRET }}
       # AE submit + native-status poll + Atlas Connection probe all
       # use ATLAN_API_KEY (which is what the harness reads).
       ATLAN_BASE_URL: ${{ secrets.ATLAN_BASE_URL }}
       ATLAN_API_KEY: ${{ secrets.ATLAN_API_KEY }}
-      # NOTE: AWS_* STS creds are intentionally NOT at job level. Putting
-      # them here renders the literal values in every step's env header
-      # in CI logs (GH Actions doesn't auto-mask workflow_dispatch inputs
-      # the way it does secrets). Instead we mask first in a dedicated
-      # step, then re-emit them via GITHUB_ENV so subsequent steps see
-      # masked values (***) in logs.
     steps:
-      # Register the STS triple as masked secrets BEFORE they are echoed,
-      # logged, or rendered in any step header. Two things to get right:
-      #   1. Use a step-level env block (not ${{ inputs.X }} inline) so
-      #      the run-script body shows `$VAR` not the literal value when
-      #      GH renders the step.
-      #   2. Emit the ::add-mask:: commands via $GITHUB_ENV-adjacent
-      #      file commands referencing $VAR — never via inline expansion
-      #      of ${{ inputs.X }}, which leaks at parse time.
-      - name: Mask STS credentials
-        env:
-          STS_ACCESS_KEY_ID: ${{ inputs.aws_access_key_id }}
-          STS_SECRET_ACCESS_KEY: ${{ inputs.aws_secret_access_key }}
-          STS_SESSION_TOKEN: ${{ inputs.aws_session_token }}
-        run: |
-          echo "::add-mask::$STS_ACCESS_KEY_ID"
-          echo "::add-mask::$STS_SECRET_ACCESS_KEY"
-          echo "::add-mask::$STS_SESSION_TOKEN"
-          # Propagate to subsequent steps. The values are now in GH's
-          # mask table, so $GITHUB_ENV echoes render as *** in logs.
-          {
-            echo "AWS_ACCESS_KEY_ID=$STS_ACCESS_KEY_ID"
-            echo "AWS_SECRET_ACCESS_KEY=$STS_SECRET_ACCESS_KEY"
-            echo "AWS_SESSION_TOKEN=$STS_SESSION_TOKEN"
-          } >> "$GITHUB_ENV"
-
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
@@ -116,9 +81,10 @@ jobs:
       # Same composite action as tier-3 — different inputs steer it to
       # the tier-4 stack:
       #   - test-path:  tests/full_dag/ (the BaseFullDAGE2ETest suite)
-      #   - components-dir: .github/e2e/tier-4-components (S3 binding)
+      #   - components-dir: .github/e2e/tier-4-components (OAuth-proxy
+      #     S3 binding pointing at /api/blobstorage)
       #   - compose-overlay: .github/e2e/tier-4-docker-compose.yaml
-      #     (sibling mysql + AWS env + unique deployment_name)
+      #     (sibling mysql + ATLAN_AUTH_* env + unique deployment_name)
       #   - secrets-script: tier-4 bundle (SDR_MYSQL_USERNAME keys)
       #
       # TODO: switch back to @main once internal-ref-sdr-cross-repo-trigger
