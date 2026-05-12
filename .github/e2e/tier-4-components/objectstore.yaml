@@ -3,38 +3,38 @@ kind: Component
 metadata:
   name: objectstore
 spec:
+  # Mirrors the production-deployed atlan-mysql-app component shape
+  # (components/atlan-storage.yaml): writes go to the tenant's S3 via
+  # the /api/blobstorage proxy, which validates SigV4 signed with an
+  # OAuth client pair (provisioned once via /api/service/oauth-clients
+  # — see BLDX-1254). The tenant proxy translates the logical bucket
+  # name to the real underlying S3 bucket so this YAML doesn't have to
+  # know it.
+  #
+  # This shape replaces the prior tier-4 override which wired in raw
+  # AWS STS keys from workflow_dispatch inputs. OAuth client_id /
+  # client_secret are long-lived (already provisioned per BLDX-1254 as
+  # SDR_CLIENT_ID / SDR_CLIENT_SECRET GH secrets) — no per-run STS
+  # pasting, no 12h expiry to chase.
   type: bindings.aws.s3
   version: v1
-  # Tier-4 writes extract+transform output to the tenant's shared S3
-  # bucket so the in-cluster publish/qi/lineage system apps can read
-  # the same prefix. AWS creds come from the worker container's env
-  # (set by the tier-4 docker-compose overlay from the workflow_dispatch
-  # STS inputs).
-  #
-  # Bucket name + region must match what the tenant's publish app is
-  # configured to read from on devex (see the in-cluster mysql-server
-  # pod's atlan-objectstore component). Hard-coding here so the
-  # workflow doesn't have to plumb them through.
   ignoreErrors: false
   metadata:
     - name: bucket
-      value: atlan-vcluster-atlanimp01-793436jsim4q
+      value: atlan-bucket
     - name: region
-      value: ap-south-1
+      value: us-east-1
+    - name: endpoint
+      value: https://devex.atlan.com/api/blobstorage
     - name: forcePathStyle
       value: "true"
     - name: accessKey
       secretKeyRef:
-        name: AWS_ACCESS_KEY_ID
+        name: ATLAN_AUTH_CLIENT_ID
+        key: ATLAN_AUTH_CLIENT_ID
     - name: secretKey
       secretKeyRef:
-        name: AWS_SECRET_ACCESS_KEY
-    - name: sessionToken
-      secretKeyRef:
-        name: AWS_SESSION_TOKEN
+        name: ATLAN_AUTH_CLIENT_SECRET
+        key: ATLAN_AUTH_CLIENT_SECRET
 auth:
-  # The Dapr local.env secret store ships with the runtime; it reads
-  # values straight from the container's environment. Wiring it here
-  # keeps the AWS creds out of the component YAML on disk (which gets
-  # printed in `docker compose config` and uploaded as artifact).
   secretStore: deployment-secret-store

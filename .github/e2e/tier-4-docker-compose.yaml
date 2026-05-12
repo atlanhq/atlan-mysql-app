@@ -4,8 +4,11 @@
 #
 #   1. Sibling mysql:8.0 with the SAME .github/e2e/seed.sql so the
 #      hermetic dataset is reused for deterministic asset counts.
-#   2. AWS_* env vars propagated to the connector container so the
-#      Dapr S3 binding can write to the tenant bucket.
+#   2. ATLAN_AUTH_CLIENT_ID / ATLAN_AUTH_CLIENT_SECRET propagated to
+#      the connector container so the Dapr S3 binding can SigV4-sign
+#      uploads to the tenant's /api/blobstorage proxy. Long-lived OAuth
+#      pair (provisioned once per tenant via /api/service/oauth-clients
+#      — see BLDX-1254) — no per-run STS shuffling.
 #   3. ATLAN_DEPLOYMENT_NAME=e2e-full-ci-<run_id> so the worker
 #      registers on Temporal queue atlan-mysql-e2e-full-ci-<run_id>.
 #      The tier-4 test class' agent_spec() produces a matching
@@ -45,11 +48,11 @@ services:
       # which matches what the AE workflow's agent_json + Argo template
       # build for routing. Nobody else picks up from this queue.
       - ATLAN_DEPLOYMENT_NAME=e2e-full-ci-${GITHUB_RUN_ID}
-      # AWS creds for the Dapr S3 binding. Read by the
+      # OAuth client pair for the Dapr S3 binding. Read by the
       # deployment-secret-store (secretstores.local.env) Dapr component
-      # the SDR action provisions by default; the bindings.aws.s3
-      # objectstore.yaml in tier-4-components/ references these via
-      # secretKeyRef.
-      - AWS_ACCESS_KEY_ID
-      - AWS_SECRET_ACCESS_KEY
-      - AWS_SESSION_TOKEN
+      # the SDR action provisions by default; tier-4-components/
+      # objectstore.yaml references these via secretKeyRef and signs
+      # SigV4 requests to https://devex.atlan.com/api/blobstorage
+      # using the pair as accessKey/secretKey.
+      - ATLAN_AUTH_CLIENT_ID
+      - ATLAN_AUTH_CLIENT_SECRET
