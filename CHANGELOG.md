@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.1 (May 12, 2026)
+
+### Bug Fixes
+
+- **[BLDX-1254] `tests/full_dag/test_mysql_full_dag.py`: switch include-filter to v2-shape anchored regex.** The MySQL connector's `extract_schema.sql` substitutes the parameter into a literal `MySQL REGEXP '…'` clause, so it expects `^def\.<schema>$` — not the v3 dict-shape JSON the SDK harness defaults to (`{"^def$":[".*"]}`). The dict shape passed through verbatim makes the server reject with pymysql 3688 — "Syntax error in regular expression". Earlier full-DAG runs masked the bug because the seed-DAG plumbing was sending `include_filter=""` through to extract; once filters flowed properly the format mismatch surfaced. Matches the value the per-PR SDR integration suite (`tests/sdr/test_mysql_sdr.py`) already uses.
+
 ## 0.7.0 (May 12, 2026)
 
 ### Features
