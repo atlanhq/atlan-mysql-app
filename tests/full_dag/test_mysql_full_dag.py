@@ -92,8 +92,15 @@ class TestMySQLFullDAG(BaseFullDAGE2ETest):
     # Every name (Connection QN, AE workflow, queue, deployment) embeds
     # this prefix + run_id for cross-system traceability.
     connection_name_prefix = "e2e-full-ci"
-    include_filter = '{"^def$":["^e2e_main$"]}'
-    exclude_filter = "{}"
+    # MySQL's SQL templates expect a single anchored regex string
+    # matching `<catalog>.<schema>` (NOT the v3 dict-shape JSON the
+    # base harness defaults to — that substitutes into a literal
+    # `REGEXP '{...}'` clause and the server rejects it with
+    # pymysql 3688 / "Syntax error in regular expression"). The
+    # connector's catalog is hardcoded to `def` for MySQL (see
+    # extract_schema.sql); the schema is the actual database name.
+    include_filter = r"^def\.e2e_main$"
+    exclude_filter = ""
     # adminUsers / adminGroups intentionally left as the base-class
     # defaults (empty tuples). The Connection's admin ACL is set by
     # `connection_spec()` below, which resolves the tenant's `$admin`
