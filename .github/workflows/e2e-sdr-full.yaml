@@ -46,11 +46,11 @@ on:
         default: ""
 
 jobs:
-  tier-4-full-dag:
+  e2e-sdr-full:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     concurrency:
-      group: tier-4-full-dag-${{ github.ref }}
+      group: e2e-sdr-full-${{ github.ref }}
       cancel-in-progress: false  # don't kill an in-flight tenant workflow
     permissions:
       pull-requests: write
