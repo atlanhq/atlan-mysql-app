@@ -101,7 +101,6 @@ class TestMySQLFullDAG(BaseFullDAGE2ETest):
     # harness's GET on the Connection asset returns 403 — `$admin` is
     # the role every tenant's API service account belongs to.)
     connection_admin_users = ("aryaman",)
-
     # Slightly tighter timeouts than the BaseFullDAGE2ETest defaults:
     # the hermetic seed dataset is small (~20 rows total) so extract +
     # publish complete in well under 10 min, and the AE poll loop
