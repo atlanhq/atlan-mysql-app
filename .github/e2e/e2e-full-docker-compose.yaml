@@ -1,0 +1,59 @@
+# e2e-full compose overlay (paired with .github/workflows/e2e-full.yaml
+# and tests/full_dag/). Sits on top of the configurator-generated base
+# + SDK CI defaults; replaces the per-PR SDR integration overlay
+# (localstorage + hermetic seed) with:
+#
+#   1. Sibling mysql:8.0 with the SAME .github/e2e/seed.sql so the
+#      hermetic dataset is reused for deterministic asset counts.
+#   2. ATLAN_AUTH_CLIENT_ID / ATLAN_AUTH_CLIENT_SECRET propagated to
+#      the connector container so the Dapr S3 binding can SigV4-sign
+#      uploads to the tenant's /api/blobstorage proxy. Long-lived OAuth
+#      pair (provisioned once per tenant via /api/service/oauth-clients
+#      — see internal-ref) — no per-run STS shuffling.
+#   3. ATLAN_DEPLOYMENT_NAME=e2e-full-ci-<run_id> so the worker
+#      registers on Temporal queue atlan-mysql-e2e-full-ci-<run_id>.
+#      The test class' agent_spec() produces a matching agent_name
+#      = mysql-e2e-full-ci-<run_id>, so AE dispatches extract
+#      activities to the same queue this worker listens on. Every
+#      CI run has a clearly-labeled unique queue + workflow lineage
+#      for grep-driven traceability across systems.
+
+services:
+  mysql:
+    image: mysql:8.0.40
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    environment:
+      MYSQL_ROOT_PASSWORD: root_e2e_pass
+      MYSQL_DATABASE: e2e_main
+      MYSQL_USER: e2e_user
+      MYSQL_PASSWORD: e2e_pass
+    volumes:
+      - ${GITHUB_WORKSPACE}/.github/e2e/seed.sql:/docker-entrypoint-initdb.d/seed.sql:ro
+    expose:
+      - "3306"
+
+  atlan-app:
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      # Unique per-run deployment name embedding the test identifier.
+      # The SDK derives the Temporal task queue as
+      #   queue = atlan-{connector}-{deployment_name}
+      #         = atlan-mysql-e2e-full-ci-<run_id>
+      # which matches what the AE workflow's agent_json + Argo template
+      # build for routing. Nobody else picks up from this queue.
+      - ATLAN_DEPLOYMENT_NAME=e2e-full-ci-${GITHUB_RUN_ID}
+      # OAuth client pair for the Dapr S3 binding. Read by the
+      # deployment-secret-store (secretstores.local.env) Dapr component
+      # the SDR action provisions by default; e2e-full-components/
+      # objectstore.yaml references these via secretKeyRef and signs
+      # SigV4 requests to https://<tenant-domain>/api/blobstorage
+      # using the pair as accessKey/secretKey.
+      - ATLAN_AUTH_CLIENT_ID
+      - ATLAN_AUTH_CLIENT_SECRET
