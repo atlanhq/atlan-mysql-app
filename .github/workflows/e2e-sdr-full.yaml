@@ -67,19 +67,37 @@ jobs:
       # use ATLAN_API_KEY (which is what the harness reads).
       ATLAN_BASE_URL: ${{ secrets.ATLAN_BASE_URL }}
       ATLAN_API_KEY: ${{ secrets.ATLAN_API_KEY }}
-      # AWS STS creds — read by the Dapr S3 binding in the
-      # tier-4-components/objectstore.yaml + eventstore.yaml.
-      # Mask explicitly because GH Actions doesn't auto-mask
-      # workflow_dispatch input values the way it does secrets.
-      AWS_ACCESS_KEY_ID: ${{ inputs.aws_access_key_id }}
-      AWS_SECRET_ACCESS_KEY: ${{ inputs.aws_secret_access_key }}
-      AWS_SESSION_TOKEN: ${{ inputs.aws_session_token }}
+      # NOTE: AWS_* STS creds are intentionally NOT at job level. Putting
+      # them here renders the literal values in every step's env header
+      # in CI logs (GH Actions doesn't auto-mask workflow_dispatch inputs
+      # the way it does secrets). Instead we mask first in a dedicated
+      # step, then re-emit them via GITHUB_ENV so subsequent steps see
+      # masked values (***) in logs.
     steps:
+      # Register the STS triple as masked secrets BEFORE they are echoed,
+      # logged, or rendered in any step header. Two things to get right:
+      #   1. Use a step-level env block (not ${{ inputs.X }} inline) so
+      #      the run-script body shows `$VAR` not the literal value when
+      #      GH renders the step.
+      #   2. Emit the ::add-mask:: commands via $GITHUB_ENV-adjacent
+      #      file commands referencing $VAR — never via inline expansion
+      #      of ${{ inputs.X }}, which leaks at parse time.
       - name: Mask STS credentials
+        env:
+          STS_ACCESS_KEY_ID: ${{ inputs.aws_access_key_id }}
+          STS_SECRET_ACCESS_KEY: ${{ inputs.aws_secret_access_key }}
+          STS_SESSION_TOKEN: ${{ inputs.aws_session_token }}
         run: |
-          echo "::add-mask::${{ inputs.aws_access_key_id }}"
-          echo "::add-mask::${{ inputs.aws_secret_access_key }}"
-          echo "::add-mask::${{ inputs.aws_session_token }}"
+          echo "::add-mask::$STS_ACCESS_KEY_ID"
+          echo "::add-mask::$STS_SECRET_ACCESS_KEY"
+          echo "::add-mask::$STS_SESSION_TOKEN"
+          # Propagate to subsequent steps. The values are now in GH's
+          # mask table, so $GITHUB_ENV echoes render as *** in logs.
+          {
+            echo "AWS_ACCESS_KEY_ID=$STS_ACCESS_KEY_ID"
+            echo "AWS_SECRET_ACCESS_KEY=$STS_SECRET_ACCESS_KEY"
+            echo "AWS_SESSION_TOKEN=$STS_SESSION_TOKEN"
+          } >> "$GITHUB_ENV"
 
       - uses: actions/checkout@v4
         with:
