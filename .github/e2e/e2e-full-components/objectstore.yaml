@@ -11,11 +11,11 @@ spec:
   # name to the real underlying S3 bucket so this YAML doesn't have to
   # know it.
   #
-  # This shape replaces the prior tier-4 override which wired in raw
-  # AWS STS keys from workflow_dispatch inputs. OAuth client_id /
-  # client_secret are long-lived (already provisioned per internal-ref as
-  # SDR_CLIENT_ID / SDR_CLIENT_SECRET GH secrets) — no per-run STS
-  # pasting, no 12h expiry to chase.
+  # This shape replaces the original e2e-full override which wired in
+  # raw AWS STS keys from workflow_dispatch inputs. OAuth client_id /
+  # client_secret are long-lived (provisioned per internal-ref and stored
+  # as the SDR_OAUTH_CLIENT_ID / SDR_OAUTH_CLIENT_SECRET GH secrets) —
+  # no per-run STS pasting, no 12h expiry to chase.
   type: bindings.aws.s3
   version: v1
   ignoreErrors: false

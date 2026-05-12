@@ -1,6 +1,7 @@
-# Tier-4 (e2e-sdr-full) compose overlay. Sits on top of the
-# configurator-generated base + SDK CI defaults; replaces the tier-3
-# overlay (localstorage + hermetic seed) with:
+# e2e-full compose overlay (paired with .github/workflows/e2e-full.yaml
+# and tests/full_dag/). Sits on top of the configurator-generated base
+# + SDK CI defaults; replaces the per-PR SDR integration overlay
+# (localstorage + hermetic seed) with:
 #
 #   1. Sibling mysql:8.0 with the SAME .github/e2e/seed.sql so the
 #      hermetic dataset is reused for deterministic asset counts.
@@ -11,11 +12,11 @@
 #      — see internal-ref) — no per-run STS shuffling.
 #   3. ATLAN_DEPLOYMENT_NAME=e2e-full-ci-<run_id> so the worker
 #      registers on Temporal queue atlan-mysql-e2e-full-ci-<run_id>.
-#      The tier-4 test class' agent_spec() produces a matching
-#      agent_name = mysql-e2e-full-ci-<run_id>, so AE dispatches
-#      extract activities to the same queue this worker listens on.
-#      Every CI run has a clearly-labeled unique queue + workflow
-#      lineage for grep-driven traceability across systems.
+#      The test class' agent_spec() produces a matching agent_name
+#      = mysql-e2e-full-ci-<run_id>, so AE dispatches extract
+#      activities to the same queue this worker listens on. Every
+#      CI run has a clearly-labeled unique queue + workflow lineage
+#      for grep-driven traceability across systems.
 
 services:
   mysql:
@@ -50,7 +51,7 @@ services:
       - ATLAN_DEPLOYMENT_NAME=e2e-full-ci-${GITHUB_RUN_ID}
       # OAuth client pair for the Dapr S3 binding. Read by the
       # deployment-secret-store (secretstores.local.env) Dapr component
-      # the SDR action provisions by default; tier-4-components/
+      # the SDR action provisions by default; e2e-full-components/
       # objectstore.yaml references these via secretKeyRef and signs
       # SigV4 requests to https://<tenant-domain>/api/blobstorage
       # using the pair as accessKey/secretKey.
