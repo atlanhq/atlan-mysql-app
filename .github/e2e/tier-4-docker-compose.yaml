@@ -6,10 +6,13 @@
 #      hermetic dataset is reused for deterministic asset counts.
 #   2. AWS_* env vars propagated to the connector container so the
 #      Dapr S3 binding can write to the tenant bucket.
-#   3. ATLAN_DEPLOYMENT_NAME=ci-<github.run_id> so the connector
-#      registers on a unique Temporal task queue (atlan-mysql-ci-<run_id>)
-#      — the AE workflow's extract activity dispatches to that queue
-#      via agent-name routing.
+#   3. ATLAN_DEPLOYMENT_NAME=e2e-full-ci-<run_id> so the worker
+#      registers on Temporal queue atlan-mysql-e2e-full-ci-<run_id>.
+#      The tier-4 test class' agent_spec() produces a matching
+#      agent_name = mysql-e2e-full-ci-<run_id>, so AE dispatches
+#      extract activities to the same queue this worker listens on.
+#      Every CI run has a clearly-labeled unique queue + workflow
+#      lineage for grep-driven traceability across systems.
 
 services:
   mysql:
@@ -35,12 +38,13 @@ services:
       mysql:
         condition: service_healthy
     environment:
-      # Unique per-run deployment name. The SDK derives the Temporal
-      # task queue from this — ATLAN_DEPLOYMENT_NAME=ci-<run_id> →
-      # queue=atlan-mysql-ci-<run_id>. The AE workflow's agent_json
-      # specifies agent-name=ci-<run_id>, so AE dispatches to this
-      # specific queue and nobody else picks it up.
-      - ATLAN_DEPLOYMENT_NAME=ci-${GITHUB_RUN_ID}
+      # Unique per-run deployment name embedding the test identifier.
+      # The SDK derives the Temporal task queue as
+      #   queue = atlan-{connector}-{deployment_name}
+      #         = atlan-mysql-e2e-full-ci-<run_id>
+      # which matches what the AE workflow's agent_json + Argo template
+      # build for routing. Nobody else picks up from this queue.
+      - ATLAN_DEPLOYMENT_NAME=e2e-full-ci-${GITHUB_RUN_ID}
       # AWS creds for the Dapr S3 binding. Read by the
       # deployment-secret-store (secretstores.local.env) Dapr component
       # the SDR action provisions by default; the bindings.aws.s3

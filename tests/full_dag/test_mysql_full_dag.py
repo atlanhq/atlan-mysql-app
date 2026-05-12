@@ -85,7 +85,9 @@ class TestMySQLFullDAG(BaseFullDAGE2ETest):
     # Keep these scenario-config attrs at the class level rather than
     # in env so the test stays deterministic across reruns of the same
     # GitHub Actions workflow run.
-    connection_name_prefix = "tier-4-e2e"
+    # Every name (Connection QN, AE workflow, queue, deployment) embeds
+    # this prefix + run_id for cross-system traceability.
+    connection_name_prefix = "e2e-full-ci"
     include_filter = '{"^def$":["^e2e_main$"]}'
     exclude_filter = "{}"
     connection_admin_users = ("aryaman",)
@@ -112,9 +114,11 @@ class TestMySQLFullDAG(BaseFullDAGE2ETest):
         )
 
     def agent_spec(self) -> AgentSpec:
-        # agent_name carries the connector prefix — Argo cluster template
-        # routes task_queue = atlan-<agent_name>. Without the `mysql-`
-        # prefix the worker (registered on atlan-mysql-ci-<run_id>) and
-        # AE (dispatching to atlan-ci-<run_id>) end up on different
-        # queues and the workflow stalls "No Workers Running".
-        return AgentSpec(agent_name=f"mysql-ci-{self.run_id}")
+        # agent_name carries the connector prefix because the Argo
+        # cluster template routes task_queue = atlan-<agent_name>; the
+        # prefix has to be on agent_name itself so worker (registered
+        # on atlan-mysql-e2e-full-ci-<run_id>) and AE (dispatching to
+        # atlan-{agent_name}) land on the same queue. Embedding
+        # e2e-full-ci-<run_id> gives every test run a clearly-labeled
+        # unique queue.
+        return AgentSpec(agent_name=f"mysql-e2e-full-ci-{self.run_id}")
