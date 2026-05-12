@@ -18,7 +18,7 @@ on:
       channel:
         description: "Target channel (ignored when tenants is set)"
         type: string
-        default: "all"
+        default: "beta"
       tenants:
         description: "Comma-separated tenant IDs for targeted publish"
         type: string
