@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.15 (May 13, 2026)
+
+### Features
+
+- **`e2e-full.yaml`: add `e2e-full` label trigger + `application_sdk_ref` input.** The workflow now runs on `pull_request: labeled, synchronize` when the PR carries the `e2e-full` label, in addition to manual `workflow_dispatch`. The new `application_sdk_ref` workflow_dispatch input lets apps-sdk PRs cross-repo-dispatch this workflow with their PR head SHA (so SDK changes can be validated end-to-end against this app's full-DAG suite). Skips on forks + dependabot PRs since runs touch real tenant assets. Bumps SDK pin to `b58625b4` which adds (1) the matching `e2e-full-mysql` label-gated job on the apps-sdk side and (2) drops the label gate on the per-PR SDR integration suite — it now auto-runs on every apps-sdk PR push since ~3 min/connector is cheap enough to want by default.
+
 ## 0.7.14 (May 13, 2026)
 
 ### Refactor
