@@ -1,34 +1,21 @@
 name: e2e-full
 
-# Full-DAG end-to-end test — runs the connector's code (this PR's
-# image) all the way through the tenant's system-apps DAG: extract
-# → qi → publish → lineage-app → lineage-publish. Asserts the
-# resulting Connection asset lands in Atlas with descendant assets
-# (Database / Schema / Table / View / Column) and lineage Process
-# rows.
+# Full-DAG end-to-end test for the MySQL connector. Delegates to the
+# SDK's reusable e2e-full workflow — all the env wiring, timeout
+# tuning, container-health bump, and SDR composite-action invocation
+# lives in one place there. Per-app overrides go on the `with:` block.
 #
-# Manual-trigger only — runs are expensive (~10 min compose + 5-15 min
-# AE DAG + ~5 min Atlas poll) and create real Connection assets in Atlas
-# that don't get cleaned up by this workflow. Trigger before merging a
-# meaningful connector change to validate the integration contract with
-# the tenant's system apps; per-PR signal comes from the standard SDR
-# integration suite (sdr-integration-tests.yaml).
+# Triggers:
+#   - workflow_dispatch (manual; supports an `application_sdk_ref`
+#     input so apps-sdk PRs can re-run this via cross-repo dispatch)
+#   - pull_request labeled with `e2e-full` (per-PR opt-in;
+#     re-triggers on subsequent pushes once the label is set).
 #
-# S3 access flows through the tenant's /api/blobstorage proxy via an
-# OAuth client (provisioned once per tenant via POST /api/service/
-# oauth-clients with the events-app- + temporal-app-permissions-scope
-# scopes — see internal-ref). The Dapr S3 binding SigV4-signs requests
-# using the OAuth client_id as accessKey and client_secret as secretKey;
-# the tenant proxy validates and forwards to the actual S3 bucket. No
-# STS tokens, no 12h refresh, no GH OIDC trust to set up.
-#
-# The pair lives as GH secrets SDR_OAUTH_CLIENT_ID /
-# SDR_OAUTH_CLIENT_SECRET (set to the same OAuth client_id /
-# client_secret the configurator was provisioned with for the
-# per-PR integration suite — named distinctly here to make the
-# OAuth-via-S3-proxy purpose explicit at the workflow level).
-# They're propagated into the worker container's env via the
-# e2e-full-docker-compose overlay.
+# Required GH repo secrets (inherited via `secrets: inherit`):
+#   SDR_TEST_TENANT, SDR_CLIENT_ID, SDR_CLIENT_SECRET — configurator
+#   ATLAN_BASE_URL, ATLAN_API_KEY — AE management + harness bearer
+#   SDR_OAUTH_CLIENT_ID, SDR_OAUTH_CLIENT_SECRET — Dapr S3 (OAuth
+#     proxy) + pyatlan asset queries
 
 on:
   workflow_dispatch:
@@ -38,87 +25,42 @@ on:
         required: false
         type: string
         default: ""
+      application_sdk_ref:
+        description: |
+          (Cross-repo dispatch from apps-sdk PRs.) Branch / tag / SHA
+          of atlanhq/application-sdk to re-pin before the run. Empty
+          means "use the repo's pyproject pin".
+        required: false
+        type: string
+        default: ""
+  pull_request:
+    types: [labeled, synchronize]
 
 jobs:
   e2e-full:
-    runs-on: ubuntu-latest
-    # 120 min envelope: AE poll budget (90m) + Atlas probe (30m) +
-    # build/setup overhead (~10m) on a busy tenant. lineage-app +
-    # lineage-publish on dev-tenant can sit Running for 30+ min when the
-    # tenant publish/lineage queues are deep — observed in run
-    # 25794699597 where the 60-min cap killed an otherwise healthy
-    # run with lineage-app still progressing.
-    timeout-minutes: 120
-    concurrency:
-      group: e2e-full-${{ github.ref }}
-      cancel-in-progress: false  # don't kill an in-flight tenant workflow
-    permissions:
-      pull-requests: write
-      contents: read
-      statuses: write
-      packages: write
-    env:
-      # Tenant + OAuth — same secrets the per-PR SDR integration suite
-      # uses (already provisioned on this repo per internal-ref). CI_* are
-      # read by the configurator to wire app-side auth; ATLAN_AUTH_*
-      # are read by the Dapr S3 binding in e2e-full-components/
-      # objectstore.yaml for tenant S3 uploads via /api/blobstorage.
-      CI_TENANT_DOMAIN: ${{ secrets.SDR_TEST_TENANT }}
-      CI_CLIENT_ID: ${{ secrets.SDR_CLIENT_ID }}
-      CI_CLIENT_SECRET: ${{ secrets.SDR_CLIENT_SECRET }}
-      ATLAN_AUTH_CLIENT_ID: ${{ secrets.SDR_OAUTH_CLIENT_ID }}
-      ATLAN_AUTH_CLIENT_SECRET: ${{ secrets.SDR_OAUTH_CLIENT_SECRET }}
-      # The harness uses ATLAN_API_KEY for AE-management REST calls
-      # (/automation/api/v1/workflows et al.) — that endpoint requires
-      # the realm-admin resource_access role only the API-key service
-      # account carries; the OAuth client gets a masked HTTP 500 there.
-      # SDR_OAUTH_* are still forwarded so pyatlan asset queries
-      # (search, role_cache) can authenticate as the OAuth identity
-      # for clearer Atlas RBAC diagnostics.
-      ATLAN_API_KEY: ${{ secrets.ATLAN_API_KEY }}
-      SDR_OAUTH_CLIENT_ID: ${{ secrets.SDR_OAUTH_CLIENT_ID }}
-      SDR_OAUTH_CLIENT_SECRET: ${{ secrets.SDR_OAUTH_CLIENT_SECRET }}
-      ATLAN_BASE_URL: ${{ secrets.ATLAN_BASE_URL }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-
-      - name: Resolve agent-name
-        id: agent
-        run: |
-          if [ -n "${{ inputs.agent_name_override }}" ]; then
-            echo "name=${{ inputs.agent_name_override }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "name=ci-${{ github.run_id }}" >> "$GITHUB_OUTPUT"
-          fi
-          echo "Using agent-name=$(grep '^name=' "$GITHUB_OUTPUT" | cut -d= -f2)"
-
-      # Same composite action as the per-PR SDR integration suite —
-      # different inputs steer it to the full-DAG stack:
-      #   - test-path:  tests/full_dag/ (the BaseFullDAGE2ETest suite)
-      #   - components-dir: .github/e2e/e2e-full-components (OAuth-proxy
-      #     S3 binding pointing at /api/blobstorage)
-      #   - compose-overlay: .github/e2e/e2e-full-docker-compose.yaml
-      #     (sibling mysql + ATLAN_AUTH_* env + unique deployment_name)
-      #   - secrets-script: e2e-full bundle (SDR_MYSQL_USERNAME keys)
-      #
-      # TODO: switch back to @main once internal-ref-sdr-cross-repo-trigger
-      # merges. Branch-pin required because components-dir +
-      # compose-overlay inputs only exist on that PR.
-      - uses: atlanhq/application-sdk/.github/actions/sdr-e2e@internal-ref-sdr-cross-repo-trigger
-        with:
-          app-name: mysql
-          app-image-name: atlan-mysql-app
-          test-path: tests/full_dag/
-          secrets-script: .github/e2e/make-secrets-e2e-full.py
-          components-dir: .github/e2e/e2e-full-components
-          compose-overlay: .github/e2e/e2e-full-docker-compose.yaml
-          # Bump the container-health wait because the worker has to
-          # establish the Temporal connection with TLS + auth before
-          # /server/health turns green.
-          container-health-timeout-seconds: "120"
-          # Run pytest with -s to see the harness's poll-loop output
-          # streamed in real time (the SDR action's default pytest
-          # buffering hides it).
-          pytest-extra-args: "-s"
+    # Run only when (a) manually dispatched, or (b) the PR carries the
+    # `e2e-test-full` label (whether it was just applied or applied
+    # earlier and someone pushed). Skips on PRs from forks and on
+    # bot-authored PRs — full-DAG runs touch real tenant assets so we
+    # don't want them firing on untrusted inputs.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'pull_request' &&
+        (
+          (github.event.action == 'labeled' && github.event.label.name == 'e2e-full') ||
+          contains(github.event.pull_request.labels.*.name, 'e2e-full')
+        ) &&
+        github.event.pull_request.head.repo.fork != true &&
+        github.event.pull_request.user.login != 'dependabot[bot]'
+      )
+    # TODO: switch to @main once the reusable workflow lands on the
+    # SDK default branch. Branch-pin while internal-ref is still on the
+    # feature branch.
+    uses: atlanhq/application-sdk/.github/workflows/e2e-full-reusable.yaml@internal-ref-sdr-cross-repo-trigger
+    with:
+      app-name: mysql
+      app-image-name: atlan-mysql-app
+      agent-name-override: ${{ inputs.agent_name_override }}
+      application-sdk-ref: ${{ inputs.application_sdk_ref }}
+    secrets: inherit

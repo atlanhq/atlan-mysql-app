@@ -148,4 +148,4 @@ select = ["E4", "E7", "E9", "F", "PLC0415"]
 # BaseFullDAGE2ETest harness used by tier-4 (tests/full_dag/) + the
 # components-dir / compose-overlay inputs on the sdr-e2e action.
 # Revert to a main commit once #1710 merges.
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "9dbf50c3" }
+atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "b58625b4" }
