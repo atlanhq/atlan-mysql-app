@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.6 (May 13, 2026)
+
+### Bug Fixes
+
+- **Atlas probe: cap consecutive 404s (~100s) instead of burning the full timeout.** The 25-min poll budget was sized for indexer lag on large publishes, but on hermetic seeds where publish reports N entities created and Atlas still 404s for hundreds of seconds, those entities are not coming. The harness now bails after `max_not_found_attempts` (default 10 → ~100s at the SDK's 10s interval) with a log line pointing at the probable root cause (worker storage bucket vs publish read bucket). Bumps SDK pin to `21cd0bcf`.
+
 ## 0.7.5 (May 12, 2026)
 
 ### Features
