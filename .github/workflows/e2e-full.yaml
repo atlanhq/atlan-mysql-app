@@ -62,10 +62,14 @@ jobs:
       CI_CLIENT_SECRET: ${{ secrets.SDR_CLIENT_SECRET }}
       ATLAN_AUTH_CLIENT_ID: ${{ secrets.SDR_OAUTH_CLIENT_ID }}
       ATLAN_AUTH_CLIENT_SECRET: ${{ secrets.SDR_OAUTH_CLIENT_SECRET }}
-      # SDR_OAUTH_* are also picked up by the harness itself
-      # (AEWorkflowClient + BaseFullDAGE2ETest): the OAuth pair is
-      # exchanged for a 15-min bearer at test-setup time and used for
-      # every AE / Atlas / search call. No ATLAN_API_KEY required.
+      # The harness uses ATLAN_API_KEY for AE-management REST calls
+      # (/automation/api/v1/workflows et al.) — that endpoint requires
+      # the realm-admin resource_access role only the API-key service
+      # account carries; the OAuth client gets a masked HTTP 500 there.
+      # SDR_OAUTH_* are still forwarded so pyatlan asset queries
+      # (search, role_cache) can authenticate as the OAuth identity
+      # for clearer Atlas RBAC diagnostics.
+      ATLAN_API_KEY: ${{ secrets.ATLAN_API_KEY }}
       SDR_OAUTH_CLIENT_ID: ${{ secrets.SDR_OAUTH_CLIENT_ID }}
       SDR_OAUTH_CLIENT_SECRET: ${{ secrets.SDR_OAUTH_CLIENT_SECRET }}
       ATLAN_BASE_URL: ${{ secrets.ATLAN_BASE_URL }}
