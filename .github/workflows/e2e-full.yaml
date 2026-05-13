@@ -46,7 +46,7 @@ on:
 
 jobs:
   e2e-full:
-    name: E2E Full with system apps
+    name: E2E Full with system apps (${{ github.head_ref || github.ref_name }})
     # Run only when (a) manually dispatched, or (b) the PR carries the
     # `e2e-test-full` label (whether it was just applied or applied
     # earlier and someone pushed). Skips on PRs from forks and on
