@@ -1,4 +1,4 @@
-name: SDR Integration Tests
+name: SDR Integration Tests (testcontainer)
 
 # Runs the MySQL connector inside a hermetic SDR stack (atlan-configurator
 # generated compose + sibling mysql:8.0 + Dapr embedded + Temporal on the
@@ -46,6 +46,7 @@ on:
 
 jobs:
   sdr-tests:
+    name: SDR Integration Tests (testcontainer)
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 60
