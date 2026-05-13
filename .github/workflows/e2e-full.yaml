@@ -62,10 +62,13 @@ jobs:
       CI_CLIENT_SECRET: ${{ secrets.SDR_CLIENT_SECRET }}
       ATLAN_AUTH_CLIENT_ID: ${{ secrets.SDR_OAUTH_CLIENT_ID }}
       ATLAN_AUTH_CLIENT_SECRET: ${{ secrets.SDR_OAUTH_CLIENT_SECRET }}
-      # AE submit + native-status poll + Atlas Connection probe all
-      # use ATLAN_API_KEY (which is what the harness reads).
+      # SDR_OAUTH_* are also picked up by the harness itself
+      # (AEWorkflowClient + BaseFullDAGE2ETest): the OAuth pair is
+      # exchanged for a 15-min bearer at test-setup time and used for
+      # every AE / Atlas / search call. No ATLAN_API_KEY required.
+      SDR_OAUTH_CLIENT_ID: ${{ secrets.SDR_OAUTH_CLIENT_ID }}
+      SDR_OAUTH_CLIENT_SECRET: ${{ secrets.SDR_OAUTH_CLIENT_SECRET }}
       ATLAN_BASE_URL: ${{ secrets.ATLAN_BASE_URL }}
-      ATLAN_API_KEY: ${{ secrets.ATLAN_API_KEY }}
     steps:
       - uses: actions/checkout@v4
         with:
