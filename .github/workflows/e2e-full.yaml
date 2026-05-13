@@ -1,4 +1,4 @@
-name: e2e-full
+name: E2E Full Tests (system apps)
 
 # Full-DAG end-to-end test for the MySQL connector. Delegates to the
 # SDK's reusable e2e-full workflow — all the env wiring, timeout
@@ -46,12 +46,12 @@ on:
 
 jobs:
   e2e-full:
-    name: E2E Full with system apps (${{ github.head_ref || github.ref_name }})
+    name: E2E Full Tests (system apps)
     # Run only when (a) manually dispatched, or (b) the PR carries the
-    # `e2e-test-full` label (whether it was just applied or applied
-    # earlier and someone pushed). Skips on PRs from forks and on
-    # bot-authored PRs — full-DAG runs touch real tenant assets so we
-    # don't want them firing on untrusted inputs.
+    # `e2e-full` label (whether it was just applied or applied earlier
+    # and someone pushed). Skips on PRs from forks and on bot-authored
+    # PRs — full-DAG runs touch real tenant assets so we don't want
+    # them firing on untrusted inputs.
     if: |
       github.event_name == 'workflow_dispatch' ||
       (
