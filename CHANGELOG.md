@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.16 (May 13, 2026)
+
+### Bug Fixes
+
+- **Bump `astral-sh/setup-uv` from v5 to v7 across `tests.yml`.** The v5 post-action cache-prune step has a known 5-min hang on busy runners — observed on a recent run where the Integration Tests job reported 8 passed / 4 skipped in 23s but the post-step exited 2 anyway. v7's cleanup is fixed; no other behavioural change.
+
 ## 0.7.15 (May 13, 2026)
 
 ### Features
