@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.12 (May 13, 2026)
+
+### Bug Fixes
+
+- **[BLDX-1254] Restore `ATLAN_API_KEY` for AE-management calls; OAuth becomes optional.** PRs #101 and #102 switched to OAuth-only auth, but `/automation/api/v1/workflows` requires the `realm-admin` resource_access role that only the API-key's service account carries — OAuth returns a masked AE-COMMON-500-01 there (verified by direct probe: API key → 200, OAuth → 500 on the same endpoint). `ATLAN_API_KEY` is mandatory again; `SDR_OAUTH_CLIENT_ID`/`SECRET` stay as a bonus for clearer pyatlan RBAC diagnostics. Bumps SDK pin to `11bc5b46`.
+
 ## 0.7.11 (May 13, 2026)
 
 ### Bug Fixes
