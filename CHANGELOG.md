@@ -2,6 +2,13 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.10 (May 13, 2026)
+
+### Bug Fixes
+
+- **Full-DAG e2e: skip-guard accepts OAuth in addition to ATLAN_API_KEY.** The test module's `pytest.skip(allow_module_level=True)` guard still required `ATLAN_API_KEY` even after PR #101 dropped that secret — pytest then collected 0 tests / 1 skipped and exit code 5 failed the workflow. Guard now accepts either `SDR_OAUTH_CLIENT_ID`/`SECRET` (preferred) or `ATLAN_API_KEY`, matching what the SDK harness's `setup_method` reads.
+- **Dynamic report title from `test-path`.** The SDR composite action's step-summary + PR-comment header was hardcoded to "SDR Integration Tests" — every e2e-full run came back labelled as the tier-3 suite. The action now derives the title (`Full-DAG E2E Tests` for `tests/full_dag/`, `SDR Integration Tests` for `tests/sdr/`, etc.) with an override knob (`report-title` input) for callers that need a literal label. Bumps SDK pin to `095717dc`.
+
 ## 0.7.9 (May 13, 2026)
 
 ### Features
