@@ -2,6 +2,21 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.9 (May 13, 2026)
+
+### Features
+
+- **[BLDX-1254] Full-DAG e2e: drop `ATLAN_API_KEY`, switch entirely to OAuth.** The harness now exchanges `SDR_OAUTH_CLIENT_ID` + `SDR_OAUTH_CLIENT_SECRET` for a 15-min bearer at test-setup time and uses that for every AE / Atlas / search call. OAuth client_credentials covers every endpoint we hit (verified by probing /api/service/workflows, /api/service/package-workflows, /api/service/users/current — all 200/400 not 401). One auth pair for both the Dapr S3 binding and the harness; one set of GH secrets to manage; predictable RBAC diagnostics (`service-account-oauth-client-<id>` instead of opaque `service-account-apikey-<uuid>`).
+- **[BLDX-1254] Connection probe via search instead of direct entity fetch.** The direct `/api/meta/entity/uniqueAttribute/type/Connection?...` endpoint enforces the Connection's adminUsers/adminRoles ACL — neither the API-key nor the OAuth-client service accounts are on that list by default, so the probe was 403-ing for the full 25-min budget on every otherwise-healthy run. Search has a permissive ACL (the connector namespace's read perm is enough); the harness now uses it via pyatlan's `FluentSearch`. Verified: on the latest run, search returned `count=1` for the Connection plus 20 descendants while direct fetch was 403.
+- **[BLDX-1254] Colourful poll log.** Per-node glyphs (✓ ⟳ · ✗ ⊘ ⏱) and a top-level run glyph make the poll output scannable instead of "extract=Succeeded; qi=Succeeded; publish=Running; …" walls of text. Lineage node names trimmed to `lin-app` / `lin-pub` so the line fits comfortably. Example:
+
+  ```
+  ⟳ AE run [ 45s] Running — ✓extract ✓qi ⟳publish ·lin-app ·lin-pub
+  ✓ AE run [225s] Succeeded — ✓extract ✓qi ✓publish ✓lin-app ✓lin-pub
+  ```
+
+Bumps SDK pin to `e086acb5`.
+
 ## 0.7.8 (May 13, 2026)
 
 ### Bug Fixes
