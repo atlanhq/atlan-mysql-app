@@ -2,6 +2,20 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.14 (May 13, 2026)
+
+### Refactor
+
+- **Consume the reusable e2e-full workflow + `SQLAppE2EFullTest` base.** SDK now ships:
+  - `atlanhq/application-sdk/.github/workflows/e2e-full-reusable.yaml` — wraps the SDR composite action with full-DAG defaults (120-min timeout, env wiring, tenant + OAuth + API-key secrets, container-health bump, pytest `-s`).
+  - `application_sdk.testing.full_dag.SQLAppE2EFullTest` — mid-level base capturing `agent_spec` + `connection_spec` boilerplate every SQL connector test needs.
+
+  Mysql now consumes both:
+  - `.github/workflows/e2e-full.yaml` is **40 lines** (was ~110) — just a `uses:` call to the reusable workflow.
+  - `tests/full_dag/test_mysql_full_dag.py` is **120 lines** (was ~200) — only connector-specific knobs and `database_spec` for the sibling mysql container.
+
+  Bumps SDK pin to `7d141649`. The next connector to adopt full-DAG e2e gets the harness in ~50 lines of repo-local YAML/Python.
+
 ## 0.7.13 (May 13, 2026)
 
 ### Features
