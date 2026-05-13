@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.7 (May 13, 2026)
+
+### Bug Fixes
+
+- **Full-DAG e2e: load seed DAG from `app/generated/manifest.json` instead of hand-crafting it.** The hand-crafted seed DAG had drifted from the connector's actual manifest — specifically missing six flags on the publish node (`connection_creation_enabled`, `executor_enabled`, `connection_entity`, three cache flags). Without those, the tenant publish app silently ran in update-only mode: `entities-created=16` in the metric, but zero assets in Atlas. Verified empirically — S3 had the transformed JSONL at the expected path, publish read it, but the asset POSTs never reached the queryable namespace. Harness now reads `app/generated/manifest.json` at bootstrap and substitutes `{app_name}` / `{deployment_name}` placeholders; Mustache fills (`{{credentialGuid}}`, `{{connection}}`, …) are left for AE. Bumps SDK pin to `a4f7f206`.
+
 ## 0.7.6 (May 13, 2026)
 
 ### Bug Fixes
