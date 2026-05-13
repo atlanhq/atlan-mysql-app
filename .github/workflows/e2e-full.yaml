@@ -42,7 +42,13 @@ on:
 jobs:
   e2e-full:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    # 120 min envelope: AE poll budget (90m) + Atlas probe (30m) +
+    # build/setup overhead (~10m) on a busy tenant. lineage-app +
+    # lineage-publish on devex can sit Running for 30+ min when the
+    # tenant publish/lineage queues are deep — observed in run
+    # 25794699597 where the 60-min cap killed an otherwise healthy
+    # run with lineage-app still progressing.
+    timeout-minutes: 120
     concurrency:
       group: e2e-full-${{ github.ref }}
       cancel-in-progress: false  # don't kill an in-flight tenant workflow
