@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.11 (May 13, 2026)
+
+### Bug Fixes
+
+- **[BLDX-1254] Retry `create_workflow` on 5xx.** AE occasionally returns `AE-COMMON-500-01: An unexpected error occurred` on the create-workflow call (same transient pattern we already handle on `create_version` / `submit_workflow` / `poll_native_status`). The harness now retries 4 times at 5s intervals before failing. Bumps SDK pin to `b3b5684c`.
+
 ## 0.7.10 (May 13, 2026)
 
 ### Bug Fixes
