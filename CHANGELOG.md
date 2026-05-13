@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.8 (May 13, 2026)
+
+### Bug Fixes
+
+- **[BLDX-1254] Full-DAG e2e: Mustache-fill the manifest seed before publishing.** PR #99 made the harness load the connector's `manifest.json` as the seed DAG, but AE does not runtime-substitute the manifest's hyphenated `{{...}}` placeholders (`{{include-filter}}`, `{{connection}}`, `{{agent-json}}`, etc.) — those are configurator-fills that normally happen at deployment time. We were publishing the raw manifest, so the worker received literal placeholder strings and the extract workflow hung in Temporal. The harness now acts as the configurator: builds a runtime-sub map (connection entity, agent_json bundle, filter strings, mode value, preflight default) and applies it recursively to each node's args before publishing the seed. `{{credential-guid}}` is the one Mustache forwarded — substituted with `{{credentialGuid}}` (camelCase) which AE *does* runtime-substitute. Bumps SDK pin to `0bece0e1`. SDK ships 6 new unit tests for the rendering paths.
+
 ## 0.7.7 (May 13, 2026)
 
 ### Bug Fixes
