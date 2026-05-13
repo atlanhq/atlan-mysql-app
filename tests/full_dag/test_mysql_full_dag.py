@@ -47,18 +47,11 @@ pytest.importorskip(
     reason="full-DAG e2e tests require application-sdk PR #1710+",
 )
 
-_HAS_OAUTH = bool(
-    os.environ.get("SDR_OAUTH_CLIENT_ID") and os.environ.get("SDR_OAUTH_CLIENT_SECRET")
-) or bool(
-    os.environ.get("ATLAN_AUTH_CLIENT_ID")
-    and os.environ.get("ATLAN_AUTH_CLIENT_SECRET")
-)
-if not os.environ.get("ATLAN_BASE_URL") or not (
-    _HAS_OAUTH or os.environ.get("ATLAN_API_KEY")
-):
+if not os.environ.get("ATLAN_BASE_URL") or not os.environ.get("ATLAN_API_KEY"):
     pytest.skip(
-        "Full-DAG e2e harness needs ATLAN_BASE_URL + either "
-        "SDR_OAUTH_CLIENT_ID/SECRET (preferred) or ATLAN_API_KEY",
+        "Full-DAG e2e harness needs ATLAN_BASE_URL + ATLAN_API_KEY "
+        "(SDR_OAUTH_CLIENT_ID/SECRET are optional, forwarded only to "
+        "pyatlan asset queries — AE management still requires the API key)",
         allow_module_level=True,
     )
 
