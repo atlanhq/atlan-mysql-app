@@ -1,4 +1,4 @@
-name: e2e-full
+name: E2E Full Tests (system apps)
 
 # Full-DAG end-to-end test for the MySQL connector. Delegates to the
 # SDK's reusable e2e-full workflow — all the env wiring, timeout
@@ -33,16 +33,25 @@ on:
         required: false
         type: string
         default: ""
+      distinct_id:
+        description: |
+          Identifier used by codex-/return-dispatch on the apps-sdk
+          side to locate this run from the calling workflow. Echoed
+          in the "distinct-id" step name; never read by test code.
+        required: false
+        type: string
+        default: ""
   pull_request:
     types: [labeled, synchronize]
 
 jobs:
   e2e-full:
+    name: E2E Full Tests (system apps)
     # Run only when (a) manually dispatched, or (b) the PR carries the
-    # `e2e-test-full` label (whether it was just applied or applied
-    # earlier and someone pushed). Skips on PRs from forks and on
-    # bot-authored PRs — full-DAG runs touch real tenant assets so we
-    # don't want them firing on untrusted inputs.
+    # `e2e-full` label (whether it was just applied or applied earlier
+    # and someone pushed). Skips on PRs from forks and on bot-authored
+    # PRs — full-DAG runs touch real tenant assets so we don't want
+    # them firing on untrusted inputs.
     if: |
       github.event_name == 'workflow_dispatch' ||
       (
@@ -63,4 +72,5 @@ jobs:
       app-image-name: atlan-mysql-app
       agent-name-override: ${{ inputs.agent_name_override }}
       application-sdk-ref: ${{ inputs.application_sdk_ref }}
+      distinct-id: ${{ inputs.distinct_id }}
     secrets: inherit
