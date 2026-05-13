@@ -2,6 +2,17 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.13 (May 13, 2026)
+
+### Features
+
+- **Bump e2e-full timeouts to fit slow lineage stages + colour-emoji poll log.** Run 25794699597 hit the 600s AE poll budget with `lineage-app` still `Running` — dev-tenant's tenant publish/lineage queues can stretch this stage to 30+ min. Test class poll knobs now: interval 60s (was 5/10s), AE timeout 90 min (was 10), Atlas timeout 30 min (was 15). GH job `timeout-minutes` bumped to 120 to leave headroom for build/setup. SDK pin bumped to `9dbf50c3` which also swaps the monochrome status glyphs (`✓ ⟳ · ✗`) for colour emoji (`✅ 🔄 🟡 ❌`) so DAG progression is scannable at a glance:
+
+  ```
+  🔄 AE run [515s] Running — ✅ extract ✅ qi ✅ publish 🔄 lin-app 🟡 lin-pub
+  ✅ AE run [625s] Succeeded — ✅ extract ✅ qi ✅ publish ✅ lin-app ✅ lin-pub
+  ```
+
 ## 0.7.12 (May 13, 2026)
 
 ### Bug Fixes
