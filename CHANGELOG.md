@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.17 (May 14, 2026)
+
+### Chores
+
+- **Add `.github/CODEOWNERS`.** Single-line glob (`* @Aryamanz29`) so every PR in this repo gets the connector owner auto-requested for review. Mirrors the pattern atlan-netsuite-app uses.
+
 ## 0.7.16 (May 13, 2026)
 
 ### Bug Fixes
