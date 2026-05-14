@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.18 (May 14, 2026)
+
+### Bug Fixes
+
+- **Add `app.yaml` at repo root.** The SDR composite action's `#1746` refactor on `atlanhq/application-sdk` moved from inline generation of `app-resolved.yaml` (driven by action inputs `app-name` + `app-image-name`) to reading `app.yaml` from disk and envsubst-ing the image tag in. mysql-app had no `app.yaml`, so SDR runs against this repo started failing with `No app.yaml found at .github/e2e/app.yaml or repo root`. Three-line file matches the shape `atlan-mssql-app` adopted in the same series: `app_name`, `app_image: ${APP_IMAGE}`, `app_port: 8000`.
+
 ## 0.7.17 (May 14, 2026)
 
 ### Chores
