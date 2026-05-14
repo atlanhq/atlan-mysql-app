@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.19 (May 14, 2026)
+
+### Docs
+
+- **Add `docs/CI-E2E.md`** — connector-side walkthrough of the SDR (testcontainer) and Full-DAG (system apps) E2E pipelines using this repo as the reference adopter. Documents every file's role (`app.yaml`, `.github/e2e/*`, `make-secrets*.py`, test class overrides), the two repo-secrets sets, the cross-repo dispatch contract, an onboarding checklist for new connectors, and a troubleshooting section keyed to the SDK PRs that introduced each requirement (#1669, #1710, #1746, #1752). Companion to the canonical SDK-side reference at `atlanhq/application-sdk/docs/standards/connector-ci-e2e.md`.
+
 ## 0.7.18 (May 14, 2026)
 
 ### Bug Fixes
