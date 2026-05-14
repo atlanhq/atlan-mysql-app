@@ -215,9 +215,14 @@ class TestMySQLSdr(BaseSDRIntegrationTest):
             api="preflight",
             credentials={**_valid_creds_base, "password": "definitely_wrong"},
             assert_that={
-                "success": equals(False),
+                # Envelope ``success`` reports whether preflight executed at
+                # all — not whether every check passed (semantics changed in
+                # atlanhq/application-sdk#1744 so the SageV2 widget can render
+                # per-check details on a partial-failure response). Real
+                # pass/fail surfaces in ``data.<check>.success`` below.
+                "success": equals(True),
                 "data.auth.success": equals(False),
-                "data.auth.message": is_string(),
+                "data.auth.failureMessage": is_string(),
             },
             description="Invalid credentials fail the auth preflight check",
         ),
