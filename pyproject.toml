@@ -143,9 +143,10 @@ select = ["E4", "E7", "E9", "F", "PLC0415"]
 
 [tool.uv.sources]
 # atlan-application-sdk = { path = "../application-sdk", editable = true }
-# TEMPORARY: pinned to apps-sdk PR #1710 HEAD. Carries the internal-ref
-# tier-3 fixes (pandera lazy-import, sdr-e2e action stack) + the
-# BaseFullDAGE2ETest harness used by tier-4 (tests/full_dag/) + the
-# components-dir / compose-overlay inputs on the sdr-e2e action.
-# Revert to a main commit once #1710 merges.
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "b58625b4" }
+# Pinned to the v3.10.0 release tag — first published version carrying
+# the internal-ref cross-repo dispatch + full-DAG harness, the
+# .github/sdr-e2e/ config-dir convention (#1746), the multi-pipeline
+# components-dir / compose-overlay overrides (#1752), AND the
+# /preflight envelope shape refactor (#1744). Drop this override
+# entirely once line 10's PyPI constraint is bumped to >=3.10.0,<4.0.0.
+atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", tag = "v3.10.0" }
