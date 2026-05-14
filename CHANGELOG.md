@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.21 (May 15, 2026)
+
+### Chores
+
+- **Bump `atlan-application-sdk` git pin → `v3.10.0`** (was SHA `b58625b4`, roughly v3.8.0). v3.10.0 is the first published release carrying the BLDX-1254 cross-repo dispatch + full-DAG harness ([#1710](https://github.com/atlanhq/application-sdk/pull/1710)), the `.github/sdr-e2e/` config-dir convention ([#1746](https://github.com/atlanhq/application-sdk/pull/1746)), the multi-pipeline `components-dir` / `compose-overlay` overrides on the SDR composite action ([#1752](https://github.com/atlanhq/application-sdk/pull/1752)), and the `/preflight` envelope-shape refactor ([#1744](https://github.com/atlanhq/application-sdk/pull/1744)) that the connector PR + cross-repo dispatched SDR paths now agree on. `uv.lock` resynced — `atlan-application-sdk v3.8.0 → v3.10.0`.
+
 ## 0.7.20 (May 14, 2026)
 
 ### Bug Fixes
