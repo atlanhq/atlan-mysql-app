@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.20 (May 14, 2026)
+
+### Bug Fixes
+
+- **`tests/sdr/test_mysql_sdr.py::preflight_invalid_credentials`**: realign assertions with the new `/preflight` envelope semantics from atlanhq/application-sdk#1744. Envelope `success` now reports "preflight executed" (not "every check passed") so the SageV2 widget can render per-check details on a partial-failure response. Per-check pass/fail still surfaces in `data.<check>.success`; switched the message assertion from `data.auth.message` to `data.auth.failureMessage` to use the new explicit success/failure-keyed message fields the same PR added. Caught by every `workflow_dispatch` (cross-repo dispatched) SDR run since #1744 merged on the SDK side.
+
 ## 0.7.19 (May 14, 2026)
 
 ### Docs
