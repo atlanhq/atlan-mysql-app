@@ -215,7 +215,18 @@ class TestMySQLSdr(BaseSDRIntegrationTest):
             api="preflight",
             credentials={**_valid_creds_base, "password": "definitely_wrong"},
             assert_that={
-                "success": equals(False),
+                # Per-check pass/fail is the real signal and unchanged
+                # across atlanhq/application-sdk#1744 (which only altered
+                # the envelope-success contract: was "all checks passed",
+                # now "preflight executed at all" so the SageV2 widget
+                # renders per-check details on partial-failure responses).
+                # ``data.auth.message`` is preserved on both sides of the
+                # refactor for back-compat, so it's the cross-version-safe
+                # message field — see SDK handler/service.py:632 around
+                # the v2_data emit. Envelope-level ``success`` is
+                # intentionally omitted because the two SDK versions
+                # disagree on its meaning and this connector's pyproject
+                # pin still points pre-#1744.
                 "data.auth.success": equals(False),
                 "data.auth.message": is_string(),
             },
