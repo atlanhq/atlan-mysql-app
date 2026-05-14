@@ -82,10 +82,7 @@ jobs:
       # the SDK pinned in pyproject.toml. This is the normal flow.
       - name: Run SDR tests (against pinned SDK)
         if: github.event_name == 'pull_request' || github.event.inputs.application_sdk_ref == ''
-        # TODO: switch back to @main once internal-ref-sdr-cross-repo-trigger merges.
-        # Branch pin is required for validation — the atlan.yaml fix + the
-        # application-sdk-ref input live on the SDK PR, not main.
-        uses: atlanhq/application-sdk/.github/actions/sdr-e2e@internal-ref-sdr-cross-repo-trigger
+        uses: atlanhq/application-sdk/.github/actions/sdr-e2e@main
         with:
           app-name: mysql
           app-image-name: atlan-mysql-app

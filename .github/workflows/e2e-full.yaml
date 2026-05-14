@@ -63,10 +63,7 @@ jobs:
         github.event.pull_request.head.repo.fork != true &&
         github.event.pull_request.user.login != 'dependabot[bot]'
       )
-    # TODO: switch to @main once the reusable workflow lands on the
-    # SDK default branch. Branch-pin while internal-ref is still on the
-    # feature branch.
-    uses: atlanhq/application-sdk/.github/workflows/e2e-full-reusable.yaml@internal-ref-sdr-cross-repo-trigger
+    uses: atlanhq/application-sdk/.github/workflows/e2e-full-reusable.yaml@main
     with:
       app-name: mysql
       app-image-name: atlan-mysql-app
