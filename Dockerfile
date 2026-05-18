@@ -1,5 +1,5 @@
 # Application-sdk base image with Python
-FROM ghcr.io/atlanhq/application-sdk-chainguard-image:latest
+FROM registry.atlan.com/public/app-runtime-base:2.8.7-7
 
 WORKDIR /app
 
