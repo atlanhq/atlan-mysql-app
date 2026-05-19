@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.23 (May 19, 2026)
+
+### Chores
+
+- **Re-pin `atlan-application-sdk` → SHA `911f5080`** to pick up the `file_names` field drop on `TransformInput` in [#1792](https://github.com/atlanhq/application-sdk/pull/1792). The legacy `file_names` field carried multi-file batch hints that pre-dated the `FileReference` interceptor and were never routed through it. After a consumer audit, no production code path was reading it — the only `if input.file_names:` branches lived in `atlan-alloydb-postgres-app` and `atlan-cloudsql-postgres-app`, both of which were dead branches (the field is always empty on v3 flows) and cleaned up ahead of the SDK drop ([atlanhq/atlan-alloydb-postgres-app#43](https://github.com/atlanhq/atlan-alloydb-postgres-app/pull/43), [atlanhq/atlan-cloudsql-postgres-app#53](https://github.com/atlanhq/atlan-cloudsql-postgres-app/pull/53)). No mysql-app code change required — mysql-app already routes its raw artifacts through `raw_file` / `raw_dir`.
+
 ## 0.7.22 (May 19, 2026)
 
 ### Bug Fixes
