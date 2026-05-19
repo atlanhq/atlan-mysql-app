@@ -487,10 +487,18 @@ class MySQLApp(SqlApp):
             proc_input = self.build_task_input(
                 ExtractionTaskInput, input, cred_ref=cred_ref
             )
-            # Two-phase per the SDK contract: extract writes raw JSONL,
-            # transform reads it and runs map_procedure → entities.json.
-            await self.extract_procedures(proc_input)
-            await self.transform_procedures(proc_input)
+            # Two-phase per the SDK contract: extract writes raw JSONL and
+            # returns an ExtractionTaskOutput carrying a durable
+            # FileReference; transform consumes that ref via TransformInput.
+            # The activity interceptor handles the upload-on-output +
+            # materialise-on-input handshake automatically, so the transform
+            # runs correctly even when scheduled on a different worker pod
+            # than the extract (BLDX-1281).
+            proc_extract_result = await self.extract_procedures(proc_input)
+            proc_transform_input = self._build_transform_input(
+                proc_input, proc_extract_result.raw_file
+            )
+            await self.transform_procedures(proc_transform_input)
             # Upload extras-procedure entities separately — super().run() uploads
             # standard entities (database/schema/table/column) BEFORE procedures
             # are extracted, so we need a second upload pass for procedures.
