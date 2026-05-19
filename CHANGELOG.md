@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.29 (May 19, 2026)
+
+### Chores
+
+- **Re-pin `atlan-application-sdk` → SHA `d15f763c`** to pick up the regression tests that pin the `RETAINED` tier on `_extract_entity` / `_transform_entity` (and on the `FileReference.from_local()` helper itself). Same fix as `0.7.28`, just with the regression guards alongside so a future SDK refactor can't silently re-introduce the bare `file_refs/` prefix path that Atlan's blob-storage gateway rejects. No mysql-app code change.
+
 ## 0.7.28 (May 19, 2026)
 
 ### Bug Fixes
