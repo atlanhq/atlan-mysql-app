@@ -153,15 +153,10 @@ select = ["E4", "E7", "E9", "F", "PLC0415"]
 #     materialise-on-input handshake.
 #   * ``TransformOutput`` carries ``transformed_file: FileReference``
 #     — set by transform, consumed downstream by publish.
-#   * New ``TransformInput.raw_dir: FileReference | None`` field for
-#     directory-shaped multi-file extracts (routed through the same
-#     interceptor as ``raw_file``).
-#   * Legacy ``TransformInput.file_names`` field stays on the schema
-#     as a no-op placeholder — the SDK never populated it, so the
-#     existing reads in alloydb-postgres / cloudsql-postgres are dead
-#     branches with the empty default and remain dead. Non-breaking
-#     deprecation note rather than a coordinated removal, consistent
-#     with how ``typename`` is already documented.
+#   * Legacy ``TransformInput.file_names`` / ``chunk_start`` /
+#     ``typename`` stay on the schema as deprecated no-op placeholders
+#     for backward compat — none of them are populated or read by the
+#     v3 SqlApp flow. Deprecation notes only, no coordinated removal.
 #   * ``SqlApp.run()`` (and ``MySQLApp.run()`` override for procedures)
 #     threads each extract's durable ``raw_file`` into the matching
 #     transform's ``TransformInput`` via ``_build_transform_input``.
@@ -173,9 +168,10 @@ select = ["E4", "E7", "E9", "F", "PLC0415"]
 # and triggering downstream asset archival. Observed in production on
 # the prior v3.10.0 pin.
 #
-# Pinned SHA: 4f94e223 (HEAD of aryaman/transform-file-reference at
-# time of writing — includes the file_names deprecation docstring on
-# top of the FileReference rework; file_names is kept on the schema).
+# Pinned SHA: 81941835 (HEAD of aryaman/transform-file-reference at
+# time of writing — collapses the contract additions to just
+# ``raw_file`` / ``transformed_file``, drops the speculative
+# ``raw_dir`` field that had no SDK or consumer callers).
 # Once the SDK PR merges and 3.12.0 ships, drop this override and
 # bump line 10's PyPI constraint to ``~=3.12.0``.
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "4f94e2230590f3d79f5eb82225b158930f14a511" }
+atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "8194183581801dd4d4506e818ae2b023596c84a4" }
