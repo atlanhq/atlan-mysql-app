@@ -207,6 +207,13 @@ class TestMySQLE2E(unittest.TestCase):
             return
 
         # ── Validate raw extraction (JSONL — one record per line) ───
+        # Requires APPLICATION_SDK_ENABLE_CLEANUP_INTERCEPTOR=false in the
+        # CI env block (.github/workflows/tests.yml). The SDK's default
+        # on_complete() runs cleanup_files which deletes every tracked
+        # FileReference local path — including the raw/<entity>/records.json
+        # files we assert on here. Disabling the interceptor in the test
+        # environment preserves the artefacts for inspection. Production
+        # deployments leave the SDK default ("true") in place.
         raw_dir = Path(output_path) / "raw"
         self.assertTrue(raw_dir.exists(), f"No raw/ directory at {output_path}")
 

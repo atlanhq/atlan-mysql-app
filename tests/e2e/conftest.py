@@ -124,7 +124,18 @@ def _seed_database(host: str, port: int, root_password: str = "rootpass"):
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_dapr_credentials(mysql_database):
-    """Generate local Dapr secrets from env vars for workflow credential resolution."""
+    """Generate local Dapr secrets from env vars for workflow credential resolution.
+
+    The credential config lives under the same ``objectstore_root`` that
+    the SDK's ``embedded_dapr`` writes its ``bindings.localstorage``
+    component against. As of application-sdk#1759, ``run_dev_combined``
+    spawns its own embedded daprd that defaults that root to
+    ``./local/objectstore`` (no ``/dapr/`` segment) — distinct from the
+    static ``components/objectstore.yaml`` rootPath that this fixture
+    used to follow. Keep them aligned, otherwise the credential vault's
+    ``get`` invoke returns 500 on the workflow path and
+    ``test_run_workflow`` immediately fails with ``execution_duration_seconds=0``.
+    """
     credential_guid = os.environ.get(
         "CREDENTIAL_GUID",
         os.environ.get("LOCAL_CREDENTIAL_GUID", "local-mysql"),
@@ -134,6 +145,11 @@ def setup_dapr_credentials(mysql_database):
     host = os.environ.get("MYSQL_HOST", "localhost")
     port = os.environ.get("MYSQL_PORT", "3306")
 
+    # Local-environment secret resolution path:
+    # ``DaprCredentialVault._get_local_secret`` reads from
+    # ``./local/dapr/secrets/secrets.json`` directly (bypassing Dapr's
+    # secretstores.local.env). This path is independent of the
+    # objectstore rootPath above.
     secrets_dir = PROJECT_ROOT / "local" / "dapr" / "secrets"
     secrets_dir.mkdir(parents=True, exist_ok=True)
     (secrets_dir / "secrets.json").write_text(
@@ -143,7 +159,6 @@ def setup_dapr_credentials(mysql_database):
     config_dir = (
         PROJECT_ROOT
         / "local"
-        / "dapr"
         / "objectstore"
         / "persistent-artifacts"
         / "apps"
