@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.25 (May 19, 2026)
+
+### Chores
+
+- **Re-pin `atlan-application-sdk` → SHA `81941835`** on [#1792](https://github.com/atlanhq/application-sdk/pull/1792). The SDK PR dropped the speculative `TransformInput.raw_dir` field (zero SDK or consumer callers — purely YAGNI cleanup, per reviewer feedback). The PR's contract additions now collapse to just `raw_file: FileReference | None` (on `ExtractionTaskOutput` and `TransformInput`) and `transformed_file: FileReference | None` (on `TransformOutput`) — both with concrete producers and consumers in the SDK template. No mysql-app code change.
+
 ## 0.7.24 (May 19, 2026)
 
 ### Bug Fixes
