@@ -2,6 +2,62 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.29 (May 19, 2026)
+
+### Chores
+
+- **Re-pin `atlan-application-sdk` → SHA `d15f763c`** to pick up the regression tests that pin the `RETAINED` tier on `_extract_entity` / `_transform_entity` (and on the `FileReference.from_local()` helper itself). Same fix as `0.7.28`, just with the regression guards alongside so a future SDK refactor can't silently re-introduce the bare `file_refs/` prefix path that Atlan's blob-storage gateway rejects. No mysql-app code change.
+
+## 0.7.28 (May 19, 2026)
+
+### Bug Fixes
+
+- **Re-pin `atlan-application-sdk` → SHA `f7fabb52`** to pick up the storage-tier fix for FileReference uploads on production deployments. The SDK's `_extract_entity` and `_transform_entity` were emitting `FileReference.from_local(...)` refs that defaulted to `StorageTier.TRANSIENT` — which writes to a bare `file_refs/<uuid>.json` prefix (no run / app / tenant scoping). Atlan's blob-storage gateway only allows writes under `artifacts/...` and `persistent-artifacts/...`, so production extract activities were failing with `403 code 1009 'Invalid Path'`. Aligned with every other SDK upload path (`UploadInput`, `App.upload`, `sql_metadata_extractor`, `base_metadata_extractor`) by routing the refs through `StorageTier.RETAINED` — paths become `<run_prefix>/file_refs/<uuid>.json` (i.e. `artifacts/apps/<app>/workflows/<wf>/<run>/file_refs/...`), which the gateway permits. Local CI never caught this because `bindings.localstorage` has no path policy. No mysql-app code change — the fix is entirely in the SDK template.
+
+## 0.7.27 (May 19, 2026)
+
+### Chores
+
+- **Re-pin `atlan-application-sdk` → SHA `4eafc0f0`** to pick up the FileReference docstring reframing on [#1792](https://github.com/atlanhq/application-sdk/pull/1792) (singular → file-or-directory framing per reviewer feedback). Also pulls in the `5c3db7e5` log-level demotion (storage upload/download success → DEBUG) that arrived on `main` between rebases. No mysql-app code change.
+
+## 0.7.26 (May 19, 2026)
+
+### Bug Fixes
+
+- **Disable SDK cleanup interceptor in the integration test env** (`.github/workflows/tests.yml`). The SDK's `on_complete()` default runs `cleanup_files`, which deletes every tracked `FileReference` local path after the workflow finishes — correct for production (files have been uploaded to the object store) but it strips the `raw/<entity>/records.json` and `transformed/<entity>/entities.json` artefacts that `test_run_workflow` asserts on. Setting `APPLICATION_SDK_ENABLE_CLEANUP_INTERCEPTOR=false` in the integration-tests job env preserves the artefacts for inspection. Production Helm values leave the SDK default (`true`) in place. The `extras-procedure/records.json` survived earlier (count==0 → no FileReference returned → not tracked → not cleaned), which was the signal that pointed at the interceptor.
+
+## 0.7.25 (May 19, 2026)
+
+### Chores
+
+- **Re-pin `atlan-application-sdk` → SHA `81941835`** on [#1792](https://github.com/atlanhq/application-sdk/pull/1792). The SDK PR dropped the speculative `TransformInput.raw_dir` field (zero SDK or consumer callers — purely YAGNI cleanup, per reviewer feedback). The PR's contract additions now collapse to just `raw_file: FileReference | None` (on `ExtractionTaskOutput` and `TransformInput`) and `transformed_file: FileReference | None` (on `TransformOutput`) — both with concrete producers and consumers in the SDK template. No mysql-app code change.
+
+## 0.7.24 (May 19, 2026)
+
+### Bug Fixes
+
+- **Align the e2e credential fixture with the embedded Dapr's objectstore root** in `tests/e2e/conftest.py`. The SDK rolled out an embedded `daprd` (zero-install local dev) in [#1759](https://github.com/atlanhq/application-sdk/pull/1759), and `run_dev_combined` now starts that embedded sidecar instead of using whichever Dapr the host (or CI) launched. The embedded sidecar's `bindings.localstorage` defaults its `rootPath` to `./local/objectstore` — distinct from the static `components/objectstore.yaml` rootPath of `./local/dapr/objectstore` that the fixture was writing to. The path mismatch made `test_run_workflow` fail immediately with `execution_duration_seconds=0` because the credential vault's `get` invoke returned 500. The fixture now writes the credential config to `local/objectstore/persistent-artifacts/.../config.json`, matching what the embedded sidecar actually reads. The `secrets.json` path is unchanged — `DaprCredentialVault._get_local_secret` reads it directly, independent of the objectstore binding.
+
+## 0.7.23 (May 19, 2026)
+
+### Chores
+
+- **Re-pin `atlan-application-sdk` → SHA `4f94e223`** on [#1792](https://github.com/atlanhq/application-sdk/pull/1792). The earlier plan to drop the legacy `TransformInput.file_names` field landed as a non-breaking deprecation instead, consistent with how `typename` is already documented — the field stays on the schema as a no-op placeholder (the SDK never populated it, so any consumer reads already evaluate against the empty default). The two dead-branch consumer cleanup PRs ([atlanhq/atlan-alloydb-postgres-app#43](https://github.com/atlanhq/atlan-alloydb-postgres-app/pull/43), [atlanhq/atlan-cloudsql-postgres-app#53](https://github.com/atlanhq/atlan-cloudsql-postgres-app/pull/53)) are closed unmerged — coordination no longer required. No mysql-app code change.
+
+## 0.7.22 (May 19, 2026)
+
+### Bug Fixes
+
+- **Pull in SDK cross-worker transform fix** ([atlanhq/application-sdk#1792](https://github.com/atlanhq/application-sdk/pull/1792)). With >1 worker replica, the v3 SqlApp template silently dropped entities whose `extract_*` and `transform_*` activities landed on different Temporal pods — the transform read the raw file from local FS only, missed it on cross-pod schedules, and returned `total_record_count=0`. The downstream publish step interpreted the empty `transformed/<entity>/` directory as "this entity is gone" and archived every previously-published asset of that type for the connection. The SDK fix threads the raw file via `FileReference` through the extract → transform handshake so the activity interceptor handles materialise-on-input and persist-on-output automatically (with SHA-256 sidecar verification — every cross-worker retry triggers a fresh download).
+- **Wire the new FileReference contract into the procedure pipeline** in `app/mysql.py`. The SDK's `run()` orchestration threads `raw_file` from extract to transform automatically for the standard entities (databases, schemas, tables, columns), but `MySQLApp.run()` overrides the orchestration to add stored procedures (sequential `extract_procedures → transform_procedures`). That custom path now also captures the extract's `ExtractionTaskOutput.raw_file` and builds a `TransformInput` via `SqlApp._build_transform_input` — so procedure transforms get the same cross-worker guarantees as the standard flow.
+
+### Chores
+
+- **Bump `atlan-application-sdk` git pin → fix branch `transform-file-reference`** (commit `785b9353`). TEMPORARY override pending the v3.12.0 release that will carry [#1792](https://github.com/atlanhq/application-sdk/pull/1792). Once 3.12.0 is tagged, this pin moves to `~=3.12.0` and the `[tool.uv.sources]` block is dropped entirely. `uv.lock` resynced — `atlan-application-sdk v3.10.0 → v3.12.0`.
+- **Test-suite updates for SDK v3.12 contracts**:
+  - `tests/unit/test_mysql_app.py::TestMySQLAppRun._run` — extract mocks now return real `ExtractionTaskOutput` instances (with `raw_file=None`) instead of `MagicMock`, since `run()` now Pydantic-validates the threaded ref against `FileReference` and would reject magic-mock auto-attrs.
+  - `tests/unit/test_clients.py` — accept the new `SqlClientAuthFailedError` / `SqlCredentialsParseError` / `SqlClientConfigError` / `MissingSqlParamError` exception shapes the SDK now surfaces (walking the exception cause chain to assert on the failure reason).
+
 ## 0.7.21 (May 15, 2026)
 
 ### Chores
