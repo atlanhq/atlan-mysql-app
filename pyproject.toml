@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 license = "Apache-2.0"
 readme = "README.md"
 dependencies = [
-    "atlan-application-sdk[daft,iam-auth,sql,workflows,pandas]",
+    "atlan-application-sdk[daft,iam-auth,sql,workflows,pandas]>=3.10.0,<4.0.0",
     "aiomysql>=0.3.0",
     "cryptography>=46.0.5",
     "poethepoet>=0.34.0",
@@ -149,4 +149,3 @@ select = ["E4", "E7", "E9", "F", "PLC0415"]
 # components-dir / compose-overlay overrides (#1752), AND the
 # /preflight envelope shape refactor (#1744). Drop this override
 # entirely once line 10's PyPI constraint is bumped to >=3.10.0,<4.0.0.
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", tag = "v3.10.0" }
