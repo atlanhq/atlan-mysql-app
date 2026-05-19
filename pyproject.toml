@@ -168,12 +168,13 @@ select = ["E4", "E7", "E9", "F", "PLC0415"]
 # and triggering downstream asset archival. Observed in production on
 # the prior v3.10.0 pin.
 #
-# Pinned SHA: f7fabb52 (HEAD of aryaman/transform-file-reference at
-# time of writing — fixes the 403 ``code 1009 Invalid Path`` failure
-# on production deployments by routing raw_file / transformed_file
-# refs through StorageTier.RETAINED (under the run-scoped
-# ``artifacts/`` prefix) instead of the default TRANSIENT tier's bare
-# ``file_refs/`` prefix that Atlan's blob-storage gateway rejects).
+# Pinned SHA: d15f763c (HEAD of aryaman/transform-file-reference at
+# time of writing — adds regression tests pinning the RETAINED tier
+# on top of the fix for the 403 ``code 1009 Invalid Path`` blob-store
+# failure on production deployments. The fix routes raw_file /
+# transformed_file refs through StorageTier.RETAINED (under the
+# run-scoped ``artifacts/`` prefix) instead of the default TRANSIENT
+# tier's bare ``file_refs/`` prefix that Atlan's gateway rejects).
 # Once the SDK PR merges and 3.12.0 ships, drop this override and
 # bump line 10's PyPI constraint to ``~=3.12.0``.
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "f7fabb52255fc1696f238fb56718bd088bcf0269" }
+atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "d15f763c7cc620e836f71869f83dbbc4f84ae089" }
