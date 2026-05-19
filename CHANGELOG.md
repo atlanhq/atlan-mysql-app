@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.28 (May 19, 2026)
+
+### Bug Fixes
+
+- **Re-pin `atlan-application-sdk` → SHA `f7fabb52`** to pick up the storage-tier fix for FileReference uploads on production deployments. The SDK's `_extract_entity` and `_transform_entity` were emitting `FileReference.from_local(...)` refs that defaulted to `StorageTier.TRANSIENT` — which writes to a bare `file_refs/<uuid>.json` prefix (no run / app / tenant scoping). Atlan's blob-storage gateway only allows writes under `artifacts/...` and `persistent-artifacts/...`, so production extract activities were failing with `403 code 1009 'Invalid Path'`. Aligned with every other SDK upload path (`UploadInput`, `App.upload`, `sql_metadata_extractor`, `base_metadata_extractor`) by routing the refs through `StorageTier.RETAINED` — paths become `<run_prefix>/file_refs/<uuid>.json` (i.e. `artifacts/apps/<app>/workflows/<wf>/<run>/file_refs/...`), which the gateway permits. Local CI never caught this because `bindings.localstorage` has no path policy. No mysql-app code change — the fix is entirely in the SDK template.
+
 ## 0.7.27 (May 19, 2026)
 
 ### Chores

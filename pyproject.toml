@@ -168,11 +168,12 @@ select = ["E4", "E7", "E9", "F", "PLC0415"]
 # and triggering downstream asset archival. Observed in production on
 # the prior v3.10.0 pin.
 #
-# Pinned SHA: 4eafc0f0 (HEAD of transform-file-reference at
-# time of writing — picks up the FileReference docstring reframing
-# (singular -> file-or-directory) per reviewer feedback, on top of the
-# raw_dir field removal and the main rebase that demoted storage
-# upload/download success logs to DEBUG).
+# Pinned SHA: f7fabb52 (HEAD of transform-file-reference at
+# time of writing — fixes the 403 ``code 1009 Invalid Path`` failure
+# on production deployments by routing raw_file / transformed_file
+# refs through StorageTier.RETAINED (under the run-scoped
+# ``artifacts/`` prefix) instead of the default TRANSIENT tier's bare
+# ``file_refs/`` prefix that Atlan's blob-storage gateway rejects).
 # Once the SDK PR merges and 3.12.0 ships, drop this override and
 # bump line 10's PyPI constraint to ``~=3.12.0``.
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "4eafc0f05fd627cd47f3523cec72766beaf5175b" }
+atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "f7fabb52255fc1696f238fb56718bd088bcf0269" }
