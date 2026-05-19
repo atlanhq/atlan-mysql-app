@@ -2,6 +2,17 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.22 (May 19, 2026)
+
+### Bug Fixes
+
+- **Pull in SDK fix for cross-worker transform data loss** ([atlanhq/application-sdk#1787](https://github.com/atlanhq/application-sdk/pull/1787)). With >1 worker replica, the v3 SqlApp template silently dropped entities whose `extract_*` and `transform_*` activities landed on different Temporal pods — the transform read the raw file from local FS only, missed it on cross-pod schedules, and returned `total_record_count=0`. The downstream publish step interpreted the empty `transformed/<entity>/` directory as "this entity is gone" and archived every previously-published asset of that type for the connection. Observed in prod on a thirdbridge run that extracted all 5 entity types successfully but transformed only 2 of 5, archiving 14 schemas / hundreds of tables / all procedures in a single publish round. The SDK fix hydrates the raw file from the object store on local miss (each pod already mirrors raw writes there), raises on transient store errors so Temporal retries instead of silent-archiving, and preserves the "extract had 0 rows" → return zero contract for genuinely-empty entities.
+
+### Chores
+
+- **Bump `atlan-application-sdk` git pin → fix branch `aryaman/transform-s3-fallback`** (commit `f44ed11b`). TEMPORARY override pending the v3.12.0 release that will carry [PR #1787](https://github.com/atlanhq/application-sdk/pull/1787). Once 3.12.0 is tagged, this pin moves to `~3.12.0` and the `[tool.uv.sources]` block is dropped entirely. `uv.lock` resynced — `atlan-application-sdk v3.10.0 → v3.12.0` (the fix branch sits on top of main's 3.12.0 dev version).
+- **Test-suite updates for SDK v3.12 error shapes** in `tests/unit/test_clients.py`. SDK v3.12 surfaces auth-time failures via `SqlClientAuthFailedError` wrapping `SqlCredentialsParseError` / `SqlClientConfigError` / `MissingSqlParamError` instead of bare `ValueError` / `ClientError`. Tests now accept either shape and walk the exception cause chain when asserting on the failure reason — survives both old and new SDKs without locking the exact exception type.
+
 ## 0.7.21 (May 15, 2026)
 
 ### Chores
