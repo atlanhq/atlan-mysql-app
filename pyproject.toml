@@ -143,10 +143,38 @@ select = ["E4", "E7", "E9", "F", "PLC0415"]
 
 [tool.uv.sources]
 # atlan-application-sdk = { path = "../application-sdk", editable = true }
-# Pinned to the v3.10.0 release tag — first published version carrying
-# the BLDX-1254 cross-repo dispatch + full-DAG harness, the
-# .github/sdr-e2e/ config-dir convention (#1746), the multi-pipeline
-# components-dir / compose-overlay overrides (#1752), AND the
-# /preflight envelope shape refactor (#1744). Drop this override
-# entirely once line 10's PyPI constraint is bumped to >=3.10.0,<4.0.0.
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", tag = "v3.10.0" }
+# TEMPORARY (BLDX-1281): pointed at the fix branch for
+# atlanhq/application-sdk#1792, which reworks the v3 SqlApp template's
+# extract → transform handoff to use ``FileReference`` contracts:
+#
+#   * ``ExtractionTaskOutput`` carries ``raw_file: FileReference``
+#     (singular ref to raw/<entity>/records.json) — set by extract,
+#     consumed by the matching transform via the interceptor's
+#     materialise-on-input handshake.
+#   * ``TransformOutput`` carries ``transformed_file: FileReference``
+#     — set by transform, consumed downstream by publish.
+#   * Legacy ``TransformInput.file_names`` / ``chunk_start`` /
+#     ``typename`` stay on the schema as deprecated no-op placeholders
+#     for backward compat — none of them are populated or read by the
+#     v3 SqlApp flow. Deprecation notes only, no coordinated removal.
+#   * ``SqlApp.run()`` (and ``MySQLApp.run()`` override for procedures)
+#     threads each extract's durable ``raw_file`` into the matching
+#     transform's ``TransformInput`` via ``_build_transform_input``.
+#
+# Together these close the cross-worker silent-archive bug — extract
+# and transform activities scheduled on different worker pods now
+# automatically materialise the raw file with SHA-256 sidecar
+# verification, instead of silently returning ``total_record_count=0``
+# and triggering downstream asset archival. Observed in production on
+# the prior v3.10.0 pin.
+#
+# Pinned SHA: d15f763c (HEAD of aryaman/transform-file-reference at
+# time of writing — adds regression tests pinning the RETAINED tier
+# on top of the fix for the 403 ``code 1009 Invalid Path`` blob-store
+# failure on production deployments. The fix routes raw_file /
+# transformed_file refs through StorageTier.RETAINED (under the
+# run-scoped ``artifacts/`` prefix) instead of the default TRANSIENT
+# tier's bare ``file_refs/`` prefix that Atlan's gateway rejects).
+# Once the SDK PR merges and 3.12.0 ships, drop this override and
+# bump line 10's PyPI constraint to ``~=3.12.0``.
+atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "d15f763c7cc620e836f71869f83dbbc4f84ae089" }
