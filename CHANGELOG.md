@@ -2,6 +2,20 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.22 (May 19, 2026)
+
+### Bug Fixes
+
+- **Pull in SDK cross-worker transform fix** ([atlanhq/application-sdk#1792](https://github.com/atlanhq/application-sdk/pull/1792)). With >1 worker replica, the v3 SqlApp template silently dropped entities whose `extract_*` and `transform_*` activities landed on different Temporal pods — the transform read the raw file from local FS only, missed it on cross-pod schedules, and returned `total_record_count=0`. The downstream publish step interpreted the empty `transformed/<entity>/` directory as "this entity is gone" and archived every previously-published asset of that type for the connection. The SDK fix threads the raw file via `FileReference` through the extract → transform handshake so the activity interceptor handles materialise-on-input and persist-on-output automatically (with SHA-256 sidecar verification — every cross-worker retry triggers a fresh download).
+- **Wire the new FileReference contract into the procedure pipeline** in `app/mysql.py`. The SDK's `run()` orchestration threads `raw_file` from extract to transform automatically for the standard entities (databases, schemas, tables, columns), but `MySQLApp.run()` overrides the orchestration to add stored procedures (sequential `extract_procedures → transform_procedures`). That custom path now also captures the extract's `ExtractionTaskOutput.raw_file` and builds a `TransformInput` via `SqlApp._build_transform_input` — so procedure transforms get the same cross-worker guarantees as the standard flow.
+
+### Chores
+
+- **Bump `atlan-application-sdk` git pin → fix branch `aryaman/transform-file-reference`** (commit `785b9353`). TEMPORARY override pending the v3.12.0 release that will carry [#1792](https://github.com/atlanhq/application-sdk/pull/1792). Once 3.12.0 is tagged, this pin moves to `~=3.12.0` and the `[tool.uv.sources]` block is dropped entirely. `uv.lock` resynced — `atlan-application-sdk v3.10.0 → v3.12.0`.
+- **Test-suite updates for SDK v3.12 contracts**:
+  - `tests/unit/test_mysql_app.py::TestMySQLAppRun._run` — extract mocks now return real `ExtractionTaskOutput` instances (with `raw_file=None`) instead of `MagicMock`, since `run()` now Pydantic-validates the threaded ref against `FileReference` and would reject magic-mock auto-attrs.
+  - `tests/unit/test_clients.py` — accept the new `SqlClientAuthFailedError` / `SqlCredentialsParseError` / `SqlClientConfigError` / `MissingSqlParamError` exception shapes the SDK now surfaces (walking the exception cause chain to assert on the failure reason).
+
 ## 0.7.21 (May 15, 2026)
 
 ### Chores
