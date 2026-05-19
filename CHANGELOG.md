@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.30 (May 19, 2026)
+
+### Bug Fixes
+
+- **Re-pin `atlan-application-sdk` → SHA `c9c40e1d`** to pick up the corrected tier model for FileReference uploads on production deployments. The previous fix routed both `raw_file` and `transformed_file` through `StorageTier.RETAINED`, which was an over-correction — per reviewer feedback on [application-sdk#1792](https://github.com/atlanhq/application-sdk/pull/1792), the right model is per-ref: `raw_file` (extract → transform) stays `TRANSIENT` because both sides always run in the same deployment, while `transformed_file` (transform → publish) is `RETAINED` because the handoff can span SDR → in-tenant. The real bug was that `TRANSIENT`'s `_file_ref_base` ignored `run_prefix` — producing bare `file_refs/<uuid>` keys that Atlan's blob-storage gateway rejects with `403 code 1009 'Invalid Path'`. The SDK fix patches `StorageTier._file_ref_base` so TRANSIENT honours `run_prefix` (paths become `<run_prefix>/file_refs/<uuid>` — gateway-permitted), and the SqlApp template uses the per-ref tier intent. No mysql-app code change.
+
 ## 0.7.29 (May 19, 2026)
 
 ### Chores
