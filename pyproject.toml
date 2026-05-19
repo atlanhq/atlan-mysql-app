@@ -168,13 +168,26 @@ select = ["E4", "E7", "E9", "F", "PLC0415"]
 # and triggering downstream asset archival. Observed in production on
 # the prior v3.10.0 pin.
 #
-# Pinned SHA: d15f763c (HEAD of transform-file-reference at
-# time of writing — adds regression tests pinning the RETAINED tier
-# on top of the fix for the 403 ``code 1009 Invalid Path`` blob-store
-# failure on production deployments. The fix routes raw_file /
-# transformed_file refs through StorageTier.RETAINED (under the
-# run-scoped ``artifacts/`` prefix) instead of the default TRANSIENT
-# tier's bare ``file_refs/`` prefix that Atlan's gateway rejects).
+# Pinned SHA: c9c40e1d (HEAD of transform-file-reference at
+# time of writing — corrected tier model per @chrisgrote's review:
+#
+#   * TRANSIENT — internal task-to-task within a run (auto-cleaned).
+#     Used for raw_file (extract → transform handoff, both sides
+#     always in the same deployment).
+#   * RETAINED — handoff that may cross a deployment boundary
+#     (e.g. SDR → in-tenant publish). Used for transformed_file so
+#     it survives the SDR-side workflow's auto-cleanup.
+#
+# The real bug was TRANSIENT's path scheme ignoring run_prefix —
+# producing bare ``file_refs/<uuid>`` keys that Atlan's blob-storage
+# gateway rejects with 403 ``code 1009 Invalid Path``. Fix patches
+# ``StorageTier._file_ref_base`` so TRANSIENT honours run_prefix when
+# the activity interceptor supplies one, yielding
+# ``<run_prefix>/file_refs/<uuid>`` (gateway-permitted) without
+# changing tier semantics. Falls back to bare ``file_refs`` for
+# ad-hoc callers (local scripts, unit tests against local stores
+# with no path policy).
+#
 # Once the SDK PR merges and 3.12.0 ships, drop this override and
 # bump line 10's PyPI constraint to ``~=3.12.0``.
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "d15f763c7cc620e836f71869f83dbbc4f84ae089" }
+atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "c9c40e1d34cfda87fa342c12e669ba052719c6ef" }
