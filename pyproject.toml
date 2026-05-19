@@ -156,11 +156,12 @@ select = ["E4", "E7", "E9", "F", "PLC0415"]
 #   * New ``TransformInput.raw_dir: FileReference | None`` field for
 #     directory-shaped multi-file extracts (routed through the same
 #     interceptor as ``raw_file``).
-#   * Legacy ``TransformInput.file_names`` field removed — no v3
-#     consumer was actually reading it. The two dead-branch readers
-#     (alloydb-postgres / cloudsql-postgres) were cleaned up first
-#     (atlanhq/atlan-alloydb-postgres-app#43,
-#     atlanhq/atlan-cloudsql-postgres-app#53).
+#   * Legacy ``TransformInput.file_names`` field stays on the schema
+#     as a no-op placeholder — the SDK never populated it, so the
+#     existing reads in alloydb-postgres / cloudsql-postgres are dead
+#     branches with the empty default and remain dead. Non-breaking
+#     deprecation note rather than a coordinated removal, consistent
+#     with how ``typename`` is already documented.
 #   * ``SqlApp.run()`` (and ``MySQLApp.run()`` override for procedures)
 #     threads each extract's durable ``raw_file`` into the matching
 #     transform's ``TransformInput`` via ``_build_transform_input``.
@@ -172,8 +173,9 @@ select = ["E4", "E7", "E9", "F", "PLC0415"]
 # and triggering downstream asset archival. Observed in production on
 # the prior v3.10.0 pin.
 #
-# Pinned SHA: 911f5080 (HEAD of aryaman/transform-file-reference at
-# time of writing — includes the file_names drop). Once the SDK PR
-# merges and 3.12.0 ships, drop this override and bump line 10's
-# PyPI constraint to ``~=3.12.0``.
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "911f508055d901178c2f2529cd851fb2122046e1" }
+# Pinned SHA: 4f94e223 (HEAD of aryaman/transform-file-reference at
+# time of writing — includes the file_names deprecation docstring on
+# top of the FileReference rework; file_names is kept on the schema).
+# Once the SDK PR merges and 3.12.0 ships, drop this override and
+# bump line 10's PyPI constraint to ``~=3.12.0``.
+atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "4f94e2230590f3d79f5eb82225b158930f14a511" }
