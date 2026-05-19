@@ -206,27 +206,56 @@ class TestMySQLE2E(unittest.TestCase):
         if not output_path:
             return
 
+        # ── Diagnostic dump (helps debug when output_path-based assertions
+        # below fail — surfaces where files actually landed) ────────────
+        def _dump_paths(label: str, root: Path, depth: int = 4) -> str:
+            if not root.exists():
+                return f"  {label}: {root} (DOES NOT EXIST)\n"
+            lines = [f"  {label}: {root}"]
+            for p in sorted(root.rglob("*")):
+                rel = p.relative_to(root)
+                if len(rel.parts) > depth:
+                    continue
+                kind = "d" if p.is_dir() else f"f({p.stat().st_size}b)"
+                lines.append(f"    [{kind}] {rel}")
+            return "\n".join(lines) + "\n"
+
+        diag = (
+            "\n── Diagnostic: filesystem state after COMPLETED ──\n"
+            + _dump_paths("output_path (request payload)", Path(output_path))
+            + _dump_paths(
+                "embedded-dapr objectstore root",
+                Path(os.environ.get("GITHUB_WORKSPACE", os.getcwd()))
+                / "local"
+                / "objectstore",
+            )
+            + _dump_paths("workflow temp under /tmp", Path("/tmp"), depth=2)
+        )
+
         # ── Validate raw extraction (JSONL — one record per line) ───
         raw_dir = Path(output_path) / "raw"
-        self.assertTrue(raw_dir.exists(), f"No raw/ directory at {output_path}")
+        self.assertTrue(
+            raw_dir.exists(),
+            f"No raw/ directory at {output_path}{diag}",
+        )
 
         entity_types = {d.name for d in raw_dir.iterdir() if d.is_dir()}
         for expected in ("database", "schema", "table", "column"):
             self.assertIn(
                 expected,
                 entity_types,
-                f"Missing raw/{expected}/ — found: {entity_types}",
+                f"Missing raw/{expected}/ — found: {entity_types}{diag}",
             )
 
         for entity in ("database", "schema", "table", "column"):
             raw_file = raw_dir / entity / "records.json"
             self.assertTrue(
                 raw_file.exists(),
-                f"Missing raw/{entity}/records.json",
+                f"Missing raw/{entity}/records.json{diag}",
             )
             self.assertTrue(
                 raw_file.stat().st_size > 0,
-                f"raw/{entity}/records.json is empty",
+                f"raw/{entity}/records.json is empty{diag}",
             )
 
         # ── Validate transformed output (JSONL) ─────────────────────
