@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.26 (May 19, 2026)
+
+### Bug Fixes
+
+- **Disable SDK cleanup interceptor in the integration test env** (`.github/workflows/tests.yml`). The SDK's `on_complete()` default runs `cleanup_files`, which deletes every tracked `FileReference` local path after the workflow finishes — correct for production (files have been uploaded to the object store) but it strips the `raw/<entity>/records.json` and `transformed/<entity>/entities.json` artefacts that `test_run_workflow` asserts on. Setting `APPLICATION_SDK_ENABLE_CLEANUP_INTERCEPTOR=false` in the integration-tests job env preserves the artefacts for inspection. Production Helm values leave the SDK default (`true`) in place. The `extras-procedure/records.json` survived earlier (count==0 → no FileReference returned → not tracked → not cleaned), which was the signal that pointed at the interceptor.
+
 ## 0.7.25 (May 19, 2026)
 
 ### Chores
