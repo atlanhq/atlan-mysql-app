@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.27 (May 19, 2026)
+
+### Chores
+
+- **Re-pin `atlan-application-sdk` → SHA `4eafc0f0`** to pick up the FileReference docstring reframing on [#1792](https://github.com/atlanhq/application-sdk/pull/1792) (singular → file-or-directory framing per reviewer feedback). Also pulls in the `5c3db7e5` log-level demotion (storage upload/download success → DEBUG) that arrived on `main` between rebases. No mysql-app code change.
+
 ## 0.7.26 (May 19, 2026)
 
 ### Bug Fixes
