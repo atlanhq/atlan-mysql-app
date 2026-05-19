@@ -23,10 +23,15 @@ from application_sdk.observability.logger_adaptor import get_logger
 
 from app.clients import SQLClient
 from app.constants import DATABASE_PLACEHOLDER
+from app.utils import extract_control_config, resolve_information_schema
 
 logger = get_logger(__name__)
 
-# SQL for handler endpoints
+# SQL templates for handler endpoints. ``{information_schema}`` is kept
+# unresolved at module-import time and substituted per-request from
+# control-config on the incoming ``PreflightInput``/``MetadataInput``.
+# ``BaseConnectionConfig`` has ``model_config = {'extra': 'allow', ...}`` so
+# the marketplace UI's Custom Control Config passes through verbatim.
 _TEST_AUTH_SQL = (
     (Path(__file__).parent.parent / "sql" / "test_authentication.sql")
     .read_text()
@@ -34,7 +39,7 @@ _TEST_AUTH_SQL = (
     .replace("{database_placeholder}", DATABASE_PLACEHOLDER)
 )
 
-_TABLES_CHECK_SQL = (
+_TABLES_CHECK_SQL_TEMPLATE = (
     (Path(__file__).parent.parent / "sql" / "tables_check.sql")
     .read_text()
     .strip()
@@ -44,12 +49,25 @@ _TABLES_CHECK_SQL = (
     .replace("{temp_table_regex_sql}", "")  # no temp-table filter
 )
 
-_FILTER_METADATA_SQL = (
+_FILTER_METADATA_SQL_TEMPLATE = (
     (Path(__file__).parent.parent / "sql" / "filter_metadata.sql")
     .read_text()
     .strip()
     .replace("{database_placeholder}", DATABASE_PLACEHOLDER)
 )
+
+
+def _resolve_handler_sql(template: str, connection_config: Any | None) -> str:
+    """Resolve ``{information_schema}`` for a handler-side SQL template.
+
+    Pulls control-config from the request's ``connection_config`` (which is
+    a ``BaseConnectionConfig`` with ``extra='allow'``, so customer-supplied
+    fields like ``clonedInformationSchema`` are preserved) and applies the
+    resolver. With no override configured, the resulting SQL is
+    byte-identical to today's behavior.
+    """
+    config = extract_control_config(connection_config)
+    return resolve_information_schema(template, config)
 
 
 def _creds_to_dict(credentials: list[HandlerCredential]) -> dict[str, Any]:
@@ -86,8 +104,19 @@ class MySQLAppHandler(Handler):
             await client.close()
 
     async def preflight_check(self, input: PreflightInput) -> PreflightOutput:
-        """Run preflight checks: auth + connectivity."""
+        """Run preflight checks: auth + connectivity.
+
+        ``{information_schema}`` in the connectivity check SQL is resolved
+        per-request using control-config from ``input.connection_config``.
+        That allows preflight to succeed against a customer's mirror schema
+        (e.g. ``atlan_meta``) when ``clonedInformationSchema`` is set,
+        without granting them ``SELECT`` on the native ``information_schema``.
+        """
         checks: list[PreflightCheck] = []
+
+        tables_check_sql = _resolve_handler_sql(
+            _TABLES_CHECK_SQL_TEMPLATE, getattr(input, "connection_config", None)
+        )
 
         client = SQLClient()
         try:
@@ -118,7 +147,7 @@ class MySQLAppHandler(Handler):
 
             # Connectivity check — can we list tables?
             try:
-                result = await client.get_results(_TABLES_CHECK_SQL)
+                result = await client.get_results(tables_check_sql)
                 count = len(result) if result is not None else 0
                 checks.append(
                     PreflightCheck(
@@ -147,7 +176,17 @@ class MySQLAppHandler(Handler):
             await client.close()
 
     async def fetch_metadata(self, input: MetadataInput) -> SqlMetadataOutput:
-        """Fetch schema metadata for the UI tree."""
+        """Fetch schema metadata for the UI tree.
+
+        Resolves ``{information_schema}`` per-request from
+        ``input.connection_config`` so the UI tree honors a configured
+        mirror schema. Falls back to ``information_schema`` when no
+        ``clonedInformationSchema`` override is present.
+        """
+        filter_metadata_sql = _resolve_handler_sql(
+            _FILTER_METADATA_SQL_TEMPLATE, getattr(input, "connection_config", None)
+        )
+
         client = SQLClient()
         try:
             creds = _creds_to_dict(input.credentials)
@@ -169,7 +208,7 @@ class MySQLAppHandler(Handler):
 
             await client.load(credentials=creds)
 
-            result = await client.get_results(_FILTER_METADATA_SQL)
+            result = await client.get_results(filter_metadata_sql)
             row_count = 0 if result is None else len(result)
             logger.info(
                 "fetch_metadata: SQL returned %s (%d rows)",

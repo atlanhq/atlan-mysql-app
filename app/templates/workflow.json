@@ -86,6 +86,30 @@
                         }
                     ]
                 }
+            },
+            "control-config-strategy": {
+                "type": "string",
+                "enum": ["default", "custom"],
+                "default": "default",
+                "required": true,
+                "enumNames": ["Default", "Custom"],
+                "ui": {
+                    "widget": "radio",
+                    "hidden": false,
+                    "label": "Control Config",
+                    "help": "Controls custom feature flags for the crawler. Select Custom to enable the INFORMATION_SCHEMA mirror-schema flow for restricted-access deployments.",
+                    "placeholder": "Control Config"
+                }
+            },
+            "control-config": {
+                "type": "string",
+                "ui": {
+                    "label": "Custom Config",
+                    "help": "Custom JSON config. To route all metadata queries through a customer-managed mirror schema, set: {\"clonedInformationSchema\": \"<your-mirror-schema-name>\"} — the connector will query <your-mirror-schema-name>.* instead of information_schema.*. Required when the connector user does not have SELECT on the native information_schema.",
+                    "placeholder": "{\"clonedInformationSchema\": \"atlan_meta\"}",
+                    "hidden": false,
+                    "default": "{}"
+                }
             }
         },
         "steps": [
@@ -114,6 +138,15 @@
                     "exclude-filter",
                     "exclude-table-regex",
                     "preflight-check"
+                ]
+            },
+            {
+                "id": "advanced",
+                "title": "Advanced Config",
+                "description": "Optional control-config overrides. Use the mirror-schema flow for restricted-access MySQL/MariaDB deployments where SELECT on information_schema is forbidden by policy.",
+                "properties": [
+                    "control-config-strategy",
+                    "control-config"
                 ]
             }
         ]

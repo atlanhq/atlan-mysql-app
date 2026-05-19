@@ -25,6 +25,7 @@ from app.constants import DATABASE_PLACEHOLDER, TENANT_ID
 from app.handlers.mysql import (  # noqa: F401 — SDK discovers {AppClass}Handler by convention
     MySQLAppHandler,
 )
+from app.utils import extract_control_config, resolve_information_schema
 
 # S3 bucket for QI + lineage-app — forwarded as extract output so the manifest
 # JSONPath expressions ($.extract.outputs.storage_bucket) resolve correctly.
@@ -135,13 +136,20 @@ class MySQLApp(SqlApp):
     - MySQL-specific SQL queries from app/sql/ files
     - Asset mapper functions for databases, schemas, tables, columns, views
     - SQLClient with basic + IAM user + IAM role authentication
+    - Optional mirror-schema override (``clonedInformationSchema`` in
+      Custom Control Config) for customers whose security policy forbids
+      ``SELECT`` on ``information_schema``. See REQ-925 + ``app/utils.py``.
     """
 
     name: ClassVar[str] = "mysql"
 
     sql_client_class: ClassVar = SQLClient  # type: ignore[assignment]
 
-    # SQL templates from app/sql/ files
+    # SQL templates from app/sql/ files. The literal ``{information_schema}``
+    # placeholder is preserved here — runtime substitution happens in
+    # ``_prepare_sql`` below, using control-config carried on the workflow
+    # input. This keeps the class-level shape SDK-compatible (SqlApp reads
+    # these as ClassVar strings) while still allowing per-run schema overrides.
     fetch_database_sql: ClassVar[str] = _read_sql("extract_database.sql")
     fetch_schema_sql: ClassVar[str] = _read_sql("extract_schema.sql")
     fetch_table_sql: ClassVar[str] = _read_sql("extract_table.sql")
@@ -155,6 +163,22 @@ class MySQLApp(SqlApp):
     extract_temp_table_regex_column_sql: ClassVar[str] = _read_sql(
         "extract_temp_table_regex_column.sql"
     )
+
+    def _prepare_sql(self, sql: str, input: Any) -> str:  # type: ignore[override]
+        """Substitute SDK filter placeholders and the MySQL mirror-schema.
+
+        Runs the base ``SqlApp._prepare_sql`` first (which handles
+        ``{normalized_exclude_regex}``, ``{normalized_include_regex}`` and
+        ``{temp_table_regex_sql}``) and then resolves ``{information_schema}``
+        using the ``clonedInformationSchema`` value (if any) from
+        control-config carried on the input. Backward compatible: when no
+        config is supplied, the placeholder resolves to the canonical
+        ``information_schema`` identifier and output SQL is byte-identical
+        to the pre-REQ-925 behavior.
+        """
+        prepared = super()._prepare_sql(sql, input)
+        control_config = extract_control_config(input)
+        return resolve_information_schema(prepared, control_config)
 
     # ── Asset mappers ───────────────────────────────────────────────────
 

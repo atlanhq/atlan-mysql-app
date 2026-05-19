@@ -16,9 +16,9 @@
  *     - Column descriptions/remarks
  *
  * Notes:
- *   - Uses information_schema.COLUMNS for column metadata
+ *   - Uses {information_schema}.COLUMNS for column metadata
  *   - Excludes system schemas (mysql, performance_schema, information_schema, sys)
- *   - Includes constraint information from information_schema.KEY_COLUMN_USAGE
+ *   - Includes constraint information from {information_schema}.KEY_COLUMN_USAGE
  *   - Results ordered by schema, table, and column position
  */
 SELECT DISTINCT
@@ -60,8 +60,8 @@ SELECT DISTINCT
     CASE
         WHEN (
             SELECT TC2.CONSTRAINT_TYPE
-            FROM information_schema.KEY_COLUMN_USAGE KC2
-            JOIN information_schema.TABLE_CONSTRAINTS TC2 ON (
+            FROM {information_schema}.KEY_COLUMN_USAGE KC2
+            JOIN {information_schema}.TABLE_CONSTRAINTS TC2 ON (
                 KC2.CONSTRAINT_SCHEMA = TC2.CONSTRAINT_SCHEMA
                 AND KC2.CONSTRAINT_NAME = TC2.CONSTRAINT_NAME
                 AND KC2.TABLE_SCHEMA = TC2.TABLE_SCHEMA
@@ -75,8 +75,8 @@ SELECT DISTINCT
         ) IS NOT NULL THEN 'PRIMARY KEY'
         WHEN (
             SELECT TC2.CONSTRAINT_TYPE
-            FROM information_schema.KEY_COLUMN_USAGE KC2
-            JOIN information_schema.TABLE_CONSTRAINTS TC2 ON (
+            FROM {information_schema}.KEY_COLUMN_USAGE KC2
+            JOIN {information_schema}.TABLE_CONSTRAINTS TC2 ON (
                 KC2.CONSTRAINT_SCHEMA = TC2.CONSTRAINT_SCHEMA
                 AND KC2.CONSTRAINT_NAME = TC2.CONSTRAINT_NAME
                 AND KC2.TABLE_SCHEMA = TC2.TABLE_SCHEMA
@@ -92,8 +92,8 @@ SELECT DISTINCT
     END AS constraint_type,
     (
         SELECT KC2.CONSTRAINT_NAME
-        FROM information_schema.KEY_COLUMN_USAGE KC2
-        JOIN information_schema.TABLE_CONSTRAINTS TC2 ON (
+        FROM {information_schema}.KEY_COLUMN_USAGE KC2
+        JOIN {information_schema}.TABLE_CONSTRAINTS TC2 ON (
             KC2.CONSTRAINT_SCHEMA = TC2.CONSTRAINT_SCHEMA
             AND KC2.CONSTRAINT_NAME = TC2.CONSTRAINT_NAME
             AND KC2.TABLE_SCHEMA = TC2.TABLE_SCHEMA
@@ -128,9 +128,9 @@ SELECT DISTINCT
     END AS is_autoincrement
 
 FROM
-    information_schema.COLUMNS C
+    {information_schema}.COLUMNS C
 LEFT JOIN
-    information_schema.TABLES T ON (C.TABLE_SCHEMA = T.TABLE_SCHEMA AND C.TABLE_NAME = T.TABLE_NAME)
+    {information_schema}.TABLES T ON (C.TABLE_SCHEMA = T.TABLE_SCHEMA AND C.TABLE_NAME = T.TABLE_NAME)
 WHERE
     C.TABLE_SCHEMA NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')
     AND CONCAT(COALESCE(DATABASE(), '{database_placeholder}'), CONCAT('.', C.TABLE_SCHEMA)) NOT REGEXP '{normalized_exclude_regex}'

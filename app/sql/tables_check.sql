@@ -15,7 +15,7 @@
  *   - Excludes system schemas (mysql, performance_schema, information_schema, sys)
  */
 SELECT COUNT(*) as count
-FROM information_schema.TABLES T
+FROM {information_schema}.TABLES T
 WHERE CONCAT(COALESCE(DATABASE(), '{database_placeholder}'), CONCAT('.', T.TABLE_SCHEMA)) NOT REGEXP '{normalized_exclude_regex}'
     AND CONCAT(COALESCE(DATABASE(), '{database_placeholder}'), CONCAT('.', T.TABLE_SCHEMA)) REGEXP '{normalized_include_regex}'
     AND T.TABLE_SCHEMA NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')

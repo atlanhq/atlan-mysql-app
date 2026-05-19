@@ -49,6 +49,82 @@ class TestMySQLAppClassAttrs:
             sql = getattr(MySQLApp, attr)
             assert "{database_placeholder}" not in sql, f"{attr} still has placeholder"
 
+    def test_information_schema_placeholder_present_in_ddl_sql(self):
+        """`{information_schema}` must be present in the SQL ClassVars so runtime
+        resolution (_prepare_sql) can swap it for either the canonical schema
+        or a customer-provided mirror schema (REQ-925)."""
+        for attr in [
+            "fetch_database_sql",
+            "fetch_schema_sql",
+            "fetch_table_sql",
+            "fetch_column_sql",
+            "fetch_procedure_sql",
+        ]:
+            sql = getattr(MySQLApp, attr)
+            assert "{information_schema}" in sql, (
+                f"{attr} lost the {{information_schema}} placeholder — "
+                "runtime resolution would silently fail"
+            )
+
+    def test_prepare_sql_resolves_default_information_schema(self):
+        """Without control-config, _prepare_sql substitutes the canonical schema.
+
+        Backward-compat check: output SQL must be byte-equivalent to today
+        (matches what currently ships from main when no override is set).
+        """
+        from unittest.mock import MagicMock
+
+        app = MySQLApp()
+        # Build a minimal input object — _prepare_sql reads filter fields
+        # via getattr; anything not set falls back to defaults.
+        input_ = MagicMock()
+        input_.exclude_filter = ""
+        input_.include_filter = ""
+        input_.temp_table_regex = ""
+        input_.control_config_strategy = None
+        input_.control_config = None
+
+        prepared = app._prepare_sql(MySQLApp.fetch_table_sql, input_)
+        assert "{information_schema}" not in prepared
+        assert "information_schema.TABLES" in prepared
+
+    def test_prepare_sql_resolves_mirror_information_schema(self):
+        """With clonedInformationSchema set, _prepare_sql substitutes the mirror."""
+        from unittest.mock import MagicMock
+
+        app = MySQLApp()
+        input_ = MagicMock()
+        input_.exclude_filter = ""
+        input_.include_filter = ""
+        input_.temp_table_regex = ""
+        # Custom Control Config payload — strategy=custom + config dict
+        input_.control_config_strategy = "custom"
+        input_.control_config = {"clonedInformationSchema": "atlan_meta"}
+
+        prepared = app._prepare_sql(MySQLApp.fetch_schema_sql, input_)
+        assert "{information_schema}" not in prepared
+        assert "atlan_meta.SCHEMATA" in prepared
+        assert "atlan_meta.TABLES" in prepared
+        # The literal "information_schema" inside the NOT IN clause is untouched
+        # — that's a system-schema name to filter out, not a query target.
+        assert "'information_schema'" in prepared
+
+    def test_prepare_sql_default_strategy_keeps_canonical_schema(self):
+        """control-config-strategy=default ignores any control-config payload."""
+        from unittest.mock import MagicMock
+
+        app = MySQLApp()
+        input_ = MagicMock()
+        input_.exclude_filter = ""
+        input_.include_filter = ""
+        input_.temp_table_regex = ""
+        input_.control_config_strategy = "default"
+        input_.control_config = {"clonedInformationSchema": "atlan_meta"}
+
+        prepared = app._prepare_sql(MySQLApp.fetch_column_sql, input_)
+        assert "atlan_meta." not in prepared
+        assert "information_schema.COLUMNS" in prepared
+
 
 class TestMySQLAppMappers:
     """Test asset mapper functions."""

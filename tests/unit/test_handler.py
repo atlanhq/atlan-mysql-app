@@ -14,6 +14,7 @@ from application_sdk.handler import (
     PreflightInput,
     PreflightStatus,
 )
+from application_sdk.handler.contracts import BaseConnectionConfig
 
 from app.handlers.mysql import MySQLAppHandler, _creds_to_dict
 
@@ -195,3 +196,116 @@ class TestMySQLHandlerMetadata:
         """
         with pytest.raises(Exception, match="no host in credentials"):
             await handler.fetch_metadata(MetadataInput(credentials=[]))
+
+
+class TestMySQLHandlerClonedInformationSchema:
+    """REQ-925: handler endpoints honor a customer-provided mirror schema.
+
+    The marketplace UI surfaces these via BaseConnectionConfig (extra='allow')
+    on PreflightInput/MetadataInput. With no override configured, behavior
+    must be byte-identical to today.
+    """
+
+    @pytest.fixture
+    def handler(self):
+        return MySQLAppHandler()
+
+    @pytest.fixture
+    def valid_creds(self):
+        return [
+            HandlerCredential(key="host", value="localhost"),
+            HandlerCredential(key="port", value="3306"),
+            HandlerCredential(key="username", value="root"),
+            HandlerCredential(key="password", value="secret"),
+            HandlerCredential(key="authType", value="basic"),
+        ]
+
+    @pytest.mark.asyncio
+    async def test_preflight_uses_mirror_schema_when_configured(
+        self, handler, valid_creds
+    ):
+        """When clonedInformationSchema is set, the tables-check SQL must
+        target the mirror schema (e.g. atlan_meta.TABLES) and never the
+        native information_schema."""
+        captured_sql = []
+
+        async def _capture(sql, *args, **kwargs):
+            captured_sql.append(sql)
+            return pd.DataFrame({"count": [42]})
+
+        mock_client = AsyncMock()
+        mock_client.get_results.side_effect = _capture
+        mock_client.close = AsyncMock()
+
+        # PreflightInput accepts a connection_config — BaseConnectionConfig
+        # has extra='allow' so custom-control-config fields pass through.
+        conn_cfg = BaseConnectionConfig(**{
+            "control-config-strategy": "custom",
+            "control-config": {"clonedInformationSchema": "atlan_meta"},
+        })
+
+        with patch("app.handlers.mysql.SQLClient", return_value=mock_client):
+            result = await handler.preflight_check(
+                PreflightInput(credentials=valid_creds, connection_config=conn_cfg)
+            )
+
+        assert result.status == PreflightStatus.READY
+        # _TEST_AUTH_SQL (SELECT 1) is run first; the second call is the
+        # tables-check, which must reference the mirror schema.
+        assert any("atlan_meta.TABLES" in sql for sql in captured_sql)
+        assert not any("information_schema.TABLES" in sql for sql in captured_sql)
+
+    @pytest.mark.asyncio
+    async def test_preflight_uses_canonical_schema_by_default(
+        self, handler, valid_creds
+    ):
+        """Without control-config, preflight queries information_schema directly
+        — exactly the pre-REQ-925 behavior."""
+        captured_sql = []
+
+        async def _capture(sql, *args, **kwargs):
+            captured_sql.append(sql)
+            return pd.DataFrame({"count": [42]})
+
+        mock_client = AsyncMock()
+        mock_client.get_results.side_effect = _capture
+        mock_client.close = AsyncMock()
+
+        with patch("app.handlers.mysql.SQLClient", return_value=mock_client):
+            result = await handler.preflight_check(
+                PreflightInput(credentials=valid_creds)
+            )
+
+        assert result.status == PreflightStatus.READY
+        # Canonical path uses information_schema.TABLES
+        assert any("information_schema.TABLES" in sql for sql in captured_sql)
+        assert not any("atlan_meta." in sql for sql in captured_sql)
+
+    @pytest.mark.asyncio
+    async def test_fetch_metadata_uses_mirror_schema_when_configured(
+        self, handler, valid_creds
+    ):
+        """fetch_metadata routes through the mirror schema when configured."""
+        captured_sql = []
+
+        async def _capture(sql, *args, **kwargs):
+            captured_sql.append(sql)
+            return pd.DataFrame({"database_name": ["def"], "schema_name": ["mydb"]})
+
+        mock_client = AsyncMock()
+        mock_client.get_results.side_effect = _capture
+        mock_client.close = AsyncMock()
+
+        conn_cfg = BaseConnectionConfig(**{
+            "control-config-strategy": "custom",
+            "control-config": {"clonedInformationSchema": "atlan_meta"},
+        })
+
+        with patch("app.handlers.mysql.SQLClient", return_value=mock_client):
+            result = await handler.fetch_metadata(
+                MetadataInput(credentials=valid_creds, connection_config=conn_cfg)
+            )
+
+        assert len(result.objects) == 1
+        assert any("atlan_meta.SCHEMATA" in sql for sql in captured_sql)
+        assert not any("information_schema.SCHEMATA" in sql for sql in captured_sql)

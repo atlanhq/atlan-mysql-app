@@ -35,6 +35,18 @@ All notable changes to the MySQL App will be documented in this file.
   - Required secrets: `ATLAN_API_KEY`, `ORG_PAT_GITHUB`, `ATLAN_BASE_URL`, optional `CONNECTION_NAME`.
 
 
+## 0.8.0 (May 19, 2026)
+
+### Features
+
+- **`clonedInformationSchema` mirror-schema support (REQ-925, restricted-access SDR).** Customers whose security policy forbids granting `SELECT` on the native `INFORMATION_SCHEMA` (because MySQL implicitly requires `SELECT` on the underlying tables) can now configure the connector via *Advanced Config → Control Config → Custom* with `{"clonedInformationSchema": "<schema>"}`. Every metadata query then routes through `<schema>.SCHEMATA`, `<schema>.TABLES`, `<schema>.COLUMNS`, etc. instead of `information_schema.*`. The DBA creates passthrough views in a dedicated schema (e.g. `atlan_meta`) and grants the connector user `SELECT` only on that schema — no privilege on user data.
+  - Mirrors the Redshift `clonedPgCatalogSchema` precedent (`atlan-redshift-app`).
+  - 7 SQL files updated with `{information_schema}` placeholders (`extract_database.sql`, `extract_schema.sql`, `extract_table.sql`, `extract_column.sql`, `extract_procedure.sql`, `filter_metadata.sql`, `tables_check.sql`).
+  - New `app/utils.py::resolve_information_schema()` + `extract_control_config()` helpers (validated against MySQL identifier rules, fail-soft on malformed JSON, fail-hard on invalid identifiers).
+  - `MySQLApp._prepare_sql()` overrides the SDK substitution path to resolve `{information_schema}` from workflow `control-config`; handlers resolve from `PreflightInput.connection_config` / `MetadataInput.connection_config` (`BaseConnectionConfig` has `extra='allow'`).
+  - `workflow.json`: new `control-config-strategy` (default | custom) and `control-config` properties under an Advanced step.
+  - `scripts/setup_information_schema_mirror.sql`: ready-to-run DBA script (creates `atlan_meta` schema, mirror views, dedicated `atlan_reader` user, scoped grants).
+  - **Backward compatible** — when no control-config is supplied, rendered SQL is byte-identical to the pre-0.8.0 behavior. 53 new unit tests + new e2e mirror-schema integration test.
 ## 0.7.32 (May 20, 2026)
 
 ### Breaking Changes
