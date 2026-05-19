@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.24 (May 19, 2026)
+
+### Bug Fixes
+
+- **Align the e2e credential fixture with the embedded Dapr's objectstore root** in `tests/e2e/conftest.py`. The SDK rolled out an embedded `daprd` (zero-install local dev) in [#1759](https://github.com/atlanhq/application-sdk/pull/1759), and `run_dev_combined` now starts that embedded sidecar instead of using whichever Dapr the host (or CI) launched. The embedded sidecar's `bindings.localstorage` defaults its `rootPath` to `./local/objectstore` — distinct from the static `components/objectstore.yaml` rootPath of `./local/dapr/objectstore` that the fixture was writing to. The path mismatch made `test_run_workflow` fail immediately with `execution_duration_seconds=0` because the credential vault's `get` invoke returned 500. The fixture now writes the credential config to `local/objectstore/persistent-artifacts/.../config.json`, matching what the embedded sidecar actually reads. The `secrets.json` path is unchanged — `DaprCredentialVault._get_local_secret` reads it directly, independent of the objectstore binding.
+
 ## 0.7.23 (May 19, 2026)
 
 ### Chores
