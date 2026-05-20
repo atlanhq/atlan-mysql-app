@@ -2,6 +2,16 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.32 (May 20, 2026)
+
+### Breaking Changes
+
+- **Remove the explicit `upload_to_atlan` call from `MySQLApp.run()`'s procedure pipeline.** With internal-ref's canonical-storage-path fix in [application-sdk#1801](https://github.com/atlanhq/application-sdk/pull/1801), `extract_procedures` and `transform_procedures` now emit `FileReference` objects with pre-set canonical `storage_path` keys (`<run_prefix>/raw/extras-procedure/records.json` / `<run_prefix>/transformed/extras-procedure/entities.json`); the activity interceptor's persist step uploads each to that key before the activity returns. The explicit `upload_to_atlan` call was uploading the same files to the same keys — pure redundancy in single-pod runs, ineffective in cross-pod runs. The SDK has also removed `SqlApp.upload_to_atlan` entirely; this PR drops mysql-app's call to it (would otherwise be an `AttributeError`).
+
+### Bug Fixes
+
+- **Re-pin `atlan-application-sdk` → SHA `5979d749`** to pick up the canonical-storage-path fix + `upload_to_atlan` removal on [application-sdk#1801](https://github.com/atlanhq/application-sdk/pull/1801). Customer-tenant production incident: S3 listing showed both `<run_prefix>/file_refs/<uuid>.json` (interceptor uploads, complete) AND `<run_prefix>/transformed/<entity>/entities.json` (legacy directory walk, partial — missing entities due to cross-pod local-FS scheduling). Publish reads only `transformed/<entity>/` and was archiving assets whose canonical key was missing. The fix pre-sets `storage_path` on the FileReference at the SqlApp template's `_extract_entity` / `_transform_entity` emission sites so the interceptor lands the file at the canonical key directly, no separate upload pass needed.
+
 ## 0.7.31 (May 20, 2026)
 
 ### Bug Fixes
