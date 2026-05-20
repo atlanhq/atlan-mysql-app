@@ -143,10 +143,54 @@ select = ["E4", "E7", "E9", "F", "PLC0415"]
 
 [tool.uv.sources]
 # atlan-application-sdk = { path = "../application-sdk", editable = true }
-# Pinned to the v3.10.0 release tag — first published version carrying
-# the BLDX-1254 cross-repo dispatch + full-DAG harness, the
-# .github/sdr-e2e/ config-dir convention (#1746), the multi-pipeline
-# components-dir / compose-overlay overrides (#1752), AND the
-# /preflight envelope shape refactor (#1744). Drop this override
-# entirely once line 10's PyPI constraint is bumped to >=3.10.0,<4.0.0.
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", tag = "v3.10.0" }
+# TEMPORARY (BLDX-1281): pointed at the fix branch for
+# atlanhq/application-sdk#1792, which reworks the v3 SqlApp template's
+# extract → transform handoff to use ``FileReference`` contracts:
+#
+#   * ``ExtractionTaskOutput`` carries ``raw_file: FileReference``
+#     (singular ref to raw/<entity>/records.json) — set by extract,
+#     consumed by the matching transform via the interceptor's
+#     materialise-on-input handshake.
+#   * ``TransformOutput`` carries ``transformed_file: FileReference``
+#     — set by transform, consumed downstream by publish.
+#   * Legacy ``TransformInput.file_names`` / ``chunk_start`` /
+#     ``typename`` stay on the schema as deprecated no-op placeholders
+#     for backward compat — none of them are populated or read by the
+#     v3 SqlApp flow. Deprecation notes only, no coordinated removal.
+#   * ``SqlApp.run()`` (and ``MySQLApp.run()`` override for procedures)
+#     threads each extract's durable ``raw_file`` into the matching
+#     transform's ``TransformInput`` via ``_build_transform_input``.
+#
+# Together these close the cross-worker silent-archive bug — extract
+# and transform activities scheduled on different worker pods now
+# automatically materialise the raw file with SHA-256 sidecar
+# verification, instead of silently returning ``total_record_count=0``
+# and triggering downstream asset archival. Observed in production on
+# the prior v3.10.0 pin.
+#
+# Pinned SHA: df056bcf (HEAD of
+# aryaman/canonical-storage-paths-bldx-1281 at time of writing —
+# pins canonical storage paths on extract/transform FileReferences
+# so publish can discover them).
+#
+# Production incident on customer tenant: S3 listing showed both
+# ``<run_prefix>/file_refs/<uuid>.json`` (interceptor uploads,
+# complete) AND ``<run_prefix>/transformed/<entity>/entities.json``
+# (upload_to_atlan directory walk, partial — missing some entities
+# due to cross-pod local-FS scheduling). Publish reads only
+# ``transformed/<entity>/`` and archived assets whose canonical key
+# was missing.
+#
+# Fix: SqlApp's _extract_entity / _transform_entity now pre-set
+# ``storage_path`` on the emitted FileReference to the canonical
+# entity-typed key (``<run_prefix>/raw/<entity>/records.json`` /
+# ``<run_prefix>/transformed/<entity>/entities.json``). Persist
+# honours the pre-set key instead of auto-generating a
+# ``file_refs/<uuid>`` orphan. Cross-pod fault tolerance is
+# preserved — materialise just reads ``ref.storage_path`` to know
+# where to download from. Tier choices unchanged (raw=TRANSIENT,
+# transformed=RETAINED).
+#
+# Once the SDK PR merges and 3.12.0 ships, drop this override and
+# bump line 10's PyPI constraint to ``~=3.12.0``.
+atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "df056bcf15db832cf5830807174af185b85d093a" }

@@ -14,7 +14,6 @@ from typing import Any, ClassVar
 import pandas as pd
 from application_sdk.contracts.base import Output
 from application_sdk.execution._temporal.activity_utils import get_object_store_prefix
-from application_sdk.templates.contracts.base_metadata_extraction import UploadInput
 from application_sdk.templates.contracts.sql_metadata import (
     ExtractionInput,
     ExtractionTaskInput,
@@ -487,15 +486,28 @@ class MySQLApp(SqlApp):
             proc_input = self.build_task_input(
                 ExtractionTaskInput, input, cred_ref=cred_ref
             )
-            # Two-phase per the SDK contract: extract writes raw JSONL,
-            # transform reads it and runs map_procedure → entities.json.
-            await self.extract_procedures(proc_input)
-            await self.transform_procedures(proc_input)
-            # Upload extras-procedure entities separately — super().run() uploads
-            # standard entities (database/schema/table/column) BEFORE procedures
-            # are extracted, so we need a second upload pass for procedures.
-            upload_input = UploadInput(output_path=input.output_path)
-            await self.upload_to_atlan(upload_input)
+            # Two-phase per the SDK contract: extract writes raw JSONL and
+            # returns an ExtractionTaskOutput carrying a durable
+            # FileReference; transform consumes that ref via TransformInput.
+            # The activity interceptor handles the upload-on-output +
+            # materialise-on-input handshake automatically, so the transform
+            # runs correctly even when scheduled on a different worker pod
+            # than the extract (BLDX-1281).
+            #
+            # No explicit ``upload_to_atlan`` call is needed — both
+            # ``extract_procedures`` and ``transform_procedures`` emit
+            # ``FileReference`` objects with pre-set canonical
+            # ``storage_path`` keys (``<run_prefix>/raw/extras-procedure/
+            # records.json`` / ``<run_prefix>/transformed/extras-procedure/
+            # entities.json``), and the activity interceptor has already
+            # uploaded each one to that key by the time the activity
+            # returns. Publish reads from those same canonical prefixes,
+            # so the data is already in the object store waiting for it.
+            proc_extract_result = await self.extract_procedures(proc_input)
+            proc_transform_input = self._build_transform_input(
+                proc_input, proc_extract_result.raw_file
+            )
+            await self.transform_procedures(proc_transform_input)
 
         # SqlApp.run() exposes its resolved local base path via output_path so
         # subclasses can derive additional prefixes without re-calling workflow.info().
