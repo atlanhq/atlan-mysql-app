@@ -3,6 +3,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import quote_plus
 
 import pytest
+from application_sdk.clients.sql_errors import (
+    MissingSqlParamError,
+    SqlClientAuthFailedError,
+    SqlClientConfigError,
+    SqlCredentialsParseError,
+)
 from application_sdk.common.error_codes import ClientError
 
 from app.clients import SQLClient
@@ -189,11 +195,30 @@ class TestMySQLClient:
 
         client = SQLClient()
 
-        with pytest.raises((ValueError, ClientError)) as exc_info:
+        # SDK v3.12+ wraps invalid-authType in
+        # ``SqlClientAuthFailedError(cause=SqlCredentialsParseError(field="authType", ...))``;
+        # earlier SDKs raised ValueError / ClientError directly. Accept
+        # either shape and walk the exception cause chain to assert the
+        # failure is specifically about the bad authType.
+        with pytest.raises((
+            ValueError,
+            ClientError,
+            SqlCredentialsParseError,
+            SqlClientAuthFailedError,
+        )) as exc_info:
             await client.load(credentials)
-        assert (
-            "ATLAN-COMMON-400-03" in str(exc_info.value)
-            or "invalid" in str(exc_info.value).lower()
+
+        def _chain_includes(exc: BaseException, needles: tuple[str, ...]) -> bool:
+            current: BaseException | None = exc
+            while current is not None:
+                blob = f"{type(current).__name__} {current!s} {vars(current)}".lower()
+                if any(n.lower() in blob for n in needles):
+                    return True
+                current = current.__cause__
+            return False
+
+        assert _chain_includes(
+            exc_info.value, ("ATLAN-COMMON-400-03", "invalid", "authtype")
         )
 
     @pytest.mark.asyncio
@@ -201,7 +226,17 @@ class TestMySQLClient:
         """Test loading with missing credentials."""
         client = SQLClient()
 
-        with pytest.raises((ValueError, ClientError)):
+        # SDK v3.12+ wraps the missing-credentials failure in
+        # ``SqlClientAuthFailedError`` (cause=``SqlCredentialsParseError``
+        # or ``SqlClientConfigError``); accept the legacy ValueError /
+        # ClientError too so this test survives across SDK versions.
+        with pytest.raises((
+            ValueError,
+            ClientError,
+            SqlClientConfigError,
+            SqlCredentialsParseError,
+            SqlClientAuthFailedError,
+        )):
             await client.load({})
 
     def test_get_sqlalchemy_connection_string_basic_auth(self, basic_credentials):
@@ -248,10 +283,14 @@ class TestMySQLClient:
         assert result == expected
 
     def test_get_sqlalchemy_connection_string_missing_credentials(self):
-        """Test connection string generation when credentials are missing."""
+        """Test connection string generation when credentials are missing.
+
+        SDK v3.12+ raises ``SqlClientConfigError`` / ``MissingSqlParamError``
+        instead of a bare ``ValueError``; accept either.
+        """
         client = SQLClient()
 
-        with pytest.raises(ValueError, match="is required"):
+        with pytest.raises((ValueError, SqlClientConfigError, MissingSqlParamError)):
             client.get_sqlalchemy_connection_string()
 
     def test_get_sqlalchemy_connection_string_iam_user(self, iam_user_credentials):
