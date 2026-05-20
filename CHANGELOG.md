@@ -13,6 +13,12 @@ All notable changes to the MySQL App will be documented in this file.
 
   After all three fixes, the E2E Application Test progresses from failing at step 1/7 ("Start the application") to step 6/7 ("Check workflow status"). The remaining "Check workflow status" failure is a structural SDK-vs-workflow mismatch (the SDK's `run_dev_combined` now embeds Temporal in-process, but the workflow's `temporal workflow describe` step queries an external Temporal it installed separately — workflow IDs are invisible across the two) — out of scope for this infra-drift fix, will need a coordinated SDK + workflow + connector-`main.py` change.
 
+## 0.7.36 (May 20, 2026)
+
+### Bug Fixes
+
+- **Fix `workflow_type` in `tenant-deploy`'s AE DAG: `mysql-metadata-extractor` → `mysql`.** The Deploy to Tenant workflow's extract node was registering the wrong workflow class name in the AE DAG. MSSQL's connector registers its workflow as `mssql-metadata-extractor` (which is what the ported `ae-workflow.sh` used as the default), but MySQL's `MySQLApp` registers as just `mysql` (per `name: ClassVar[str] = "mysql"`). Diagnosis: the deployed `mysql-worker` pod on the test tenant failed every workflow task with `Workflow class mysql-metadata-extractor is not registered on this worker, available workflows: mysql, sdr:fetch_metadata, sdr:preflight_check, sdr:test_auth`. Temporal auto-retried the failed task indefinitely → AE saw the run as `RUNNING` → GitHub Actions polling timed out at 15min thinking extract was just slow.
+
 ## 0.7.35 (May 20, 2026)
 
 ### Bug Fixes

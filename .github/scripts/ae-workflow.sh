@@ -149,7 +149,7 @@ for _attempt in 1 2 3; do
         \"app_name\": \"mysql\",
         \"app_task_queue\": \"$MYSQL_QUEUE\",
         \"inputs\": {
-          \"workflow_type\": \"mysql-metadata-extractor\",
+          \"workflow_type\": \"mysql\",
           \"app_id\": \"\",
           \"task_queue\": \"$MYSQL_QUEUE\",
           \"args\": {
