@@ -462,9 +462,6 @@ class TestMySQLAppRun:
                 "transform_procedures",
                 new=AsyncMock(return_value=MagicMock()),
             ),
-            patch.object(
-                MySQLApp, "upload_to_atlan", new=AsyncMock(return_value=MagicMock())
-            ),
             patch.object(MySQLApp, "_resolve_credential_ref", return_value=None),
         ):
             return asyncio.get_event_loop().run_until_complete(app.run(input_))
