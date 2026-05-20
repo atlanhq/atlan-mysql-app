@@ -168,7 +168,7 @@ select = ["E4", "E7", "E9", "F", "PLC0415"]
 # and triggering downstream asset archival. Observed in production on
 # the prior v3.10.0 pin.
 #
-# Pinned SHA: e519235d (HEAD of
+# Pinned SHA: df056bcf (HEAD of
 # aryaman/canonical-storage-paths-bldx-1281 at time of writing —
 # pins canonical storage paths on extract/transform FileReferences
 # so publish can discover them).
@@ -193,4 +193,4 @@ select = ["E4", "E7", "E9", "F", "PLC0415"]
 #
 # Once the SDK PR merges and 3.12.0 ships, drop this override and
 # bump line 10's PyPI constraint to ``~=3.12.0``.
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "e519235d63f4db1899b247d6f144f8e304b35bd0" }
+atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "df056bcf15db832cf5830807174af185b85d093a" }
