@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.31 (May 20, 2026)
+
+### Bug Fixes
+
+- **Re-pin `atlan-application-sdk` → SHA `8514e7e3`** to pick up the canonical-storage-path fix on [application-sdk#1801](https://github.com/atlanhq/application-sdk/pull/1801) (follow-up to [#1792](https://github.com/atlanhq/application-sdk/pull/1792)). Customer-tenant production incident showed both `<run_prefix>/file_refs/<uuid>.json` (interceptor uploads, complete) AND `<run_prefix>/transformed/<entity>/entities.json` (legacy directory walk, partial — missing entities due to cross-pod local-FS scheduling). Publish reads only `transformed/<entity>/` and was archiving assets whose canonical key was missing. The SDK fix pre-sets `storage_path` on the FileReference emitted by `_extract_entity` / `_transform_entity` to the canonical entity-typed key, so the interceptor's persist lands the file where publish actually looks. No mysql-app code change.
+
 ## 0.7.30 (May 19, 2026)
 
 ### Bug Fixes
