@@ -13,6 +13,12 @@ All notable changes to the MySQL App will be documented in this file.
 
   After all three fixes, the E2E Application Test progresses from failing at step 1/7 ("Start the application") to step 6/7 ("Check workflow status"). The remaining "Check workflow status" failure is a structural SDK-vs-workflow mismatch (the SDK's `run_dev_combined` now embeds Temporal in-process, but the workflow's `temporal workflow describe` step queries an external Temporal it installed separately — workflow IDs are invisible across the two) — out of scope for this infra-drift fix, will need a coordinated SDK + workflow + connector-`main.py` change.
 
+## 0.7.35 (May 20, 2026)
+
+### Bug Fixes
+
+- **`tenant-deploy.yaml`: read `CREDENTIAL_GUID` + `CONNECTION_QN` from repo secrets as fallback when dispatch inputs are empty.** The "Resolve config" error message already said "set the dispatch input or the repo secret" but the workflow code only read inputs — so setting a `CREDENTIAL_GUID` secret on the repo had no effect (matching the gap in `atlan-mssql-app`'s tenant-deploy where the secret exists but is unused). Adds `SECRET_CRED_GUID` / `SECRET_CONN_QN` env, falls back to them when the inputs are empty (`${INPUT_CRED_GUID:-${SECRET_CRED_GUID:-}}`). Once the secrets are set on the repo, `gh workflow run "Deploy to Tenant"` works with zero arguments. Discovered while triggering the first MySQL tenant deploy for REQ-925.
+
 ## 0.7.34 (May 20, 2026)
 
 ### Features
