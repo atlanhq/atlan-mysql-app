@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 2
 requires-python = ">=3.11"
 resolution-markers = [
     "python_full_version >= '3.14'",
@@ -186,8 +186,8 @@ wheels = [
 
 [[package]]
 name = "atlan-application-sdk"
-version = "3.12.0"
-source = { git = "https://github.com/atlanhq/application-sdk?rev=c9c40e1d34cfda87fa342c12e669ba052719c6ef#c9c40e1d34cfda87fa342c12e669ba052719c6ef" }
+version = "3.12.1"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
     { name = "fastapi", extra = ["standard"] },
@@ -205,6 +205,10 @@ dependencies = [
     { name = "pyyaml" },
     { name = "temporalio" },
     { name = "uvloop", marker = "sys_platform != 'win32'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4e/0e/ce3d355c5fdd20be4483ae8b1a2fd89bf8ac9d0d7c37118d2390f5bd71c0/atlan_application_sdk-3.12.1.tar.gz", hash = "sha256:952628b48a5d5f0bee0d0111b924048836fa9f2632734f6edde58231482f5aa8", size = 2612913, upload-time = "2026-05-19T21:19:27.924Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/73/19/e25e141377a6379567f4156b5e001f2199ae520ee1c31aaf7e2b3230ade7/atlan_application_sdk-3.12.1-py3-none-any.whl", hash = "sha256:253934826f3b625106b5f4c2df059ffc72793e8b5e2a7f11ccacec67f54dd056", size = 745883, upload-time = "2026-05-19T21:19:25.86Z" },
 ]
 
 [package.optional-dependencies]
@@ -271,7 +275,7 @@ test = [
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.13.3" },
     { name = "aiomysql", specifier = ">=0.3.0" },
-    { name = "atlan-application-sdk", extras = ["daft", "iam-auth", "pandas", "sql", "workflows"], git = "https://github.com/atlanhq/application-sdk?rev=c9c40e1d34cfda87fa342c12e669ba052719c6ef" },
+    { name = "atlan-application-sdk", extras = ["daft", "iam-auth", "pandas", "sql", "workflows"], specifier = ">=3.11.0,<4.0.0" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.6.1" },
     { name = "cryptography", specifier = ">=46.0.5" },
     { name = "docker", marker = "extra == 'test'", specifier = ">=7.0.0" },

@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 license = "Apache-2.0"
 readme = "README.md"
 dependencies = [
-    "atlan-application-sdk[daft,iam-auth,sql,workflows,pandas]",
+    "atlan-application-sdk[daft,iam-auth,sql,workflows,pandas]>=3.11.0,<4.0.0",
     "aiomysql>=0.3.0",
     "cryptography>=46.0.5",
     "poethepoet>=0.34.0",
@@ -190,4 +190,3 @@ select = ["E4", "E7", "E9", "F", "PLC0415"]
 #
 # Once the SDK PR merges and 3.12.0 ships, drop this override and
 # bump line 10's PyPI constraint to ``~=3.12.0``.
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "c9c40e1d34cfda87fa342c12e669ba052719c6ef" }
