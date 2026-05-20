@@ -2,6 +2,17 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.33 (May 20, 2026)
+
+### Bug Fixes
+
+- **Restore the E2E Application Test workflow — three independent infra-drift fixes.** The E2E Application Test has been failing on every push to `main` since 2026-05-14 due to three layered issues, each surfacing only after the previous one was resolved. All three are environmental (workflow files / pinned versions / removed CLI flags), zero connector-app code changes.
+  1. **Declare `scalene` as a `dev` extra.** `.github/workflows/e2e-test.yaml:52` has invoked `uv run scalene --profile-all --cli --outfile ./.github/scalene.json --json main.py &` since PR #93, but the dep was never on `pyproject.toml` on any branch. Result: `error: Failed to spawn: scalene — Caused by: No such file or directory` at the "Start the application" step; the app never came up; downstream curl to `:8000` failed with `(7) Couldn't connect to server`.
+  2. **Pin `scalene<2.0` to match the legacy CLI in the workflow.** Adding `scalene` exposed the next failure: `Scalene: error: 'main.py' is not a valid command. Did you mean: scalene run ...`. scalene 2.0+ introduced a subcommand CLI (`scalene run script.py`) but the workflow still uses the 1.x invocation (`scalene script.py`). Pinning `>=1.5.0,<2.0` locks scalene to v1.5.55, the last 1.x release with the syntax the workflow expects.
+  3. **Drop `--dapr-http-max-request-size` from `[tool.poe.tasks].start-dapr`.** With scalene installed and the right CLI shape, the workflow reached "Start Platform Services" — which then died with `Error: unknown flag: --dapr-http-max-request-size`. Dapr CLI v1.13+ removed the flag (replaced by `--max-body-size`, units changed KB → MB). Omitting it falls back to Dapr's 4 MiB default, sufficient for the test workload. Lift back as `--max-body-size 4` if connectors ever produce >4 MiB request bodies.
+
+  After all three fixes, the E2E Application Test progresses from failing at step 1/7 ("Start the application") to step 6/7 ("Check workflow status"). The remaining "Check workflow status" failure is a structural SDK-vs-workflow mismatch (the SDK's `run_dev_combined` now embeds Temporal in-process, but the workflow's `temporal workflow describe` step queries an external Temporal it installed separately — workflow IDs are invisible across the two) — out of scope for this infra-drift fix, will need a coordinated SDK + workflow + connector-`main.py` change.
+
 ## 0.7.32 (May 20, 2026)
 
 ### Breaking Changes
@@ -11,7 +22,6 @@ All notable changes to the MySQL App will be documented in this file.
 ### Bug Fixes
 
 - **Re-pin `atlan-application-sdk` → SHA `5979d749`** to pick up the canonical-storage-path fix + `upload_to_atlan` removal on [application-sdk#1801](https://github.com/atlanhq/application-sdk/pull/1801). Customer-tenant production incident: S3 listing showed both `<run_prefix>/file_refs/<uuid>.json` (interceptor uploads, complete) AND `<run_prefix>/transformed/<entity>/entities.json` (legacy directory walk, partial — missing entities due to cross-pod local-FS scheduling). Publish reads only `transformed/<entity>/` and was archiving assets whose canonical key was missing. The fix pre-sets `storage_path` on the FileReference at the SqlApp template's `_extract_entity` / `_transform_entity` emission sites so the interceptor lands the file at the canonical key directly, no separate upload pass needed.
-
 ## 0.7.31 (May 20, 2026)
 
 ### Bug Fixes
