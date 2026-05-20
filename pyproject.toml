@@ -168,26 +168,29 @@ select = ["E4", "E7", "E9", "F", "PLC0415"]
 # and triggering downstream asset archival. Observed in production on
 # the prior v3.10.0 pin.
 #
-# Pinned SHA: c9c40e1d (HEAD of transform-file-reference at
-# time of writing — corrected tier model per @chrisgrote's review:
+# Pinned SHA: c4776ee3 (HEAD of
+# canonical-storage-paths-internal-ref at time of writing —
+# pins canonical storage paths on extract/transform FileReferences
+# so publish can discover them).
 #
-#   * TRANSIENT — internal task-to-task within a run (auto-cleaned).
-#     Used for raw_file (extract → transform handoff, both sides
-#     always in the same deployment).
-#   * RETAINED — handoff that may cross a deployment boundary
-#     (e.g. SDR → in-tenant publish). Used for transformed_file so
-#     it survives the SDR-side workflow's auto-cleanup.
+# Production incident on customer tenant: S3 listing showed both
+# ``<run_prefix>/file_refs/<uuid>.json`` (interceptor uploads,
+# complete) AND ``<run_prefix>/transformed/<entity>/entities.json``
+# (upload_to_atlan directory walk, partial — missing some entities
+# due to cross-pod local-FS scheduling). Publish reads only
+# ``transformed/<entity>/`` and archived assets whose canonical key
+# was missing.
 #
-# The real bug was TRANSIENT's path scheme ignoring run_prefix —
-# producing bare ``file_refs/<uuid>`` keys that Atlan's blob-storage
-# gateway rejects with 403 ``code 1009 Invalid Path``. Fix patches
-# ``StorageTier._file_ref_base`` so TRANSIENT honours run_prefix when
-# the activity interceptor supplies one, yielding
-# ``<run_prefix>/file_refs/<uuid>`` (gateway-permitted) without
-# changing tier semantics. Falls back to bare ``file_refs`` for
-# ad-hoc callers (local scripts, unit tests against local stores
-# with no path policy).
+# Fix: SqlApp's _extract_entity / _transform_entity now pre-set
+# ``storage_path`` on the emitted FileReference to the canonical
+# entity-typed key (``<run_prefix>/raw/<entity>/records.json`` /
+# ``<run_prefix>/transformed/<entity>/entities.json``). Persist
+# honours the pre-set key instead of auto-generating a
+# ``file_refs/<uuid>`` orphan. Cross-pod fault tolerance is
+# preserved — materialise just reads ``ref.storage_path`` to know
+# where to download from. Tier choices unchanged (raw=TRANSIENT,
+# transformed=RETAINED).
 #
 # Once the SDK PR merges and 3.12.0 ships, drop this override and
 # bump line 10's PyPI constraint to ``~=3.12.0``.
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "c9c40e1d34cfda87fa342c12e669ba052719c6ef" }
+atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "c4776ee3f76f99d377ada00e1c752d1e8601bdac" }
