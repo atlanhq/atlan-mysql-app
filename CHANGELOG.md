@@ -13,6 +13,16 @@ All notable changes to the MySQL App will be documented in this file.
 
   After all three fixes, the E2E Application Test progresses from failing at step 1/7 ("Start the application") to step 6/7 ("Check workflow status"). The remaining "Check workflow status" failure is a structural SDK-vs-workflow mismatch (the SDK's `run_dev_combined` now embeds Temporal in-process, but the workflow's `temporal workflow describe` step queries an external Temporal it installed separately — workflow IDs are invisible across the two) — out of scope for this infra-drift fix, will need a coordinated SDK + workflow + connector-`main.py` change.
 
+## 0.7.34 (May 20, 2026)
+
+### Features
+
+- **Add `Deploy to Tenant` GitHub Actions workflow** (`.github/workflows/tenant-deploy.yaml` + `.github/scripts/ae-workflow.sh`). Builds the Docker image from a branch, deploys to a specific tenant via `atlan app deploy`, creates/updates the 5-node AE workflow (`extract → qi + publish → lineage-app → lineage-publish`), submits a run, polls every stage to completion, and renders a rich step summary with per-stage durations, extract counts, publish metrics, and Temporal workflow links. Ported from `atlan-mssql-app`'s tenant-deploy pattern with mysql-specific queue names + workflow type (`mysql-metadata-extractor`).
+  - Manual trigger only (`workflow_dispatch`). Inputs: `tenant`, `ref`, `credential_guid`, `connection_qn`, `connection_name`, `deployment` (default `production`), `cli_version`, optional `workflow_slug` (trigger-only mode).
+  - Two-scenario matrix per dispatch: `upgrade` (re-publish to existing connection, cache-driven incremental) + `fresh` (auto-generated `default/mysql/test-fresh-<run_id>` with `connection_creation_enabled: true` for a full-publish baseline).
+  - Required secrets: `ATLAN_API_KEY`, `ORG_PAT_GITHUB`, `ATLAN_BASE_URL`, optional `CONNECTION_NAME`.
+
+
 ## 0.7.32 (May 20, 2026)
 
 ### Breaking Changes
