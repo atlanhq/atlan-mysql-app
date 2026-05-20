@@ -1,16 +1,12 @@
 # Mothership PR Reviewer — repository config
 #
 # trigger: pr-open  → auto-review fires ONCE when a PR is first opened.
-#   Subsequent pushes (synchronize events) do NOT trigger a new review
-#   cycle. To request a fresh review on an already-open PR, either:
-#     • add the label  mothership-review, or
-#     • mention the bot  @mothership-reviewer run
-#
-# See https://github.com/atlanhq/mothership for the full schema.
+#   Subsequent pushes do NOT trigger a new review cycle.
+#   To re-trigger: add label  mothership-review  or comment  @mothership-reviewer run
 
 trigger: pr-open
 
-review_mode: standard   # standard | security | both
+review_mode: both       # standard + security on first PR open
 
 branches:
   - main
