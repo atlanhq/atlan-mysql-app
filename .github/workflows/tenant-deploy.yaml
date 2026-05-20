@@ -105,6 +105,8 @@ jobs:
           INPUT_WORKFLOW_SLUG: ${{ inputs.workflow_slug }}
           SECRET_ATLAN_BASE_URL: ${{ secrets.ATLAN_BASE_URL }}
           SECRET_CONN_NAME: ${{ secrets.CONNECTION_NAME }}
+          SECRET_CRED_GUID: ${{ secrets.CREDENTIAL_GUID }}
+          SECRET_CONN_QN: ${{ secrets.CONNECTION_QN }}
           SCENARIO: ${{ matrix.scenario }}
           RUN_ID: ${{ github.run_id }}
         run: |
@@ -116,7 +118,7 @@ jobs:
 
           # Strip protocol from ATLAN_BASE_URL (https://host → host) for URL construction
           TENANT="${INPUT_TENANT:-${SECRET_ATLAN_BASE_URL#*://}}"
-          CRED_GUID="${INPUT_CRED_GUID}"
+          CRED_GUID="${INPUT_CRED_GUID:-${SECRET_CRED_GUID:-}}"
 
           # Scenario branching:
           #   upgrade — caller-supplied connection_qn (typically the long-lived
@@ -132,7 +134,7 @@ jobs:
             CONN_NAME="${INPUT_CONN_NAME:-${SECRET_CONN_NAME:-test_mysql}}-fresh-${RUN_ID}"
             CONN_CREATION="true"
           else
-            CONN_QN="${INPUT_CONN_QN}"
+            CONN_QN="${INPUT_CONN_QN:-${SECRET_CONN_QN:-}}"
             CONN_NAME="${INPUT_CONN_NAME:-${SECRET_CONN_NAME:-test_mysql}}"
             CONN_CREATION="false"
           fi
