@@ -10,7 +10,7 @@ from application_sdk.common.aws_utils import (
     generate_aws_rds_token_with_iam_user,
 )
 from application_sdk.common.error_codes import CommonError
-from application_sdk.common.utils import parse_credentials_extra
+from application_sdk.credentials.utils import parse_credentials_extra
 from application_sdk.observability.logger_adaptor import get_logger
 from sqlalchemy import event
 from sqlalchemy.engine import URL
@@ -101,14 +101,13 @@ class SQLClient(AsyncBaseSQLClient):
         """
         extra = parse_credentials_extra(self.credentials)
 
-        # Marketplace configmap structure (nestedValue: false flattens iam_user.* to top level):
-        aws_access_key_id = self.credentials.get(
-            "username"
-        )  # AWS access key (from iam_user.username)
-        aws_secret_access_key = self.credentials.get(
-            "password"
-        )  # AWS secret key (from iam_user.password)
-        user = extra.get("username")  # MySQL DB user (from iam_user.extra.username)
+        # Legacy marketplace mapping (matches PKL form using extraFields):
+        #   credentials.username        = AWS access key ID
+        #   credentials.password        = AWS secret access key
+        #   credentials.extra.username  = MySQL database user
+        aws_access_key_id = self.credentials.get("username")
+        aws_secret_access_key = self.credentials.get("password")
+        user = extra.get("username")
         host = self.credentials.get("host")
         port = self.credentials.get("port")
 
@@ -185,10 +184,13 @@ class SQLClient(AsyncBaseSQLClient):
             CommonError: If required credentials (aws_role_arn) are missing.
         """
         extra = parse_credentials_extra(self.credentials)
+        # Legacy marketplace mapping (matches PKL form using extraFields):
+        #   credentials.username             = MySQL database user
+        #   credentials.extra.aws_role_arn   = IAM role ARN
+        #   credentials.extra.aws_external_id (optional) = STS external ID
+        #   credentials.extra.aws_access_key_id / aws_secret_access_key (optional)
         aws_role_arn = extra.get("aws_role_arn")
         external_id = extra.get("aws_external_id") or None
-        # AWS credentials are optional - if provided, set as environment variables
-        # This allows SDK's generate_aws_rds_token_with_iam_role to use default credential chain
         aws_access_key_id = extra.get("aws_access_key_id")
         aws_secret_access_key = extra.get("aws_secret_access_key")
         username = self.credentials.get("username")  # MySQL DB user
@@ -380,6 +382,17 @@ class SQLClient(AsyncBaseSQLClient):
             # Base class will use this when creating the engine
             if self.DB_CONFIG:
                 self.DB_CONFIG.connect_args["ssl"] = ssl_context
+
+            # SDR / agent mode: agent_json uses "basic.username" / "basic.password" dot
+            # notation. Flatten them to top-level so the base class finds username/password.
+            if "basic.username" in credentials or "basic.password" in credentials:
+                credentials = {
+                    **credentials,
+                    "username": credentials.get("basic.username")
+                    or credentials.get("username"),
+                    "password": credentials.get("basic.password")
+                    or credentials.get("password"),
+                }
 
             # Use base class - it will use the modified DB_CONFIG.connect_args
             await super().load(credentials)

@@ -1,0 +1,323 @@
+amends "@app-contract-toolkit/NativeApp.pkl"
+
+import "@app-contract-toolkit/Config.pkl"
+import "@app-contract-toolkit/Connectors.pkl"
+
+name = "mysql"
+displayName = "MySQL Assets"
+connector = Connectors.MYSQL
+workflowType = "mysql"
+flatManifestArgs = true
+icon = "https://www.mysql.com/common/logos/mysql-logo.svg"
+logo = "https://www.mysql.com/common/logos/mysql-logo.svg"
+credentialConnectorType = "jdbc"
+
+// The workflow reads the SDK-level credential_ref / credential_guid fields.
+// Avoid generating an unused mysql_credential alias.
+credentialFieldName = null
+
+// ---------------------------------------------------------------------------
+// Credential config
+// ---------------------------------------------------------------------------
+
+credentialCommonFields {
+  new FieldSpec {
+    name = "host"
+    displayName = "Host"
+    placeholder = "mysql.example.com"
+    width = 6
+  }
+  new FieldSpec {
+    name = "port"
+    displayName = "Port"
+    fieldType = "number"
+    defaultValue = "3306"
+    width = 2
+  }
+}
+
+credentialAuthOptions {
+  ["basic"] = new AuthOption {
+    label = "Basic Authentication"
+    fields {
+      new FieldSpec { name = "username"; displayName = "Username"; placeholder = "Username"; width = 4 }
+      new FieldSpec { name = "password"; sensitive = true; displayName = "Password"; placeholder = "Password"; width = 4 }
+    }
+  }
+  ["iam_user"] = new AuthOption {
+    label = "IAM User"
+    fields {
+      // Legacy mapping: username=AWS access key, password=AWS secret (top-level)
+      new FieldSpec { name = "username"; displayName = "AWS Access Key ID"; placeholder = "AKIA..."; width = 4 }
+      new FieldSpec { name = "password"; sensitive = true; displayName = "AWS Secret Access Key"; placeholder = "Secret key"; width = 4 }
+    }
+    extraFields {
+      // MySQL DB user goes into extra.username (legacy structure — read by client.get_iam_user_token)
+      new FieldSpec { name = "username"; displayName = "Database User"; placeholder = "MySQL username for IAM token auth"; width = 4 }
+    }
+  }
+  ["iam_role"] = new AuthOption {
+    label = "IAM Role"
+    fields {
+      // Legacy mapping: username = MySQL DB user (top-level)
+      new FieldSpec { name = "username"; displayName = "Database User"; placeholder = "MySQL username for IAM token auth"; width = 4 }
+    }
+    extraFields {
+      // IAM Role ARN goes into extra.aws_role_arn (legacy structure)
+      new FieldSpec { name = "aws_role_arn"; displayName = "IAM Role ARN"; placeholder = "arn:aws:iam::123456789012:role/MyRole"; width = 8 }
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Lineage pipeline — 5-node DAG: extract → qi+publish (parallel) → lineage-app → lineage-publish
+// ---------------------------------------------------------------------------
+
+extraNodes {
+  ["qi"] = new QueryIntelligenceNode {
+    displayName = "Parse View & Procedure Lineage"
+    vendorName = "mysql"
+    sqlKey = "attributes.definition"
+    catalogKey = "attributes.databaseName"
+    schemaKey = "attributes.schemaName"
+    timestampKey = ""
+    mineOutputType = "json"
+    parsingMode = "competitive"
+    inputPrefix = "$.extract.outputs.transformed_data_prefix"
+    outputPrefix = "$.extract.outputs.view_lineage_output_prefix"
+  }
+  ["publish"] = new PublishNode {
+    args {
+      ["connection_cache_enabled"] = true
+      ["connection_cache_via_app_enabled"] = true
+      ["current_state_via_app_enabled"] = true
+    }
+  }
+  ["lineage-app"] = new LineageNode {
+    connectorName = "mysql"
+    sqlUnquotedCase = "lower"
+    ignoreAllCase = false
+    dependsOn = null
+    dependsOnCondition = new DependencyCondition {
+      andConditions {
+        new DependencyCondition {
+          nodeId = "qi"
+          tag = "success"
+        }
+        new DependencyCondition {
+          nodeId = "publish"
+          tag = "success"
+        }
+      }
+    }
+  }
+  ["lineage-publish"] = new LineagePublishNode {
+    waitForAssetPublish = false
+    dependsOn = null
+    dependsOnCondition = new DependencyCondition {
+      nodeId = "lineage-app"
+      tag = "success"
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Agent selector config — drives SDR credential path collection.
+// Mirrors trino's pattern: each auth-type maps the same credential fields the
+// direct form has, with "Store Credential Path" placeholders so the agent
+// knows which vault paths to fetch credentials from.
+// ---------------------------------------------------------------------------
+
+local agentConfig: Listing = new {
+  new Listing {
+    "atlan-connectors-mysql"
+    new Mapping {
+      ["properties"] = new Mapping {
+        ["auth-type"] = new Mapping {
+          ["enum"] = new Listing { "basic"; "iam_user"; "iam_role" }
+          ["enumNames"] = new Listing { "Basic"; "IAM User"; "IAM Role" }
+        }
+        ["basic"] = new Mapping {
+          ["properties"] = new Mapping {
+            ["username"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "Store Credential Path" } }
+            ["password"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["widget"] = ""; ["placeholder"] = "Store Credential Path" } }
+          }
+        }
+        ["iam_user"] = new Mapping {
+          ["properties"] = new Mapping {
+            ["username"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "AWS Access Key (Store Path)" } }
+            ["password"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["widget"] = ""; ["placeholder"] = "AWS Secret (Store Path)" } }
+            ["extra"] = new Mapping {
+              ["properties"] = new Mapping {
+                ["username"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "MySQL DB User (Store Path)" } }
+              }
+            }
+          }
+        }
+        ["iam_role"] = new Mapping {
+          ["properties"] = new Mapping {
+            ["username"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "MySQL DB User (Store Path)" } }
+            ["extra"] = new Mapping {
+              ["properties"] = new Mapping {
+                ["aws_role_arn"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "IAM Role ARN (Store Path)" } }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  new Listing { "atlan-connectors-agent" }
+}
+
+// ---------------------------------------------------------------------------
+// Workflow config
+// ---------------------------------------------------------------------------
+
+uiConfig {
+  tasks {
+    ["Credential"] {
+      inputs {
+        ["extraction-method"] = new Config.ConditionalInput {
+          title = "Extraction method"
+          helpText = "Determines the method the package will use to extract metadata. 'Direct' means the package will directly connect to MySQL. 'Self-Deployed Runtime' means the package will fetch metadata via the Atlan secure agent installed by the customer."
+          placeholderText = "Direct"
+          baseWidgetType = "radio"
+          baseEnum { "direct" }
+          baseEnumNames { "Direct" }
+          default = "direct"
+          required = true
+          conditions {
+            new Config.Condition {
+              property = "labFlag"
+              value = "SECURE_AGENT_EXTRACTION"
+              overrideEnum { "direct"; "agent" }
+              overrideEnumNames { "Direct"; "Self-Deployed Runtime" }
+            }
+          }
+          validationRules {
+            new Dynamic {
+              required = true
+              message = "Please select a valid metadata extraction strategy"
+            }
+          }
+        }
+        ["credential-guid"] = new Config.CredentialInput {
+          title = ""
+          credType = "atlan-connectors-mysql"
+          placeholderText = "Credential Guid"
+        }
+        ["agent-json"] = new Config.AgentSelector {
+          title = ""
+          placeholderText = "Agent JSON"
+          agentConfigEntries = agentConfig
+        }
+      }
+    }
+    ["Connection"] {
+      inputs {
+        ["connection"] = new Config.ConnectionCreator {
+          title = ""
+          placeholderText = "Connection Name"
+        }
+      }
+    }
+    ["Metadata"] {
+      inputs {
+        ["include-filter"] = new Config.ConditionalInput {
+          title = "Include Metadata"
+          desc = "Only selected databases and schemas will be extracted. Exclude takes precedence over include for common schemas."
+          baseWidgetType = "sqltree"
+          sqlQuery = "show atlan schemas"
+          connectorConfig = "atlan-connectors-mysql"
+          credentialRef = "credential-guid"
+          schemaExcludePatterns = List("^performance_schema$", "^information_schema.*", "^mysql$", "^sys$", "^METRICS_SCHEMA.*")
+          default = "{}"
+          width = 4
+          additionalProperties = new Dynamic { type = "array" }
+          conditions {
+            new Config.Condition {
+              property = "extraction-method"
+              value = "agent"
+              overrideUi = new Config.Widget {
+                widget = "input"
+                label = "Include Filter"
+                feedback = true
+                help = "Only selected databases and schemas will be extracted. Use the syntax shown in placeholder. Defaults to empty string. Syntax: {\"^db$\": [\"^schema$\"]}"
+                placeholder = "{\"^db$\": [\"^schema$\"]}"
+                grid = 4
+              }
+            }
+          }
+        }
+        ["exclude-filter"] = new Config.ConditionalInput {
+          title = "Exclude Metadata"
+          desc = "Selected schemas wont be extracted."
+          baseWidgetType = "sqltree"
+          sqlQuery = "show atlan schemas"
+          connectorConfig = "atlan-connectors-mysql"
+          credentialRef = "credential-guid"
+          schemaExcludePatterns = List("^performance_schema$", "^information_schema.*", "^mysql$", "^sys$", "^METRICS_SCHEMA.*")
+          default = "{}"
+          width = 4
+          additionalProperties = new Dynamic { type = "array" }
+          conditions {
+            new Config.Condition {
+              property = "extraction-method"
+              value = "agent"
+              overrideUi = new Config.Widget {
+                widget = "input"
+                label = "Exclude Filter"
+                feedback = true
+                help = "Selected databases and schemas will not be extracted. Use the syntax shown in placeholder. Defaults to empty string. Syntax: {\"^db$\": [\"^schema$\"]}"
+                placeholder = "{\"^db$\": [\"^schema$\"]}"
+                grid = 4
+              }
+            }
+          }
+        }
+        ["exclude-table-regex"] = new Config.TextInput {
+          title = "Exclude regex for tables & views"
+          helpText = "Regular expression to exclude temporary tables and views."
+          placeholderText = ".*_TMP|.*_TEMP|TMP:*|TEMP:*"
+          width = 8
+        }
+        ["preflight-check"] = new Config.ConditionalInput {
+          title = ""
+          baseWidgetType = "sageV2"
+          conditions {
+            new Config.Condition {
+              property = "extraction-method"
+              value = "direct"
+              overrideUi = new Config.Widget {
+                widget = "sageV2"
+                `hidden` = false
+                config = new Listing<Dynamic> {
+                  new Dynamic { id = 1; name = "preflightCheck"; title = "MySQL instance preflight check"; loaderText = "Checking MySQL instance accessibility and permissions" }
+                }
+              }
+            }
+            new Config.Condition {
+              property = "extraction-method"
+              value = "agent"
+              overrideUi = new Config.Widget {
+                widget = "sageV2"
+                `hidden` = true
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+  rules {
+    new Config.UIRule {
+      whenInputs { ["extraction-method"] = "direct" }
+      required { "credential-guid"; "include-filter"; "exclude-filter"; "preflight-check" }
+    }
+    new Config.UIRule {
+      whenInputs { ["extraction-method"] = "agent" }
+      required { "agent-json"; "include-filter"; "exclude-filter" }
+    }
+  }
+}

@@ -1,0 +1,369 @@
+{
+  "id": "mysql",
+  "name": "MySQL Assets",
+  "logo": "https://www.mysql.com/common/logos/mysql-logo.svg",
+  "config": {
+    "properties": {
+      "extraction-method": {
+        "type": "conditional",
+        "required": true,
+        "ui": {
+          "widget": "radio",
+          "label": "Extraction method",
+          "hidden": false,
+          "help": "Determines the method the package will use to extract metadata. 'Direct' means the package will directly connect to MySQL. 'Self-Deployed Runtime' means the package will fetch metadata via the Atlan secure agent installed by the customer.",
+          "placeholder": "Direct",
+          "grid": 8,
+          "rules": [
+            {
+              "required": true,
+              "message": "Please select a valid metadata extraction strategy"
+            }
+          ]
+        },
+        "default": "direct",
+        "conditions": [
+          {
+            "property": "labFlag",
+            "value": "SECURE_AGENT_EXTRACTION",
+            "enum": [
+              "direct",
+              "agent"
+            ],
+            "enumNames": [
+              "Direct",
+              "Self-Deployed Runtime"
+            ]
+          }
+        ],
+        "enum": [
+          "direct"
+        ],
+        "enumNames": [
+          "Direct"
+        ]
+      },
+      "credential-guid": {
+        "type": "string",
+        "required": false,
+        "ui": {
+          "widget": "credential",
+          "label": "",
+          "hidden": false,
+          "help": "",
+          "placeholder": "Credential Guid",
+          "grid": 8,
+          "credentialType": "atlan-connectors-mysql",
+          "isTestAuthenticationDisabled": false
+        }
+      },
+      "agent-json": {
+        "type": "object",
+        "required": false,
+        "ui": {
+          "widget": "agent",
+          "label": "",
+          "hidden": false,
+          "help": "",
+          "placeholder": "Agent JSON",
+          "grid": 8,
+          "agentConfigs": [
+            [
+              "atlan-connectors-mysql",
+              {
+                "properties": {
+                  "auth-type": {
+                    "enum": [
+                      "basic",
+                      "iam_user",
+                      "iam_role"
+                    ],
+                    "enumNames": [
+                      "Basic",
+                      "IAM User",
+                      "IAM Role"
+                    ]
+                  },
+                  "basic": {
+                    "properties": {
+                      "username": {
+                        "default": "",
+                        "ui": {
+                          "placeholder": "Store Credential Path"
+                        }
+                      },
+                      "password": {
+                        "default": "",
+                        "ui": {
+                          "widget": "",
+                          "placeholder": "Store Credential Path"
+                        }
+                      }
+                    }
+                  },
+                  "iam_user": {
+                    "properties": {
+                      "username": {
+                        "default": "",
+                        "ui": {
+                          "placeholder": "AWS Access Key (Store Path)"
+                        }
+                      },
+                      "password": {
+                        "default": "",
+                        "ui": {
+                          "widget": "",
+                          "placeholder": "AWS Secret (Store Path)"
+                        }
+                      },
+                      "extra": {
+                        "properties": {
+                          "username": {
+                            "default": "",
+                            "ui": {
+                              "placeholder": "MySQL DB User (Store Path)"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "iam_role": {
+                    "properties": {
+                      "username": {
+                        "default": "",
+                        "ui": {
+                          "placeholder": "MySQL DB User (Store Path)"
+                        }
+                      },
+                      "extra": {
+                        "properties": {
+                          "aws_role_arn": {
+                            "default": "",
+                            "ui": {
+                              "placeholder": "IAM Role ARN (Store Path)"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            [
+              "atlan-connectors-agent"
+            ]
+          ]
+        }
+      },
+      "connection": {
+        "type": "string",
+        "required": false,
+        "ui": {
+          "widget": "connection",
+          "label": "",
+          "hidden": false,
+          "help": "",
+          "placeholder": "Connection Name",
+          "grid": 8
+        }
+      },
+      "include-filter": {
+        "type": "conditional",
+        "required": false,
+        "ui": {
+          "widget": "sqltree",
+          "label": "Include Metadata",
+          "hidden": false,
+          "help": "",
+          "grid": 4,
+          "connectorConfigName": "atlan-connectors-mysql",
+          "credential": "credential-guid",
+          "sql": "show atlan schemas",
+          "schemaExcludePattern": [
+            "^performance_schema$",
+            "^information_schema.*",
+            "^mysql$",
+            "^sys$",
+            "^METRICS_SCHEMA.*"
+          ],
+          "description": "Only selected databases and schemas will be extracted. Exclude takes precedence over include for common schemas."
+        },
+        "default": "{}",
+        "conditions": [
+          {
+            "property": "extraction-method",
+            "value": "agent",
+            "ui": {
+              "widget": "input",
+              "label": "Include Filter",
+              "hidden": false,
+              "help": "Only selected databases and schemas will be extracted. Use the syntax shown in placeholder. Defaults to empty string. Syntax: {\"^db$\": [\"^schema$\"]}",
+              "placeholder": "{\"^db$\": [\"^schema$\"]}",
+              "grid": 4,
+              "feedback": true
+            }
+          }
+        ],
+        "additionalProperties": {
+          "type": "array"
+        }
+      },
+      "exclude-filter": {
+        "type": "conditional",
+        "required": false,
+        "ui": {
+          "widget": "sqltree",
+          "label": "Exclude Metadata",
+          "hidden": false,
+          "help": "",
+          "grid": 4,
+          "connectorConfigName": "atlan-connectors-mysql",
+          "credential": "credential-guid",
+          "sql": "show atlan schemas",
+          "schemaExcludePattern": [
+            "^performance_schema$",
+            "^information_schema.*",
+            "^mysql$",
+            "^sys$",
+            "^METRICS_SCHEMA.*"
+          ],
+          "description": "Selected schemas wont be extracted."
+        },
+        "default": "{}",
+        "conditions": [
+          {
+            "property": "extraction-method",
+            "value": "agent",
+            "ui": {
+              "widget": "input",
+              "label": "Exclude Filter",
+              "hidden": false,
+              "help": "Selected databases and schemas will not be extracted. Use the syntax shown in placeholder. Defaults to empty string. Syntax: {\"^db$\": [\"^schema$\"]}",
+              "placeholder": "{\"^db$\": [\"^schema$\"]}",
+              "grid": 4,
+              "feedback": true
+            }
+          }
+        ],
+        "additionalProperties": {
+          "type": "array"
+        }
+      },
+      "exclude-table-regex": {
+        "type": "string",
+        "required": false,
+        "ui": {
+          "widget": "input",
+          "label": "Exclude regex for tables & views",
+          "hidden": false,
+          "help": "Regular expression to exclude temporary tables and views.",
+          "placeholder": ".*_TMP|.*_TEMP|TMP:*|TEMP:*",
+          "grid": 8
+        }
+      },
+      "preflight-check": {
+        "type": "conditional",
+        "required": false,
+        "ui": {
+          "widget": "sageV2",
+          "label": "",
+          "hidden": false,
+          "help": "",
+          "grid": 8
+        },
+        "conditions": [
+          {
+            "property": "extraction-method",
+            "value": "direct",
+            "ui": {
+              "widget": "sageV2",
+              "label": "",
+              "hidden": false,
+              "help": "",
+              "grid": 8,
+              "config": [
+                {
+                  "id": 1,
+                  "name": "preflightCheck",
+                  "title": "MySQL instance preflight check",
+                  "loaderText": "Checking MySQL instance accessibility and permissions"
+                }
+              ]
+            }
+          },
+          {
+            "property": "extraction-method",
+            "value": "agent",
+            "ui": {
+              "widget": "sageV2",
+              "label": "",
+              "hidden": true,
+              "help": "",
+              "grid": 8
+            }
+          }
+        ]
+      }
+    },
+    "anyOf": [
+      {
+        "properties": {
+          "extraction-method": {
+            "const": "direct"
+          }
+        },
+        "required": [
+          "credential-guid",
+          "include-filter",
+          "exclude-filter",
+          "preflight-check"
+        ]
+      },
+      {
+        "properties": {
+          "extraction-method": {
+            "const": "agent"
+          }
+        },
+        "required": [
+          "agent-json",
+          "include-filter",
+          "exclude-filter"
+        ]
+      }
+    ],
+    "steps": [
+      {
+        "title": "Credential",
+        "description": "",
+        "id": "credential",
+        "properties": [
+          "extraction-method",
+          "credential-guid",
+          "agent-json"
+        ]
+      },
+      {
+        "title": "Connection",
+        "description": "",
+        "id": "connection",
+        "properties": [
+          "connection"
+        ]
+      },
+      {
+        "title": "Metadata",
+        "description": "",
+        "id": "metadata",
+        "properties": [
+          "include-filter",
+          "exclude-filter",
+          "exclude-table-regex",
+          "preflight-check"
+        ]
+      }
+    ]
+  }
+}

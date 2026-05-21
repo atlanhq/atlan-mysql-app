@@ -23,35 +23,41 @@
                     "hidden": false
                 }
             },
-            "include-metadata": {
+            "include-filter": {
                 "type": "object",
                 "additionalProperties": {
                     "type": "array"
                 },
                 "default": "{}",
                 "ui": {
-                    "widget": "apitree",
+                    "widget": "sqltree",
+                    "sql": "show atlan schemas",
                     "connectorConfigName": "atlan-connectors-mysql",
                     "credential": "credential-guid",
                     "label": "Include Metadata",
-                    "description": "Selected databases and schemas will be processed.",
-                    "help": "Selected databases and schemas will be processed.",
+                    "description": "Only selected databases and schemas will be extracted. Exclude takes precedence over include for common schemas.",
+                    "help": "Only selected databases and schemas will be extracted.",
+                    "schemaExcludePattern": ["^performance_schema$", "^information_schema.*", "^mysql$", "^sys$", "^METRICS_SCHEMA.*"],
+                    "databaseExcludePattern": [],
                     "grid": 4
                 }
             },
-            "exclude-metadata": {
+            "exclude-filter": {
                 "type": "object",
                 "additionalProperties": {
                     "type": "array"
                 },
                 "default": "{}",
                 "ui": {
-                    "widget": "apitree",
+                    "widget": "sqltree",
+                    "sql": "show atlan schemas",
                     "connectorConfigName": "atlan-connectors-mysql",
                     "credential": "credential-guid",
                     "label": "Exclude Metadata",
-                    "description": "Selected databases and schemas will not be processed.",
-                    "help": "Selected databases and schemas will not be processed.",
+                    "description": "Selected schemas wont be extracted.",
+                    "help": "Selected schemas wont be extracted.",
+                    "schemaExcludePattern": ["^performance_schema$", "^information_schema.*", "^mysql$", "^sys$", "^METRICS_SCHEMA.*"],
+                    "databaseExcludePattern": [],
                     "grid": 4
                 }
             },
@@ -104,8 +110,8 @@
                 "title": "Metadata",
                 "description": "Metadata Filters",
                 "properties": [
-                    "include-metadata",
-                    "exclude-metadata",
+                    "include-filter",
+                    "exclude-filter",
                     "exclude-table-regex",
                     "preflight-check"
                 ]

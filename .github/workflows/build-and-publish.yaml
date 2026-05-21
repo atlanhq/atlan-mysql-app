@@ -27,11 +27,26 @@ on:
         default: ""
 
 jobs:
+  read-version:
+    name: Read version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - id: version
+        run: echo "version=$(cat version.txt | tr -d '[:space:]')" >> "$GITHUB_OUTPUT"
+
   build-and-publish:
+    needs: read-version
     uses: atlanhq/application-sdk/.github/workflows/build-and-publish-app.yaml@main
     with:
       ref: ${{ inputs.ref || github.ref }}
       publish: ${{ github.event_name == 'push' || github.event.inputs.publish != 'false' }}
       channel: ${{ inputs.channel || 'all' }}
       tenants: ${{ inputs.tenants || '' }}
+      release_tag: ${{ needs.read-version.outputs.version }}
+      unit_tests_workflow_file: "tests.yml"
     secrets: inherit

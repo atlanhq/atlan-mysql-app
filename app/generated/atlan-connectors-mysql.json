@@ -1,0 +1,245 @@
+{
+  "icon": "https://www.mysql.com/common/logos/mysql-logo.svg",
+  "helpdeskLink": "",
+  "logo": "https://www.mysql.com/common/logos/mysql-logo.svg",
+  "connector": "mysql",
+  "defaultConnectorType": "jdbc",
+  "config": {
+    "properties": {
+      "name": {
+        "type": "string",
+        "required": false,
+        "ui": {
+          "label": "Name",
+          "hidden": true,
+          "placeholder": "Host Name"
+        }
+      },
+      "connector": {
+        "type": "string",
+        "required": false,
+        "ui": {
+          "label": "Connector",
+          "hidden": true,
+          "placeholder": "Connector"
+        }
+      },
+      "connectorType": {
+        "type": "string",
+        "required": false,
+        "ui": {
+          "key": "_host",
+          "label": "connectorType",
+          "placeholder": "connectorType",
+          "hidden": true
+        }
+      },
+      "host": {
+        "type": "string",
+        "required": true,
+        "ui": {
+          "widget": "input",
+          "label": "Host",
+          "hidden": false,
+          "placeholder": "mysql.example.com",
+          "grid": 6
+        }
+      },
+      "port": {
+        "type": "number",
+        "required": true,
+        "default": 3306,
+        "ui": {
+          "widget": "inputNumber",
+          "label": "Port",
+          "hidden": false,
+          "grid": 2
+        }
+      },
+      "auth-type": {
+        "type": "string",
+        "enum": [
+          "basic",
+          "iam_user",
+          "iam_role"
+        ],
+        "default": "basic",
+        "required": true,
+        "enumNames": [
+          "Basic Authentication",
+          "IAM User",
+          "IAM Role"
+        ],
+        "ui": {
+          "widget": "radio",
+          "hidden": false,
+          "label": "Authentication"
+        }
+      },
+      "basic": {
+        "type": "object",
+        "ui": {
+          "widget": "nested",
+          "label": "",
+          "hidden": true,
+          "nestedValue": false
+        },
+        "properties": {
+          "username": {
+            "type": "string",
+            "required": true,
+            "ui": {
+              "widget": "input",
+              "label": "Username",
+              "hidden": false,
+              "placeholder": "Username",
+              "grid": 4
+            }
+          },
+          "password": {
+            "type": "string",
+            "required": true,
+            "ui": {
+              "widget": "password",
+              "label": "Password",
+              "hidden": false,
+              "placeholder": "Password",
+              "grid": 4
+            }
+          }
+        }
+      },
+      "iam_user": {
+        "type": "object",
+        "ui": {
+          "widget": "nested",
+          "label": "",
+          "hidden": true,
+          "nestedValue": false
+        },
+        "properties": {
+          "username": {
+            "type": "string",
+            "required": true,
+            "ui": {
+              "widget": "input",
+              "label": "AWS Access Key ID",
+              "hidden": false,
+              "placeholder": "AKIA...",
+              "grid": 4
+            }
+          },
+          "password": {
+            "type": "string",
+            "required": true,
+            "ui": {
+              "widget": "password",
+              "label": "AWS Secret Access Key",
+              "hidden": false,
+              "placeholder": "Secret key",
+              "grid": 4
+            }
+          },
+          "extra": {
+            "type": "object",
+            "ui": {
+              "widget": "nested",
+              "label": "",
+              "header": "Advanced",
+              "hidden": false
+            },
+            "properties": {
+              "username": {
+                "type": "string",
+                "required": true,
+                "ui": {
+                  "widget": "input",
+                  "label": "Database User",
+                  "hidden": false,
+                  "placeholder": "MySQL username for IAM token auth",
+                  "grid": 4
+                }
+              }
+            }
+          }
+        }
+      },
+      "iam_role": {
+        "type": "object",
+        "ui": {
+          "widget": "nested",
+          "label": "",
+          "hidden": true,
+          "nestedValue": false
+        },
+        "properties": {
+          "username": {
+            "type": "string",
+            "required": true,
+            "ui": {
+              "widget": "input",
+              "label": "Database User",
+              "hidden": false,
+              "placeholder": "MySQL username for IAM token auth",
+              "grid": 4
+            }
+          },
+          "extra": {
+            "type": "object",
+            "ui": {
+              "widget": "nested",
+              "label": "",
+              "header": "Advanced",
+              "hidden": false
+            },
+            "properties": {
+              "aws_role_arn": {
+                "type": "string",
+                "required": true,
+                "ui": {
+                  "widget": "input",
+                  "label": "IAM Role ARN",
+                  "hidden": false,
+                  "placeholder": "arn:aws:iam::123456789012:role/MyRole",
+                  "grid": 8
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "anyOf": [
+      {
+        "properties": {
+          "auth-type": {
+            "const": "basic"
+          }
+        },
+        "required": [
+          "basic"
+        ]
+      },
+      {
+        "properties": {
+          "auth-type": {
+            "const": "iam_user"
+          }
+        },
+        "required": [
+          "iam_user"
+        ]
+      },
+      {
+        "properties": {
+          "auth-type": {
+            "const": "iam_role"
+          }
+        },
+        "required": [
+          "iam_role"
+        ]
+      }
+    ]
+  }
+}
