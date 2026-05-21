@@ -27,13 +27,25 @@ jobs:
           wget -q https://raw.githubusercontent.com/dapr/cli/master/install/install.sh -O - | /bin/bash -s 1.16.2
           dapr init --runtime-version 1.16.0 --slim
 
-      # Install Temporal
-      - name: Install Temporal CLI and Start Server
+      # Install Temporal CLI
+      # The temporal server itself is started by `poe start-deps` in the next
+      # step (`poe start-temporal` → `temporal server start-dev`). We only
+      # install the binary here and persist its location on PATH so every
+      # subsequent step (`Start Platform Services`, the post-app
+      # `temporal workflow describe …` polls, etc.) can find it.
+      #
+      # Bug history: this step used to also background-launch the server with
+      # `temporal server start-dev … &` and `export PATH=…`. Both were
+      # broken:
+      #   * `export PATH=…` only persists within the step, so the later
+      #     `poe start-deps` hit `Failed to spawn: temporal`.
+      #   * The backgrounded server was killed when the step ended, so
+      #     nothing was actually running by the time the app started.
+      # Affected every push since 2026-05-14.
+      - name: Install Temporal CLI
         run: |
           curl -sSf https://temporal.download/cli.sh | sh
-          export PATH="$HOME/.temporalio/bin:$PATH"
-          temporal server start-dev --db-filename /tmp/temporal.db &
-          sleep 5
+          echo "$HOME/.temporalio/bin" >> "$GITHUB_PATH"
 
       - uses: atlanhq/application-sdk/.github/actions/setup-deps@main
 
@@ -46,11 +58,37 @@ jobs:
           sleep 5
 
       # Start the application
+      #
+      # ``main.py`` calls ``application_sdk.main.run_dev_combined`` which
+      # **unconditionally** boots an in-process Temporal at a random free port
+      # (see SDK docstring: "always boots an in-process workflow runtime …
+      # to target an external Temporal cluster, use ``run_combined_mode``"),
+      # so the externally-started Temporal at :7233 from ``poe start-temporal``
+      # is unused — workflows register on the embedded one. We capture the
+      # embedded host:port from the app log so the polling steps below can
+      # query the right Temporal instance via ``--address``.
       - name: Start the application
         id: start_app
         run: |
-          uv run scalene --profile-all --cli --outfile ./.github/scalene.json --json main.py &
-          sleep 20
+          uv run scalene --profile-all --cli --outfile ./.github/scalene.json --json main.py \
+            > app.log 2>&1 &
+          for i in $(seq 1 60); do
+            if grep -qE "Embedded workflow runtime ready at " app.log; then
+              break
+            fi
+            sleep 1
+          done
+          TEMPORAL_ADDRESS=$(grep -oE "Embedded workflow runtime ready at [0-9.]+:[0-9]+" app.log \
+            | tail -1 | awk '{print $NF}')
+          if [ -z "$TEMPORAL_ADDRESS" ]; then
+            echo "::error::App did not log embedded Temporal address within 60s"
+            tail -100 app.log
+            exit 1
+          fi
+          echo "Embedded Temporal at $TEMPORAL_ADDRESS"
+          echo "temporal_address=$TEMPORAL_ADDRESS" >> "$GITHUB_OUTPUT"
+          # Allow the app's HTTP server to finish startup before workflow POSTs.
+          sleep 5
 
       - name: Start the 1M workflow
         if: ${{ contains(github.event.pull_request.labels.*.name, 'e2e-test-1m') }}
@@ -150,6 +188,7 @@ jobs:
           ATTEMPT=0
           while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
             WORKFLOW_DETAILS=$(temporal workflow describe \
+              --address ${{ steps.start_app.outputs.temporal_address }} \
               --workflow-id=${{ steps.workflow_info_100k.outputs.workflow_id }} \
               --run-id=${{ steps.workflow_info_100k.outputs.run_id }} \
               --output=json)
@@ -162,6 +201,7 @@ jobs:
             ATTEMPT=$((ATTEMPT+1))
           done
           WORKFLOW_DETAILS=$(temporal workflow describe \
+            --address ${{ steps.start_app.outputs.temporal_address }} \
             --workflow-id=${{ steps.workflow_info_100k.outputs.workflow_id }} \
             --run-id=${{ steps.workflow_info_100k.outputs.run_id }} \
             --output=json)
@@ -180,6 +220,7 @@ jobs:
           ATTEMPT=0
           while [ $ATTEMPT -lt $MAX_ATTEMPTS ]; do
             WORKFLOW_DETAILS=$(temporal workflow describe \
+              --address ${{ steps.start_app.outputs.temporal_address }} \
               --workflow-id=${{ steps.workflow_info_1m.outputs.workflow_id }} \
               --run-id=${{ steps.workflow_info_1m.outputs.run_id }} \
               --output=json)
@@ -192,6 +233,7 @@ jobs:
             ATTEMPT=$((ATTEMPT+1))
           done
           WORKFLOW_DETAILS=$(temporal workflow describe \
+            --address ${{ steps.start_app.outputs.temporal_address }} \
             --workflow-id=${{ steps.workflow_info_1m.outputs.workflow_id }} \
             --run-id=${{ steps.workflow_info_1m.outputs.run_id }} \
             --output=json)
