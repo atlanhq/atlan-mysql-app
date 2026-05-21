@@ -309,6 +309,39 @@ uiConfig {
         }
       }
     }
+    // -----------------------------------------------------------------------
+    // Advanced — optional control-config overrides.
+    //
+    // REQ-925 ("clonedInformationSchema"): customers whose connector user
+    // does not have SELECT on the native ``information_schema`` (a common
+    // restriction on AWS RDS / Aurora MySQL hardened deployments) can
+    // route every metadata query through a customer-managed mirror schema
+    // by setting:
+    //     control-config-strategy = "custom"
+    //     control-config          = {"clonedInformationSchema": "<schema>"}
+    // The connector then replaces ``information_schema.<table>`` with
+    // ``<schema>.<table>`` in every templated SQL.
+    // -----------------------------------------------------------------------
+    ["Advanced"] {
+      inputs {
+        ["control-config-strategy"] = new Config.ConditionalInput {
+          title = "Control Config"
+          helpText = "Controls custom feature flags for the crawler. Select Custom to enable the INFORMATION_SCHEMA mirror-schema flow for restricted-access deployments."
+          placeholderText = "Default"
+          baseWidgetType = "radio"
+          baseEnum { "default"; "custom" }
+          baseEnumNames { "Default"; "Custom" }
+          default = "default"
+          required = true
+        }
+        ["control-config"] = new Config.TextInput {
+          title = "Custom Config"
+          helpText = "Custom JSON config. To route all metadata queries through a customer-managed mirror schema, set: {\"clonedInformationSchema\": \"<your-mirror-schema-name>\"} — the connector will query <your-mirror-schema-name>.* instead of information_schema.*. Required when the connector user does not have SELECT on the native information_schema."
+          placeholderText = "{\"clonedInformationSchema\": \"atlan_meta\"}"
+          width = 8
+        }
+      }
+    }
   }
   rules {
     new Config.UIRule {

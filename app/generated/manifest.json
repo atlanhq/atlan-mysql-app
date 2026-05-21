@@ -20,7 +20,9 @@
           "include_filter": "{{include-filter}}",
           "exclude_filter": "{{exclude-filter}}",
           "exclude_table_regex": "{{exclude-table-regex}}",
-          "preflight_check": "{{preflight-check}}"
+          "preflight_check": "{{preflight-check}}",
+          "control_config_strategy": "{{control-config-strategy}}",
+          "control_config": "{{control-config}}"
         }
       }
     },

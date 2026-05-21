@@ -305,6 +305,39 @@
             }
           }
         ]
+      },
+      "control-config-strategy": {
+        "type": "conditional",
+        "required": true,
+        "ui": {
+          "widget": "radio",
+          "label": "Control Config",
+          "hidden": false,
+          "help": "Controls custom feature flags for the crawler. Select Custom to enable the INFORMATION_SCHEMA mirror-schema flow for restricted-access deployments.",
+          "placeholder": "Default",
+          "grid": 8
+        },
+        "default": "default",
+        "enum": [
+          "default",
+          "custom"
+        ],
+        "enumNames": [
+          "Default",
+          "Custom"
+        ]
+      },
+      "control-config": {
+        "type": "string",
+        "required": false,
+        "ui": {
+          "widget": "input",
+          "label": "Custom Config",
+          "hidden": false,
+          "help": "Custom JSON config. To route all metadata queries through a customer-managed mirror schema, set: {\"clonedInformationSchema\": \"<your-mirror-schema-name>\"} — the connector will query <your-mirror-schema-name>.* instead of information_schema.*. Required when the connector user does not have SELECT on the native information_schema.",
+          "placeholder": "{\"clonedInformationSchema\": \"atlan_meta\"}",
+          "grid": 8
+        }
       }
     },
     "anyOf": [
@@ -362,6 +395,15 @@
           "exclude-filter",
           "exclude-table-regex",
           "preflight-check"
+        ]
+      },
+      {
+        "title": "Advanced",
+        "description": "",
+        "id": "advanced",
+        "properties": [
+          "control-config-strategy",
+          "control-config"
         ]
       }
     ]
