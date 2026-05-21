@@ -7,10 +7,14 @@
 # locally, so QI + lineage trigger automatically after extract.
 #
 # Notes:
-#   • ``lake_provider`` is forwarded from extract via
-#     ``$.extract.outputs.lake_provider``. The extractor reads GCP_BUCKET /
-#     S3_BUCKET to decide ``gcs`` / ``aws``, falling back to ``local`` for CI
-#     where neither is set.
+#   • ``lake_provider`` is hardcoded to ``"aws"`` here (matching the
+#     ``app/generated/manifest.json`` template built from ``contract/app.pkl``).
+#     ``MySQLExtractionOutput`` (app/mysql.py) does NOT emit a
+#     ``lake_provider`` field, so the earlier ``$.extract.outputs.lake_provider``
+#     reference resolved to nothing on AE and broke ``qi``, ``lineage-app``,
+#     and ``publish`` for every dispatch. Same fix applied to the
+#     ``input_prefix`` for ``qi`` — was ``view_data_prefix`` (also not emitted),
+#     now ``transformed_data_prefix`` (which IS emitted, matches the manifest).
 #   • ``parsing_mode: lorien-only`` skips the 124 MB Gudusoft LFS jar.
 #   • ``--token`` adds ``Authorization: Bearer`` to every AE call;
 #     omit for unauthenticated local AE.
@@ -183,9 +187,9 @@ for _attempt in 1 2 3; do
             \"timestamp_key\": \"\",
             \"mine_output_type\": \"json\",
             \"parsing_mode\": \"lorien-only\",
-            \"lake_provider\": \"\$.extract.outputs.lake_provider\",
+            \"lake_provider\": \"aws\",
             \"storage_bucket\": \"\$.extract.outputs.storage_bucket\",
-            \"input_prefix\": \"\$.extract.outputs.view_data_prefix\",
+            \"input_prefix\": \"\$.extract.outputs.transformed_data_prefix\",
             \"output_prefix\": \"\$.extract.outputs.view_lineage_output_prefix\"
           }
         },
@@ -233,7 +237,7 @@ for _attempt in 1 2 3; do
             \"lineage_output_path\": \"\$.extract.outputs.lineage_stage_prefix\",
             \"cache_path\": \"connection-cache\",
             \"file_type\": \"json\",
-            \"lake_provider\": \"\$.extract.outputs.lake_provider\",
+            \"lake_provider\": \"aws\",
             \"cloud_storage_bucket\": \"\$.extract.outputs.storage_bucket\"
           }
         },
