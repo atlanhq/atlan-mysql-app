@@ -159,8 +159,11 @@ for _attempt in 1 2 3; do
           \"args\": {
             \"credential_guid\": \"$CRED_GUID\",
             \"connection\": {
-              \"connection_name\": \"$CONN_NAME\",
-              \"connection_qualified_name\": \"$CONN_QN\"
+              \"attributes\": {
+                \"qualified_name\": \"$CONN_QN\",
+                \"name\": \"$CONN_NAME\",
+                \"connector_name\": \"mysql\"
+              }
             },
             \"extraction_method\": \"direct\",
             \"include_filter\": \"\",
