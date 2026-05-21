@@ -26,7 +26,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
 
       - name: Install dependencies
         run: uv sync --extra dev --extra test
@@ -46,7 +46,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
 
       - name: Install dependencies
         run: uv sync --extra dev --extra test
@@ -93,6 +93,16 @@ jobs:
       CREDENTIAL_GUID: local-mysql
       DAPR_HTTP_PORT: "3500"
       DAPR_GRPC_PORT: "50001"
+      # Keep extract / transform local artefacts on disk after on_complete()
+      # so the e2e test can validate raw/<entity>/records.json and
+      # transformed/<entity>/entities.json under the request-payload
+      # output_path. Default behaviour is to delete every tracked
+      # FileReference local path via cleanup_files (application_sdk
+      # base.py:cleanup_files) — correct for production where files are
+      # uploaded to the object store, but it strips the artefacts the
+      # test asserts on. Production deployments leave this unset (the
+      # SDK default of "true" applies).
+      APPLICATION_SDK_ENABLE_CLEANUP_INTERCEPTOR: "false"
     steps:
       - uses: actions/checkout@v4
 
@@ -100,7 +110,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
 
       - name: Install deps + pull images + install CLIs
         env:

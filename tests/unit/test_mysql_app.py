@@ -402,32 +402,48 @@ class TestMySQLAppRun:
         import asyncio
         from unittest.mock import AsyncMock, MagicMock, patch
 
+        from application_sdk.templates.contracts.sql_metadata import (
+            ExtractionTaskOutput,
+        )
+
+        # SDK v3.12+ (BLDX-1281): each extract_* returns
+        # ``ExtractionTaskOutput`` with a ``raw_file: FileReference | None``
+        # field. ``run()`` reads ``.raw_file`` and threads it into the
+        # matching transform via ``_build_transform_input``, which
+        # Pydantic-validates the ref against ``FileReference`` —
+        # MagicMock auto-attrs would fail that validation. Use real
+        # ``ExtractionTaskOutput`` instances with ``raw_file=None``.
+        def _extract_result(entity: str, count: int) -> ExtractionTaskOutput:
+            return ExtractionTaskOutput(
+                typename=entity, total_record_count=count, raw_file=None
+            )
+
         with (
             patch("temporalio.workflow.info", return_value=wf_info),
             patch.object(
                 MySQLApp,
                 "extract_databases",
-                new=AsyncMock(return_value=MagicMock(total_record_count=1)),
+                new=AsyncMock(return_value=_extract_result("database", 1)),
             ),
             patch.object(
                 MySQLApp,
                 "extract_schemas",
-                new=AsyncMock(return_value=MagicMock(total_record_count=1)),
+                new=AsyncMock(return_value=_extract_result("schema", 1)),
             ),
             patch.object(
                 MySQLApp,
                 "extract_tables",
-                new=AsyncMock(return_value=MagicMock(total_record_count=2)),
+                new=AsyncMock(return_value=_extract_result("table", 2)),
             ),
             patch.object(
                 MySQLApp,
                 "extract_columns",
-                new=AsyncMock(return_value=MagicMock(total_record_count=5)),
+                new=AsyncMock(return_value=_extract_result("column", 5)),
             ),
             patch.object(
                 MySQLApp,
                 "extract_procedures",
-                new=AsyncMock(return_value=MagicMock(total_record_count=1)),
+                new=AsyncMock(return_value=_extract_result("procedure", 1)),
             ),
             patch.object(
                 MySQLApp, "transform_databases", new=AsyncMock(return_value=MagicMock())
@@ -445,9 +461,6 @@ class TestMySQLAppRun:
                 MySQLApp,
                 "transform_procedures",
                 new=AsyncMock(return_value=MagicMock()),
-            ),
-            patch.object(
-                MySQLApp, "upload_to_atlan", new=AsyncMock(return_value=MagicMock())
             ),
             patch.object(MySQLApp, "_resolve_credential_ref", return_value=None),
         ):

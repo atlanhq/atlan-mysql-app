@@ -2,6 +2,253 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.33 (May 20, 2026)
+
+### Bug Fixes
+
+- **Restore the E2E Application Test workflow — three independent infra-drift fixes.** The E2E Application Test has been failing on every push to `main` since 2026-05-14 due to three layered issues, each surfacing only after the previous one was resolved. All three are environmental (workflow files / pinned versions / removed CLI flags), zero connector-app code changes.
+  1. **Declare `scalene` as a `dev` extra.** `.github/workflows/e2e-test.yaml:52` has invoked `uv run scalene --profile-all --cli --outfile ./.github/scalene.json --json main.py &` since PR #93, but the dep was never on `pyproject.toml` on any branch. Result: `error: Failed to spawn: scalene — Caused by: No such file or directory` at the "Start the application" step; the app never came up; downstream curl to `:8000` failed with `(7) Couldn't connect to server`.
+  2. **Pin `scalene<2.0` to match the legacy CLI in the workflow.** Adding `scalene` exposed the next failure: `Scalene: error: 'main.py' is not a valid command. Did you mean: scalene run ...`. scalene 2.0+ introduced a subcommand CLI (`scalene run script.py`) but the workflow still uses the 1.x invocation (`scalene script.py`). Pinning `>=1.5.0,<2.0` locks scalene to v1.5.55, the last 1.x release with the syntax the workflow expects.
+  3. **Drop `--dapr-http-max-request-size` from `[tool.poe.tasks].start-dapr`.** With scalene installed and the right CLI shape, the workflow reached "Start Platform Services" — which then died with `Error: unknown flag: --dapr-http-max-request-size`. Dapr CLI v1.13+ removed the flag (replaced by `--max-body-size`, units changed KB → MB). Omitting it falls back to Dapr's 4 MiB default, sufficient for the test workload. Lift back as `--max-body-size 4` if connectors ever produce >4 MiB request bodies.
+
+  After all three fixes, the E2E Application Test progresses from failing at step 1/7 ("Start the application") to step 6/7 ("Check workflow status"). The remaining "Check workflow status" failure is a structural SDK-vs-workflow mismatch (the SDK's `run_dev_combined` now embeds Temporal in-process, but the workflow's `temporal workflow describe` step queries an external Temporal it installed separately — workflow IDs are invisible across the two) — out of scope for this infra-drift fix, will need a coordinated SDK + workflow + connector-`main.py` change.
+
+## 0.7.36 (May 20, 2026)
+
+### Bug Fixes
+
+- **Fix `workflow_type` in `tenant-deploy`'s AE DAG: `mysql-metadata-extractor` → `mysql`.** The Deploy to Tenant workflow's extract node was registering the wrong workflow class name in the AE DAG. MSSQL's connector registers its workflow as `mssql-metadata-extractor` (which is what the ported `ae-workflow.sh` used as the default), but MySQL's `MySQLApp` registers as just `mysql` (per `name: ClassVar[str] = "mysql"`). Diagnosis: the deployed `mysql-worker` pod on the test tenant failed every workflow task with `Workflow class mysql-metadata-extractor is not registered on this worker, available workflows: mysql, sdr:fetch_metadata, sdr:preflight_check, sdr:test_auth`. Temporal auto-retried the failed task indefinitely → AE saw the run as `RUNNING` → GitHub Actions polling timed out at 15min thinking extract was just slow.
+
+## 0.7.35 (May 20, 2026)
+
+### Bug Fixes
+
+- **`tenant-deploy.yaml`: read `CREDENTIAL_GUID` + `CONNECTION_QN` from repo secrets as fallback when dispatch inputs are empty.** The "Resolve config" error message already said "set the dispatch input or the repo secret" but the workflow code only read inputs — so setting a `CREDENTIAL_GUID` secret on the repo had no effect (matching the gap in `atlan-mssql-app`'s tenant-deploy where the secret exists but is unused). Adds `SECRET_CRED_GUID` / `SECRET_CONN_QN` env, falls back to them when the inputs are empty (`${INPUT_CRED_GUID:-${SECRET_CRED_GUID:-}}`). Once the secrets are set on the repo, `gh workflow run "Deploy to Tenant"` works with zero arguments. Discovered while triggering the first MySQL tenant deploy for REQ-925.
+
+## 0.7.34 (May 20, 2026)
+
+### Features
+
+- **Add `Deploy to Tenant` GitHub Actions workflow** (`.github/workflows/tenant-deploy.yaml` + `.github/scripts/ae-workflow.sh`). Builds the Docker image from a branch, deploys to a specific tenant via `atlan app deploy`, creates/updates the 5-node AE workflow (`extract → qi + publish → lineage-app → lineage-publish`), submits a run, polls every stage to completion, and renders a rich step summary with per-stage durations, extract counts, publish metrics, and Temporal workflow links. Ported from `atlan-mssql-app`'s tenant-deploy pattern with mysql-specific queue names + workflow type (`mysql-metadata-extractor`).
+  - Manual trigger only (`workflow_dispatch`). Inputs: `tenant`, `ref`, `credential_guid`, `connection_qn`, `connection_name`, `deployment` (default `production`), `cli_version`, optional `workflow_slug` (trigger-only mode).
+  - Two-scenario matrix per dispatch: `upgrade` (re-publish to existing connection, cache-driven incremental) + `fresh` (auto-generated `default/mysql/test-fresh-<run_id>` with `connection_creation_enabled: true` for a full-publish baseline).
+  - Required secrets: `ATLAN_API_KEY`, `ORG_PAT_GITHUB`, `ATLAN_BASE_URL`, optional `CONNECTION_NAME`.
+
+
+## 0.7.32 (May 20, 2026)
+
+### Breaking Changes
+
+- **Remove the explicit `upload_to_atlan` call from `MySQLApp.run()`'s procedure pipeline.** With BLDX-1281's canonical-storage-path fix in [application-sdk#1801](https://github.com/atlanhq/application-sdk/pull/1801), `extract_procedures` and `transform_procedures` now emit `FileReference` objects with pre-set canonical `storage_path` keys (`<run_prefix>/raw/extras-procedure/records.json` / `<run_prefix>/transformed/extras-procedure/entities.json`); the activity interceptor's persist step uploads each to that key before the activity returns. The explicit `upload_to_atlan` call was uploading the same files to the same keys — pure redundancy in single-pod runs, ineffective in cross-pod runs. The SDK has also removed `SqlApp.upload_to_atlan` entirely; this PR drops mysql-app's call to it (would otherwise be an `AttributeError`).
+
+### Bug Fixes
+
+- **Re-pin `atlan-application-sdk` → SHA `5979d749`** to pick up the canonical-storage-path fix + `upload_to_atlan` removal on [application-sdk#1801](https://github.com/atlanhq/application-sdk/pull/1801). Customer-tenant production incident: S3 listing showed both `<run_prefix>/file_refs/<uuid>.json` (interceptor uploads, complete) AND `<run_prefix>/transformed/<entity>/entities.json` (legacy directory walk, partial — missing entities due to cross-pod local-FS scheduling). Publish reads only `transformed/<entity>/` and was archiving assets whose canonical key was missing. The fix pre-sets `storage_path` on the FileReference at the SqlApp template's `_extract_entity` / `_transform_entity` emission sites so the interceptor lands the file at the canonical key directly, no separate upload pass needed.
+## 0.7.31 (May 20, 2026)
+
+### Bug Fixes
+
+- **Re-pin `atlan-application-sdk` → SHA `8514e7e3`** to pick up the canonical-storage-path fix on [application-sdk#1801](https://github.com/atlanhq/application-sdk/pull/1801) (follow-up to [#1792](https://github.com/atlanhq/application-sdk/pull/1792)). Customer-tenant production incident showed both `<run_prefix>/file_refs/<uuid>.json` (interceptor uploads, complete) AND `<run_prefix>/transformed/<entity>/entities.json` (legacy directory walk, partial — missing entities due to cross-pod local-FS scheduling). Publish reads only `transformed/<entity>/` and was archiving assets whose canonical key was missing. The SDK fix pre-sets `storage_path` on the FileReference emitted by `_extract_entity` / `_transform_entity` to the canonical entity-typed key, so the interceptor's persist lands the file where publish actually looks. No mysql-app code change.
+
+## 0.7.30 (May 19, 2026)
+
+### Bug Fixes
+
+- **Re-pin `atlan-application-sdk` → SHA `c9c40e1d`** to pick up the corrected tier model for FileReference uploads on production deployments. The previous fix routed both `raw_file` and `transformed_file` through `StorageTier.RETAINED`, which was an over-correction — per reviewer feedback on [application-sdk#1792](https://github.com/atlanhq/application-sdk/pull/1792), the right model is per-ref: `raw_file` (extract → transform) stays `TRANSIENT` because both sides always run in the same deployment, while `transformed_file` (transform → publish) is `RETAINED` because the handoff can span SDR → in-tenant. The real bug was that `TRANSIENT`'s `_file_ref_base` ignored `run_prefix` — producing bare `file_refs/<uuid>` keys that Atlan's blob-storage gateway rejects with `403 code 1009 'Invalid Path'`. The SDK fix patches `StorageTier._file_ref_base` so TRANSIENT honours `run_prefix` (paths become `<run_prefix>/file_refs/<uuid>` — gateway-permitted), and the SqlApp template uses the per-ref tier intent. No mysql-app code change.
+
+## 0.7.29 (May 19, 2026)
+
+### Chores
+
+- **Re-pin `atlan-application-sdk` → SHA `d15f763c`** to pick up the regression tests that pin the `RETAINED` tier on `_extract_entity` / `_transform_entity` (and on the `FileReference.from_local()` helper itself). Same fix as `0.7.28`, just with the regression guards alongside so a future SDK refactor can't silently re-introduce the bare `file_refs/` prefix path that Atlan's blob-storage gateway rejects. No mysql-app code change.
+
+## 0.7.28 (May 19, 2026)
+
+### Bug Fixes
+
+- **Re-pin `atlan-application-sdk` → SHA `f7fabb52`** to pick up the storage-tier fix for FileReference uploads on production deployments. The SDK's `_extract_entity` and `_transform_entity` were emitting `FileReference.from_local(...)` refs that defaulted to `StorageTier.TRANSIENT` — which writes to a bare `file_refs/<uuid>.json` prefix (no run / app / tenant scoping). Atlan's blob-storage gateway only allows writes under `artifacts/...` and `persistent-artifacts/...`, so production extract activities were failing with `403 code 1009 'Invalid Path'`. Aligned with every other SDK upload path (`UploadInput`, `App.upload`, `sql_metadata_extractor`, `base_metadata_extractor`) by routing the refs through `StorageTier.RETAINED` — paths become `<run_prefix>/file_refs/<uuid>.json` (i.e. `artifacts/apps/<app>/workflows/<wf>/<run>/file_refs/...`), which the gateway permits. Local CI never caught this because `bindings.localstorage` has no path policy. No mysql-app code change — the fix is entirely in the SDK template.
+
+## 0.7.27 (May 19, 2026)
+
+### Chores
+
+- **Re-pin `atlan-application-sdk` → SHA `4eafc0f0`** to pick up the FileReference docstring reframing on [#1792](https://github.com/atlanhq/application-sdk/pull/1792) (singular → file-or-directory framing per reviewer feedback). Also pulls in the `5c3db7e5` log-level demotion (storage upload/download success → DEBUG) that arrived on `main` between rebases. No mysql-app code change.
+
+## 0.7.26 (May 19, 2026)
+
+### Bug Fixes
+
+- **Disable SDK cleanup interceptor in the integration test env** (`.github/workflows/tests.yml`). The SDK's `on_complete()` default runs `cleanup_files`, which deletes every tracked `FileReference` local path after the workflow finishes — correct for production (files have been uploaded to the object store) but it strips the `raw/<entity>/records.json` and `transformed/<entity>/entities.json` artefacts that `test_run_workflow` asserts on. Setting `APPLICATION_SDK_ENABLE_CLEANUP_INTERCEPTOR=false` in the integration-tests job env preserves the artefacts for inspection. Production Helm values leave the SDK default (`true`) in place. The `extras-procedure/records.json` survived earlier (count==0 → no FileReference returned → not tracked → not cleaned), which was the signal that pointed at the interceptor.
+
+## 0.7.25 (May 19, 2026)
+
+### Chores
+
+- **Re-pin `atlan-application-sdk` → SHA `81941835`** on [#1792](https://github.com/atlanhq/application-sdk/pull/1792). The SDK PR dropped the speculative `TransformInput.raw_dir` field (zero SDK or consumer callers — purely YAGNI cleanup, per reviewer feedback). The PR's contract additions now collapse to just `raw_file: FileReference | None` (on `ExtractionTaskOutput` and `TransformInput`) and `transformed_file: FileReference | None` (on `TransformOutput`) — both with concrete producers and consumers in the SDK template. No mysql-app code change.
+
+## 0.7.24 (May 19, 2026)
+
+### Bug Fixes
+
+- **Align the e2e credential fixture with the embedded Dapr's objectstore root** in `tests/e2e/conftest.py`. The SDK rolled out an embedded `daprd` (zero-install local dev) in [#1759](https://github.com/atlanhq/application-sdk/pull/1759), and `run_dev_combined` now starts that embedded sidecar instead of using whichever Dapr the host (or CI) launched. The embedded sidecar's `bindings.localstorage` defaults its `rootPath` to `./local/objectstore` — distinct from the static `components/objectstore.yaml` rootPath of `./local/dapr/objectstore` that the fixture was writing to. The path mismatch made `test_run_workflow` fail immediately with `execution_duration_seconds=0` because the credential vault's `get` invoke returned 500. The fixture now writes the credential config to `local/objectstore/persistent-artifacts/.../config.json`, matching what the embedded sidecar actually reads. The `secrets.json` path is unchanged — `DaprCredentialVault._get_local_secret` reads it directly, independent of the objectstore binding.
+
+## 0.7.23 (May 19, 2026)
+
+### Chores
+
+- **Re-pin `atlan-application-sdk` → SHA `4f94e223`** on [#1792](https://github.com/atlanhq/application-sdk/pull/1792). The earlier plan to drop the legacy `TransformInput.file_names` field landed as a non-breaking deprecation instead, consistent with how `typename` is already documented — the field stays on the schema as a no-op placeholder (the SDK never populated it, so any consumer reads already evaluate against the empty default). The two dead-branch consumer cleanup PRs ([atlanhq/atlan-alloydb-postgres-app#43](https://github.com/atlanhq/atlan-alloydb-postgres-app/pull/43), [atlanhq/atlan-cloudsql-postgres-app#53](https://github.com/atlanhq/atlan-cloudsql-postgres-app/pull/53)) are closed unmerged — coordination no longer required. No mysql-app code change.
+
+## 0.7.22 (May 19, 2026)
+
+### Bug Fixes
+
+- **Pull in SDK cross-worker transform fix** ([atlanhq/application-sdk#1792](https://github.com/atlanhq/application-sdk/pull/1792)). With >1 worker replica, the v3 SqlApp template silently dropped entities whose `extract_*` and `transform_*` activities landed on different Temporal pods — the transform read the raw file from local FS only, missed it on cross-pod schedules, and returned `total_record_count=0`. The downstream publish step interpreted the empty `transformed/<entity>/` directory as "this entity is gone" and archived every previously-published asset of that type for the connection. The SDK fix threads the raw file via `FileReference` through the extract → transform handshake so the activity interceptor handles materialise-on-input and persist-on-output automatically (with SHA-256 sidecar verification — every cross-worker retry triggers a fresh download).
+- **Wire the new FileReference contract into the procedure pipeline** in `app/mysql.py`. The SDK's `run()` orchestration threads `raw_file` from extract to transform automatically for the standard entities (databases, schemas, tables, columns), but `MySQLApp.run()` overrides the orchestration to add stored procedures (sequential `extract_procedures → transform_procedures`). That custom path now also captures the extract's `ExtractionTaskOutput.raw_file` and builds a `TransformInput` via `SqlApp._build_transform_input` — so procedure transforms get the same cross-worker guarantees as the standard flow.
+
+### Chores
+
+- **Bump `atlan-application-sdk` git pin → fix branch `aryaman/transform-file-reference`** (commit `785b9353`). TEMPORARY override pending the v3.12.0 release that will carry [#1792](https://github.com/atlanhq/application-sdk/pull/1792). Once 3.12.0 is tagged, this pin moves to `~=3.12.0` and the `[tool.uv.sources]` block is dropped entirely. `uv.lock` resynced — `atlan-application-sdk v3.10.0 → v3.12.0`.
+- **Test-suite updates for SDK v3.12 contracts**:
+  - `tests/unit/test_mysql_app.py::TestMySQLAppRun._run` — extract mocks now return real `ExtractionTaskOutput` instances (with `raw_file=None`) instead of `MagicMock`, since `run()` now Pydantic-validates the threaded ref against `FileReference` and would reject magic-mock auto-attrs.
+  - `tests/unit/test_clients.py` — accept the new `SqlClientAuthFailedError` / `SqlCredentialsParseError` / `SqlClientConfigError` / `MissingSqlParamError` exception shapes the SDK now surfaces (walking the exception cause chain to assert on the failure reason).
+
+## 0.7.21 (May 15, 2026)
+
+### Chores
+
+- **Bump `atlan-application-sdk` git pin → `v3.10.0`** (was SHA `b58625b4`, roughly v3.8.0). v3.10.0 is the first published release carrying the BLDX-1254 cross-repo dispatch + full-DAG harness ([#1710](https://github.com/atlanhq/application-sdk/pull/1710)), the `.github/sdr-e2e/` config-dir convention ([#1746](https://github.com/atlanhq/application-sdk/pull/1746)), the multi-pipeline `components-dir` / `compose-overlay` overrides on the SDR composite action ([#1752](https://github.com/atlanhq/application-sdk/pull/1752)), and the `/preflight` envelope-shape refactor ([#1744](https://github.com/atlanhq/application-sdk/pull/1744)) that the connector PR + cross-repo dispatched SDR paths now agree on. `uv.lock` resynced — `atlan-application-sdk v3.8.0 → v3.10.0`.
+
+## 0.7.20 (May 14, 2026)
+
+### Bug Fixes
+
+- **`tests/sdr/test_mysql_sdr.py::preflight_invalid_credentials`**: make the scenario cross-SDK-version safe. atlanhq/application-sdk#1744 changed the `/preflight` envelope's `success` semantics (was "all checks passed", now "preflight executed at all" so the SageV2 widget renders per-check details on partial-failure responses) — but this app's `pyproject.toml` still pins a pre-#1744 SDK, so PR runs (which use the pin) and cross-repo dispatched runs (which use SDK HEAD) disagree on the envelope's meaning. Drop the envelope-`success` assertion and rely on the per-check signals (`data.auth.success: False` + `data.auth.message: is_string()`) — both unchanged across the refactor. Caught by every `workflow_dispatch` SDR run on `main` since #1744 merged.
+
+## 0.7.19 (May 14, 2026)
+
+### Docs
+
+- **Add `docs/CI-E2E.md`** — connector-side walkthrough of the SDR (testcontainer) and Full-DAG (system apps) E2E pipelines using this repo as the reference adopter. Documents every file's role (`app.yaml`, `.github/e2e/*`, `make-secrets*.py`, test class overrides), the two repo-secrets sets, the cross-repo dispatch contract, an onboarding checklist for new connectors, and a troubleshooting section keyed to the SDK PRs that introduced each requirement (#1669, #1710, #1746, #1752). Companion to the canonical SDK-side reference at `atlanhq/application-sdk/docs/standards/connector-ci-e2e.md`.
+
+## 0.7.18 (May 14, 2026)
+
+### Bug Fixes
+
+- **Add `app.yaml` at repo root.** The SDR composite action's `#1746` refactor on `atlanhq/application-sdk` moved from inline generation of `app-resolved.yaml` (driven by action inputs `app-name` + `app-image-name`) to reading `app.yaml` from disk and envsubst-ing the image tag in. mysql-app had no `app.yaml`, so SDR runs against this repo started failing with `No app.yaml found at .github/e2e/app.yaml or repo root`. Three-line file matches the shape `atlan-mssql-app` adopted in the same series: `app_name`, `app_image: ${APP_IMAGE}`, `app_port: 8000`.
+
+## 0.7.17 (May 14, 2026)
+
+### Chores
+
+- **Add `.github/CODEOWNERS`.** Single-line glob (`* @Aryamanz29`) so every PR in this repo gets the connector owner auto-requested for review. Mirrors the pattern atlan-netsuite-app uses.
+
+## 0.7.16 (May 13, 2026)
+
+### Bug Fixes
+
+- **Bump `astral-sh/setup-uv` from v5 to v7 across `tests.yml`.** The v5 post-action cache-prune step has a known 5-min hang on busy runners — observed on a recent run where the Integration Tests job reported 8 passed / 4 skipped in 23s but the post-step exited 2 anyway. v7's cleanup is fixed; no other behavioural change.
+
+## 0.7.15 (May 13, 2026)
+
+### Features
+
+- **[BLDX-1254] `e2e-full.yaml`: add `e2e-full` label trigger + `application_sdk_ref` input.** The workflow now runs on `pull_request: labeled, synchronize` when the PR carries the `e2e-full` label, in addition to manual `workflow_dispatch`. The new `application_sdk_ref` workflow_dispatch input lets apps-sdk PRs cross-repo-dispatch this workflow with their PR head SHA (so SDK changes can be validated end-to-end against this app's full-DAG suite). Skips on forks + dependabot PRs since runs touch real tenant assets. Bumps SDK pin to `b58625b4` which adds (1) the matching `e2e-full-mysql` label-gated job on the apps-sdk side and (2) drops the label gate on the per-PR SDR integration suite — it now auto-runs on every apps-sdk PR push since ~3 min/connector is cheap enough to want by default.
+
+## 0.7.14 (May 13, 2026)
+
+### Refactor
+
+- **[BLDX-1254] Consume the reusable e2e-full workflow + `SQLAppE2EFullTest` base.** SDK now ships:
+  - `atlanhq/application-sdk/.github/workflows/e2e-full-reusable.yaml` — wraps the SDR composite action with full-DAG defaults (120-min timeout, env wiring, tenant + OAuth + API-key secrets, container-health bump, pytest `-s`).
+  - `application_sdk.testing.full_dag.SQLAppE2EFullTest` — mid-level base capturing `agent_spec` + `connection_spec` boilerplate every SQL connector test needs.
+
+  Mysql now consumes both:
+  - `.github/workflows/e2e-full.yaml` is **40 lines** (was ~110) — just a `uses:` call to the reusable workflow.
+  - `tests/full_dag/test_mysql_full_dag.py` is **120 lines** (was ~200) — only connector-specific knobs and `database_spec` for the sibling mysql container.
+
+  Bumps SDK pin to `7d141649`. The next connector to adopt full-DAG e2e gets the harness in ~50 lines of repo-local YAML/Python.
+
+## 0.7.13 (May 13, 2026)
+
+### Features
+
+- **[BLDX-1254] Bump e2e-full timeouts to fit slow lineage stages + colour-emoji poll log.** Run 25794699597 hit the 600s AE poll budget with `lineage-app` still `Running` — devex's tenant publish/lineage queues can stretch this stage to 30+ min. Test class poll knobs now: interval 60s (was 5/10s), AE timeout 90 min (was 10), Atlas timeout 30 min (was 15). GH job `timeout-minutes` bumped to 120 to leave headroom for build/setup. SDK pin bumped to `9dbf50c3` which also swaps the monochrome status glyphs (`✓ ⟳ · ✗`) for colour emoji (`✅ 🔄 🟡 ❌`) so DAG progression is scannable at a glance:
+
+  ```
+  🔄 AE run [515s] Running — ✅ extract ✅ qi ✅ publish 🔄 lin-app 🟡 lin-pub
+  ✅ AE run [625s] Succeeded — ✅ extract ✅ qi ✅ publish ✅ lin-app ✅ lin-pub
+  ```
+
+## 0.7.12 (May 13, 2026)
+
+### Bug Fixes
+
+- **[BLDX-1254] Restore `ATLAN_API_KEY` for AE-management calls; OAuth becomes optional.** PRs #101 and #102 switched to OAuth-only auth, but `/automation/api/v1/workflows` requires the `realm-admin` resource_access role that only the API-key's service account carries — OAuth returns a masked AE-COMMON-500-01 there (verified by direct probe: API key → 200, OAuth → 500 on the same endpoint). `ATLAN_API_KEY` is mandatory again; `SDR_OAUTH_CLIENT_ID`/`SECRET` stay as a bonus for clearer pyatlan RBAC diagnostics. Bumps SDK pin to `11bc5b46`.
+
+## 0.7.11 (May 13, 2026)
+
+### Bug Fixes
+
+- **[BLDX-1254] Retry `create_workflow` on 5xx.** AE occasionally returns `AE-COMMON-500-01: An unexpected error occurred` on the create-workflow call (same transient pattern we already handle on `create_version` / `submit_workflow` / `poll_native_status`). The harness now retries 4 times at 5s intervals before failing. Bumps SDK pin to `b3b5684c`.
+
+## 0.7.10 (May 13, 2026)
+
+### Bug Fixes
+
+- **[BLDX-1254] Full-DAG e2e: skip-guard accepts OAuth in addition to ATLAN_API_KEY.** The test module's `pytest.skip(allow_module_level=True)` guard still required `ATLAN_API_KEY` even after PR #101 dropped that secret — pytest then collected 0 tests / 1 skipped and exit code 5 failed the workflow. Guard now accepts either `SDR_OAUTH_CLIENT_ID`/`SECRET` (preferred) or `ATLAN_API_KEY`, matching what the SDK harness's `setup_method` reads.
+- **[BLDX-1254] Dynamic report title from `test-path`.** The SDR composite action's step-summary + PR-comment header was hardcoded to "SDR Integration Tests" — every e2e-full run came back labelled as the tier-3 suite. The action now derives the title (`Full-DAG E2E Tests` for `tests/full_dag/`, `SDR Integration Tests` for `tests/sdr/`, etc.) with an override knob (`report-title` input) for callers that need a literal label. Bumps SDK pin to `095717dc`.
+
+## 0.7.9 (May 13, 2026)
+
+### Features
+
+- **[BLDX-1254] Full-DAG e2e: drop `ATLAN_API_KEY`, switch entirely to OAuth.** The harness now exchanges `SDR_OAUTH_CLIENT_ID` + `SDR_OAUTH_CLIENT_SECRET` for a 15-min bearer at test-setup time and uses that for every AE / Atlas / search call. OAuth client_credentials covers every endpoint we hit (verified by probing /api/service/workflows, /api/service/package-workflows, /api/service/users/current — all 200/400 not 401). One auth pair for both the Dapr S3 binding and the harness; one set of GH secrets to manage; predictable RBAC diagnostics (`service-account-oauth-client-<id>` instead of opaque `service-account-apikey-<uuid>`).
+- **[BLDX-1254] Connection probe via search instead of direct entity fetch.** The direct `/api/meta/entity/uniqueAttribute/type/Connection?...` endpoint enforces the Connection's adminUsers/adminRoles ACL — neither the API-key nor the OAuth-client service accounts are on that list by default, so the probe was 403-ing for the full 25-min budget on every otherwise-healthy run. Search has a permissive ACL (the connector namespace's read perm is enough); the harness now uses it via pyatlan's `FluentSearch`. Verified: on the latest run, search returned `count=1` for the Connection plus 20 descendants while direct fetch was 403.
+- **[BLDX-1254] Colourful poll log.** Per-node glyphs (✓ ⟳ · ✗ ⊘ ⏱) and a top-level run glyph make the poll output scannable instead of "extract=Succeeded; qi=Succeeded; publish=Running; …" walls of text. Lineage node names trimmed to `lin-app` / `lin-pub` so the line fits comfortably. Example:
+
+  ```
+  ⟳ AE run [ 45s] Running — ✓extract ✓qi ⟳publish ·lin-app ·lin-pub
+  ✓ AE run [225s] Succeeded — ✓extract ✓qi ✓publish ✓lin-app ✓lin-pub
+  ```
+
+Bumps SDK pin to `e086acb5`.
+
+## 0.7.8 (May 13, 2026)
+
+### Bug Fixes
+
+- **[BLDX-1254] Full-DAG e2e: Mustache-fill the manifest seed before publishing.** PR #99 made the harness load the connector's `manifest.json` as the seed DAG, but AE does not runtime-substitute the manifest's hyphenated `{{...}}` placeholders (`{{include-filter}}`, `{{connection}}`, `{{agent-json}}`, etc.) — those are configurator-fills that normally happen at deployment time. We were publishing the raw manifest, so the worker received literal placeholder strings and the extract workflow hung in Temporal. The harness now acts as the configurator: builds a runtime-sub map (connection entity, agent_json bundle, filter strings, mode value, preflight default) and applies it recursively to each node's args before publishing the seed. `{{credential-guid}}` is the one Mustache forwarded — substituted with `{{credentialGuid}}` (camelCase) which AE *does* runtime-substitute. Bumps SDK pin to `0bece0e1`. SDK ships 6 new unit tests for the rendering paths.
+
+## 0.7.7 (May 13, 2026)
+
+### Bug Fixes
+
+- **[BLDX-1254] Full-DAG e2e: load seed DAG from `app/generated/manifest.json` instead of hand-crafting it.** The hand-crafted seed DAG had drifted from the connector's actual manifest — specifically missing six flags on the publish node (`connection_creation_enabled`, `executor_enabled`, `connection_entity`, three cache flags). Without those, the tenant publish app silently ran in update-only mode: `entities-created=16` in the metric, but zero assets in Atlas. Verified empirically — S3 had the transformed JSONL at the expected path, publish read it, but the asset POSTs never reached the queryable namespace. Harness now reads `app/generated/manifest.json` at bootstrap and substitutes `{app_name}` / `{deployment_name}` placeholders; Mustache fills (`{{credentialGuid}}`, `{{connection}}`, …) are left for AE. Bumps SDK pin to `a4f7f206`.
+
+## 0.7.6 (May 13, 2026)
+
+### Bug Fixes
+
+- **[BLDX-1254] Atlas probe: cap consecutive 404s (~100s) instead of burning the full timeout.** The 25-min poll budget was sized for indexer lag on large publishes, but on hermetic seeds where publish reports N entities created and Atlas still 404s for hundreds of seconds, those entities are not coming. The harness now bails after `max_not_found_attempts` (default 10 → ~100s at the SDK's 10s interval) with a log line pointing at the probable root cause (worker storage bucket vs publish read bucket). Bumps SDK pin to `21cd0bcf`.
+
+## 0.7.5 (May 12, 2026)
+
+### Features
+
+- **[BLDX-1254] Heartbeat log every 30s during AE polling.** Lineage stages take 2-5 min on small datasets and keep the status string unchanged across many poll iterations, so the previous "log on change" approach produced ~2-min silent gaps in CI output — particularly disorienting right after a transient 5xx warning. The harness now logs a `still polling, elapsed=Ns` heartbeat every 30s regardless of status change. Bumps SDK pin to `b4005a63`.
+
+## 0.7.4 (May 12, 2026)
+
+### Bug Fixes
+
+- **[BLDX-1254] Tolerate transient `native-status` 5xx during DAG polling.** The tenant's Temporal occasionally blips for a few seconds mid-run and AE surfaces `AE-COMMON-500-01: An unexpected error occurred` on `get_native_status`, then recovers. The harness used to raise on the first 5xx and fail the whole test despite a healthy underlying workflow. `poll_native_status` now logs a warning with the streak count and keeps polling — up to 5 consecutive failures before re-raising (treats a sustained outage as a real failure, a blip as noise). Bumps SDK pin to `559bfa55`.
+
+## 0.7.3 (May 12, 2026)
+
+### Bug Fixes
+
+- **[BLDX-1254] Retry AE submit on HTTP 5xx.** AE's `POST /api/service/package-workflows?submit=true` occasionally returns `AE-COMMON-500-01: An unexpected error occurred` for a few seconds after `publish_version` succeeds — without any Temporal workflow being dispatched. The harness now retries the submit up to 4 times at 5s intervals (same pattern `create_version` already uses for the 404 indexing window). Bumps SDK pin to `af7a319d`.
+
 ## 0.7.2 (May 12, 2026)
 
 ### Bug Fixes
