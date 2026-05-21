@@ -87,8 +87,24 @@ jobs:
           fi
           echo "Embedded Temporal at $TEMPORAL_ADDRESS"
           echo "temporal_address=$TEMPORAL_ADDRESS" >> "$GITHUB_OUTPUT"
-          # Allow the app's HTTP server to finish startup before workflow POSTs.
-          sleep 5
+          # Poll the handler's health endpoint until uvicorn is actually
+          # listening. The earlier fixed ``sleep 5`` raced on slower runners —
+          # embedded Temporal logs ready ~10s after app start, then uvicorn
+          # follows but timing varies (saw 5s+ on hosted runners). The next
+          # step's ``curl http://0.0.0.0:8000/workflows/v1/start`` hits a
+          # closed socket if we move on before uvicorn is up.
+          for i in $(seq 1 60); do
+            if curl -sf -o /dev/null http://127.0.0.1:8000/health; then
+              echo "Handler is up after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+          if ! curl -sf -o /dev/null http://127.0.0.1:8000/health; then
+            echo "::error::Handler did not become ready on :8000 within 60s"
+            tail -120 app.log
+            exit 1
+          fi
 
       - name: Start the 1M workflow
         if: ${{ contains(github.event.pull_request.labels.*.name, 'e2e-test-1m') }}
