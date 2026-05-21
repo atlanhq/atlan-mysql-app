@@ -27,13 +27,25 @@ jobs:
           wget -q https://raw.githubusercontent.com/dapr/cli/master/install/install.sh -O - | /bin/bash -s 1.16.2
           dapr init --runtime-version 1.16.0 --slim
 
-      # Install Temporal
-      - name: Install Temporal CLI and Start Server
+      # Install Temporal CLI
+      # The temporal server itself is started by `poe start-deps` in the next
+      # step (`poe start-temporal` → `temporal server start-dev`). We only
+      # install the binary here and persist its location on PATH so every
+      # subsequent step (`Start Platform Services`, the post-app
+      # `temporal workflow describe …` polls, etc.) can find it.
+      #
+      # Bug history: this step used to also background-launch the server with
+      # `temporal server start-dev … &` and `export PATH=…`. Both were
+      # broken:
+      #   * `export PATH=…` only persists within the step, so the later
+      #     `poe start-deps` hit `Failed to spawn: temporal`.
+      #   * The backgrounded server was killed when the step ended, so
+      #     nothing was actually running by the time the app started.
+      # Affected every push since 2026-05-14.
+      - name: Install Temporal CLI
         run: |
           curl -sSf https://temporal.download/cli.sh | sh
-          export PATH="$HOME/.temporalio/bin:$PATH"
-          temporal server start-dev --db-filename /tmp/temporal.db &
-          sleep 5
+          echo "$HOME/.temporalio/bin" >> "$GITHUB_PATH"
 
       - uses: atlanhq/application-sdk/.github/actions/setup-deps@main
 
