@@ -1,8 +1,12 @@
-# Owners inferred from top git contributors (active in last 90 days).
-# Please edit — adjust scope, add path-specific rules, or remove ex-members.
+# Owner: Aryaman (@Aryamanz29) — top contributor on atlan-mysql-app
+# (283 commits at the time this file was added).
+#
+# Edit freely — adjust scope, add path-specific rules, or expand the owner
+# set. CODEOWNERS only enforces review when branch protection requires it,
+# so refinement is safe.
 #
 # References:
 #   - About code owners: https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 #   - Integration Studio rollout: atlanhq/integration-studio-aisdlc APP-1866 (connector repo health audit)
 
-* @aavani-atlan-kv @nshntarora @OnkarVO7
+* @Aryamanz29
