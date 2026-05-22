@@ -679,15 +679,15 @@ class TestFilteredExtractionViaMirror:
 
     @pytest.mark.xfail(
         reason=(
-            "Pre-existing SDK bug: ``{temp_table_regex_sql}`` placeholder "
-            "is also present in the parent template's header /* */ "
-            "comment block, and the SDK's _prepare_sql does a global "
-            "string replace. Substituting a multi-line fragment "
-            "(which itself starts with /* */) inside the parent header "
-            "yields nested /* */ comments → MySQL parser fails with "
-            "syntax error. Unrelated to REQ-925 — affects any temp_table_regex "
-            "value. File against atlanhq/application-sdk; until fixed, "
-            "this test is marked xfail."
+            "Pre-existing SDK bug — APP-2291: ``{temp_table_regex_sql}`` "
+            "placeholder is also present in the parent template's header "
+            "/* */ comment block, and the SDK's _prepare_sql does a global "
+            "string replace. Substituting a multi-line fragment (which "
+            "itself starts with /* */) inside the parent header yields "
+            "nested /* */ comments → MySQL parser fails with syntax error. "
+            "Unrelated to REQ-925 — affects any temp_table_regex value. "
+            "Filed against application_sdk: "
+            "https://linear.app/atlan-epd/issue/APP-2291"
         ),
         strict=False,
     )
