@@ -71,34 +71,41 @@ class TestMySQLAppClassAttrs:
 
         Backward-compat check: output SQL must be byte-equivalent to today
         (matches what currently ships from main when no override is set).
+        ``_prepare_sql`` reads control-config from the ``input`` arg — the
+        task input must therefore carry the (empty) defaults.
         """
         from unittest.mock import MagicMock
 
         app = MySQLApp()
-        # ``_prepare_sql`` now reads from ``self._control_config`` (populated
-        # by ``run()``). Default state is empty → canonical schema.
-        assert app._control_config == {}
         input_ = MagicMock()
         input_.exclude_filter = ""
         input_.include_filter = ""
         input_.temp_table_regex = ""
+        input_.control_config_strategy = "default"
+        input_.control_config = ""
 
         prepared = app._prepare_sql(MySQLApp.fetch_table_sql, input_)
         assert "{information_schema}" not in prepared
         assert "information_schema.TABLES" in prepared
 
     def test_prepare_sql_resolves_mirror_information_schema(self):
-        """With clonedInformationSchema in self._control_config, _prepare_sql rewrites."""
+        """Control-config on the task input → ``_prepare_sql`` rewrites.
+
+        Mirrors the on-the-wire shape: ``MySQLExtractionTaskInput`` arrives
+        at the activity with the typed fields populated by
+        ``MySQLApp.build_task_input``. ``_prepare_sql`` reads via
+        ``extract_control_config(input)`` and rewrites every
+        ``{information_schema}`` placeholder to the mirror name.
+        """
         from unittest.mock import MagicMock
 
         app = MySQLApp()
-        # Simulate what ``run()`` does: parse control-config from the
-        # workflow input and stash on self before any extract task runs.
-        app._control_config = {"clonedInformationSchema": "atlan_meta"}
         input_ = MagicMock()
         input_.exclude_filter = ""
         input_.include_filter = ""
         input_.temp_table_regex = ""
+        input_.control_config_strategy = "custom"
+        input_.control_config = {"clonedInformationSchema": "atlan_meta"}
 
         prepared = app._prepare_sql(MySQLApp.fetch_schema_sql, input_)
         assert "{information_schema}" not in prepared
@@ -138,30 +145,76 @@ class TestMySQLAppClassAttrs:
             "clonedInformationSchema": "atlan_meta",
         }
 
-    def test_prepare_sql_ignores_input_attribute_only_reads_self(self):
-        """``_prepare_sql`` MUST read control-config from ``self._control_config``,
-        not from the ``input`` arg. The ``input`` here is an ``ExtractionTaskInput``
-        which doesn't carry these fields — relying on it would silently
-        no-op the mirror-schema flow (the bug we're fixing).
+    def test_build_task_input_threads_control_config_to_task(self):
+        """REQ-925 regression: control-config must travel ON the task input
+        across the workflow→activity worker boundary.
+
+        Each ``@task`` activity runs on a FRESH ``app_instance = app_cls()``
+        (``application_sdk/app/base.py:1478``); the workflow-side
+        ``self._control_config`` is invisible to the activity. The ONLY
+        contract Temporal preserves is the typed input object.
+
+        ``MySQLApp.build_task_input`` overrides the SDK staticmethod to
+        upgrade ``ExtractionTaskInput`` → ``MySQLExtractionTaskInput`` and
+        copy ``control_config_strategy`` + ``control_config`` from the
+        workflow input. This test asserts that contract end-to-end.
         """
-        from unittest.mock import MagicMock
+        from application_sdk.templates.contracts.sql_metadata import (
+            ExtractionTaskInput as _SDKExtractionTaskInput,
+        )
 
-        app = MySQLApp()
-        # Set on self — the only source of truth at _prepare_sql time.
-        app._control_config = {"clonedInformationSchema": "from_self"}
+        from app.mysql import MySQLApp, MySQLExtractionInput, MySQLExtractionTaskInput
 
-        # ``input`` has a misleading attribute that should NOT win — confirms
-        # we don't accidentally fall back to reading control-config off the
-        # task input arg.
-        input_ = MagicMock()
-        input_.exclude_filter = ""
-        input_.include_filter = ""
-        input_.temp_table_regex = ""
-        input_.control_config = {"clonedInformationSchema": "from_input_ignored"}
+        src = MySQLExtractionInput.model_validate(
+            {
+                "workflow_id": "wf-123",
+                "credential_guid": "cred-456",
+                "extraction_method": "direct",
+                "control_config_strategy": "custom",
+                "control_config": {"clonedInformationSchema": "atlan_meta"},
+            }
+        )
+        task_input = MySQLApp.build_task_input(_SDKExtractionTaskInput, src)
 
-        prepared = app._prepare_sql(MySQLApp.fetch_column_sql, input_)
-        assert "from_self.COLUMNS" in prepared
-        assert "from_input_ignored" not in prepared
+        # The SDK requested ``ExtractionTaskInput`` but the override
+        # upgraded to the MySQL subclass so the control-config fields
+        # survive the activity boundary.
+        assert isinstance(task_input, MySQLExtractionTaskInput)
+        assert task_input.control_config_strategy == "custom"
+        assert task_input.control_config == {
+            "clonedInformationSchema": "atlan_meta"
+        }
+
+    def test_extract_task_signatures_use_mysql_subclass(self):
+        """REQ-925 regression: the @task method annotations must declare
+        ``MySQLExtractionTaskInput`` (not the SDK base) so pydantic
+        deserialisation on the activity side preserves the typed
+        control-config fields. The SDK base ``ExtractionTaskInput`` has
+        ``model_config = ConfigDict()`` (extra='ignore') and would strip
+        them at the activity-side reconstruction.
+        """
+        from typing import get_type_hints
+
+        from app.mysql import MySQLApp, MySQLExtractionTaskInput
+
+        for method_name in (
+            "extract_databases",
+            "extract_schemas",
+            "extract_tables",
+            "extract_columns",
+            "extract_procedures",
+        ):
+            method = getattr(MySQLApp, method_name)
+            # ``from __future__ import annotations`` makes raw signatures
+            # string-typed. ``get_type_hints`` resolves them to real classes
+            # against the method's module globals — needed to compare
+            # identity rather than name.
+            hints = get_type_hints(method)
+            assert hints.get("input") is MySQLExtractionTaskInput, (
+                f"{method_name} annotation is {hints.get('input')!r}; "
+                "must be MySQLExtractionTaskInput so the activity-side "
+                "pydantic round-trip preserves control_config fields"
+            )
 
 
 class TestMySQLAppMappers:

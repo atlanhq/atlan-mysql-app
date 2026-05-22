@@ -18,6 +18,8 @@ from application_sdk.templates.contracts.sql_metadata import (
     ExtractionInput,
     ExtractionTaskInput,
 )
+from application_sdk.app import task
+from application_sdk.templates.contracts.sql_metadata import ExtractionTaskOutput
 from application_sdk.templates.sql_app import SqlApp
 from pydantic import ConfigDict
 
@@ -137,24 +139,7 @@ class MySQLExtractionInput(ExtractionInput, allow_unbounded_fields=True):  # typ
     ConfigDict()`` (pydantic-v2 default ``extra='ignore'``), so when the
     AE payload arrives with ``control_config_strategy`` and
     ``control_config`` fields, pydantic **silently drops** them at the
-    model boundary. By the time ``_prepare_sql`` runs, neither field is
-    accessible — ``extract_control_config(input)`` returns ``{}`` and
-    ``resolve_information_schema`` is a no-op. The customer-facing
-    mirror-schema flow looks active on the wire but never actually
-    rewrites SQL.
-
-    Two reinforcing fixes:
-
-    1. **Typed fields** — declare ``control_config_strategy`` /
-       ``control_config`` here so pydantic preserves them on the input
-       object as first-class attributes (visible in API docs, validated).
-    2. **``extra='allow'``** — defensively keep any *other* unknown
-       fields in ``__pydantic_extra__`` (forward-compat for future
-       control-config keys, e.g. ``snowflakeMaintainTagPath``).
-
-    Verified missing-vs-present via direct MySQL query on the customer's
-    RDS instance: ``SHOW DATABASES`` returned no ``atlan_meta`` schema,
-    yet extract succeeded — confirming the resolver was a no-op.
+    model boundary.
     """
 
     model_config = ConfigDict(extra="allow")
@@ -169,6 +154,38 @@ class MySQLExtractionInput(ExtractionInput, allow_unbounded_fields=True):  # typ
     Supports: ``clonedInformationSchema`` (mirror-schema name)."""
 
 
+class MySQLExtractionTaskInput(ExtractionTaskInput, allow_unbounded_fields=True):  # type: ignore[call-arg]
+    """MySQL task input — adds typed control-config fields.
+
+    REQ-925 follow-up: each ``@task`` activity runs on a FRESH
+    ``app_instance = app_cls()`` (see SDK ``app/base.py:1478``). Stash-on-
+    ``self`` from ``run()`` (the workflow worker) is invisible to the
+    activity worker. Control-config must therefore travel ON THE INPUT
+    OBJECT into each activity.
+
+    Pydantic deserialisation on the activity side uses the @task method's
+    declared annotation. If the activity signature says
+    ``ExtractionTaskInput`` (extra='ignore' by default), the
+    ``control_config*`` fields are stripped at the boundary even when
+    workflow-side serialisation includes them. So:
+
+    1. This subclass declares the fields explicitly + sets
+       ``allow_unbounded_fields=True`` to silence the SDK's payload-safety
+       check on ``dict[str, Any]``.
+    2. ``MySQLApp`` overrides the 5 extract @task method signatures to
+       declare ``MySQLExtractionTaskInput`` — only then will the activity-
+       side pydantic round-trip preserve the fields.
+    3. ``MySQLApp.build_task_input`` overrides the SDK staticmethod to
+       construct ``MySQLExtractionTaskInput`` populated from the workflow
+       input (copying ``control_config_strategy`` + ``control_config``).
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    control_config_strategy: str = "default"
+    control_config: str | dict[str, Any] = ""
+
+
 class MySQLApp(SqlApp):
     """MySQL metadata extraction App.
 
@@ -180,11 +197,6 @@ class MySQLApp(SqlApp):
       Custom Control Config) for customers whose security policy forbids
       ``SELECT`` on ``information_schema``. See REQ-925 + ``app/utils.py``.
     """
-
-    # Parsed control-config dict, populated by ``run()``. Read by
-    # ``_prepare_sql`` for each SQL render. Empty when strategy is
-    # ``default`` — yields canonical ``information_schema`` queries.
-    _control_config: dict[str, Any] = {}
 
     name: ClassVar[str] = "mysql"
 
@@ -215,21 +227,132 @@ class MySQLApp(SqlApp):
         Runs the base ``SqlApp._prepare_sql`` first (which handles
         ``{normalized_exclude_regex}``, ``{normalized_include_regex}`` and
         ``{temp_table_regex_sql}``) and then resolves ``{information_schema}``
-        using ``self._control_config`` (populated by ``run()``). Backward
-        compatible: when no config is supplied, the placeholder resolves
-        to the canonical ``information_schema`` identifier and output SQL
-        is byte-identical to the pre-REQ-925 behavior.
+        using the control-config carried on the input. Backward compatible:
+        when no config is supplied, the placeholder resolves to the
+        canonical ``information_schema`` identifier and output SQL is
+        byte-identical to the pre-REQ-925 behavior.
 
-        Reads from ``self._control_config`` rather than the ``input`` arg
-        because ``input`` here is an ``ExtractionTaskInput`` built via
-        ``build_task_input`` — which copies only the typed fields declared
-        on ``ExtractionTaskInput`` and drops everything else. By stashing
-        the parsed control-config on ``self`` in ``run()``, we keep
-        ``_prepare_sql`` working without requiring a parallel
-        ``MySQLExtractionTaskInput`` subclass on every task signature.
+        Reads control-config FROM the input — ``input`` here is a
+        ``MySQLExtractionTaskInput`` populated by our override of
+        ``build_task_input``. Stash-on-self does NOT work because each
+        ``@task`` activity runs on a fresh ``app_instance``
+        (``application_sdk/app/base.py:1478``); the workflow-side
+        ``self._control_config`` set in ``run()`` is invisible to
+        activities. Threading the config through the task input is the
+        only contract Temporal preserves across the worker boundary.
         """
         prepared = super()._prepare_sql(sql, input)
-        return resolve_information_schema(prepared, self._control_config)
+        control_config = extract_control_config(input)
+        return resolve_information_schema(prepared, control_config)
+
+    @staticmethod
+    def build_task_input(input_cls, src, *, cred_ref=None):  # type: ignore[override]
+        """Construct a ``MySQLExtractionTaskInput`` populated from ``src``.
+
+        Overrides the SDK staticmethod (``SqlApp.build_task_input``) so the
+        extract tasks receive a task input that carries
+        ``control_config_strategy`` / ``control_config`` (REQ-925).
+        Falls back to the SDK base implementation when the caller asks for
+        a different task-input class — preserves backward compat for any
+        helper that explicitly passes ``ExtractionTaskInput`` (or another
+        subclass) without expecting MySQL's extras.
+        """
+        # Always upgrade ExtractionTaskInput requests to the MySQL subclass
+        # so control-config travels into the activities. The SDK's
+        # ``SqlApp.run()`` calls ``build_task_input(ExtractionTaskInput, ...)``
+        # — that's the path we need to intercept.
+        if input_cls is ExtractionTaskInput or issubclass(
+            input_cls, MySQLExtractionTaskInput
+        ):
+            return MySQLExtractionTaskInput(
+                workflow_id=src.workflow_id,
+                connection=src.connection,
+                credential_guid=src.credential_guid,
+                credential_ref=cred_ref,
+                output_prefix=src.output_prefix,
+                output_path=src.output_path,
+                exclude_filter=src.exclude_filter,
+                include_filter=src.include_filter,
+                temp_table_regex=src.temp_table_regex,
+                source_tag_prefix=getattr(src, "source_tag_prefix", ""),
+                # Carry control-config onto the typed fields of the subclass.
+                # ``getattr`` because ``src`` may be the SDK base class in
+                # tests / call sites that haven't been migrated.
+                control_config_strategy=getattr(
+                    src, "control_config_strategy", "default"
+                ),
+                control_config=getattr(src, "control_config", ""),
+            )
+        # Fall back to the SDK base implementation for any other task
+        # class the caller explicitly requested.
+        return SqlApp.build_task_input(input_cls, src, cred_ref=cred_ref)
+
+    # ── @task overrides — declare the MySQL task-input subclass so
+    # pydantic preserves ``control_config*`` on the activity side. The
+    # SDK's parent @task methods declare ``ExtractionTaskInput`` (default
+    # ``extra='ignore'``) and would strip the fields at activity-side
+    # deserialisation. Delegating to the SDK's per-entity helper keeps
+    # the bodies identical to the SDK base implementation.
+
+    @task(
+        timeout_seconds=1800, heartbeat_timeout_seconds=120, auto_heartbeat_seconds=30
+    )
+    async def extract_databases(  # type: ignore[override]
+        self, input: MySQLExtractionTaskInput
+    ) -> ExtractionTaskOutput:
+        return await self._extract_entity(
+            entity_type="database",
+            sql_template=self.fetch_database_sql,
+            input=input,
+        )
+
+    @task(
+        timeout_seconds=1800, heartbeat_timeout_seconds=120, auto_heartbeat_seconds=30
+    )
+    async def extract_schemas(  # type: ignore[override]
+        self, input: MySQLExtractionTaskInput
+    ) -> ExtractionTaskOutput:
+        return await self._extract_entity(
+            entity_type="schema",
+            sql_template=self.fetch_schema_sql,
+            input=input,
+        )
+
+    @task(
+        timeout_seconds=1800, heartbeat_timeout_seconds=120, auto_heartbeat_seconds=30
+    )
+    async def extract_tables(  # type: ignore[override]
+        self, input: MySQLExtractionTaskInput
+    ) -> ExtractionTaskOutput:
+        return await self._extract_entity(
+            entity_type="table",
+            sql_template=self.fetch_table_sql,
+            input=input,
+        )
+
+    @task(
+        timeout_seconds=1800, heartbeat_timeout_seconds=120, auto_heartbeat_seconds=30
+    )
+    async def extract_columns(  # type: ignore[override]
+        self, input: MySQLExtractionTaskInput
+    ) -> ExtractionTaskOutput:
+        return await self._extract_entity(
+            entity_type="column",
+            sql_template=self.fetch_column_sql,
+            input=input,
+        )
+
+    @task(
+        timeout_seconds=1800, heartbeat_timeout_seconds=120, auto_heartbeat_seconds=30
+    )
+    async def extract_procedures(  # type: ignore[override]
+        self, input: MySQLExtractionTaskInput
+    ) -> ExtractionTaskOutput:
+        return await self._extract_entity(
+            entity_type="extras-procedure",
+            sql_template=self.fetch_procedure_sql,
+            input=input,
+        )
 
     # ── Asset mappers ───────────────────────────────────────────────────
 
@@ -547,18 +670,17 @@ class MySQLApp(SqlApp):
     ) -> MySQLExtractionOutput:
         """MySQL extraction: standard assets + procedures + lineage pipeline outputs.
 
-        1. Parse + stash ``control_config`` on self (REQ-925) — this MUST
-           happen BEFORE ``super().run(input)`` because the base class
-           dispatches the extract tasks, each of which calls
-           ``_prepare_sql`` and reads ``self._control_config``.
-        2. Standard fetch/transform/upload (databases, schemas, tables, columns)
-        3. Stored procedures — writes ``extras-procedure/`` so the QI SQL parser
-           derives procedure-level lineage from ``definition`` fields
-        4. Returns extended output with view_lineage_output_prefix,
+        1. Standard fetch/transform/upload (databases, schemas, tables, columns).
+           ``control_config`` flows into each activity via ``MySQLExtractionTaskInput``
+           constructed by our ``build_task_input`` override — the SDK's
+           ``run()`` calls ``self.build_task_input(ExtractionTaskInput, input, ...)``
+           and gets the MySQL subclass back, carrying the typed fields.
+        2. Stored procedures — writes ``extras-procedure/`` so the QI SQL parser
+           derives procedure-level lineage from ``definition`` fields.
+        3. Returns extended output with view_lineage_output_prefix,
            lineage_stage_prefix, and storage_bucket so the manifest DAG can
-           chain qi → lineage-app → lineage-publish nodes (Athena pattern)
+           chain qi → lineage-app → lineage-publish nodes (Athena pattern).
         """
-        self._control_config = extract_control_config(input)
         base_result = await super().run(input)
 
         if self.fetch_procedure_sql:
