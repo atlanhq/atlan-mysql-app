@@ -2,6 +2,54 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.33 (May 20, 2026)
+
+### Bug Fixes
+
+- **Restore the E2E Application Test workflow — three independent infra-drift fixes.** The E2E Application Test has been failing on every push to `main` since 2026-05-14 due to three layered issues, each surfacing only after the previous one was resolved. All three are environmental (workflow files / pinned versions / removed CLI flags), zero connector-app code changes.
+  1. **Declare `scalene` as a `dev` extra.** `.github/workflows/e2e-test.yaml:52` has invoked `uv run scalene --profile-all --cli --outfile ./.github/scalene.json --json main.py &` since PR #93, but the dep was never on `pyproject.toml` on any branch. Result: `error: Failed to spawn: scalene — Caused by: No such file or directory` at the "Start the application" step; the app never came up; downstream curl to `:8000` failed with `(7) Couldn't connect to server`.
+  2. **Pin `scalene<2.0` to match the legacy CLI in the workflow.** Adding `scalene` exposed the next failure: `Scalene: error: 'main.py' is not a valid command. Did you mean: scalene run ...`. scalene 2.0+ introduced a subcommand CLI (`scalene run script.py`) but the workflow still uses the 1.x invocation (`scalene script.py`). Pinning `>=1.5.0,<2.0` locks scalene to v1.5.55, the last 1.x release with the syntax the workflow expects.
+  3. **Drop `--dapr-http-max-request-size` from `[tool.poe.tasks].start-dapr`.** With scalene installed and the right CLI shape, the workflow reached "Start Platform Services" — which then died with `Error: unknown flag: --dapr-http-max-request-size`. Dapr CLI v1.13+ removed the flag (replaced by `--max-body-size`, units changed KB → MB). Omitting it falls back to Dapr's 4 MiB default, sufficient for the test workload. Lift back as `--max-body-size 4` if connectors ever produce >4 MiB request bodies.
+
+  After all three fixes, the E2E Application Test progresses from failing at step 1/7 ("Start the application") to step 6/7 ("Check workflow status"). The remaining "Check workflow status" failure is a structural SDK-vs-workflow mismatch (the SDK's `run_dev_combined` now embeds Temporal in-process, but the workflow's `temporal workflow describe` step queries an external Temporal it installed separately — workflow IDs are invisible across the two) — out of scope for this infra-drift fix, will need a coordinated SDK + workflow + connector-`main.py` change.
+
+## 0.7.36 (May 20, 2026)
+
+### Bug Fixes
+
+- **Fix `workflow_type` in `tenant-deploy`'s AE DAG: `mysql-metadata-extractor` → `mysql`.** The Deploy to Tenant workflow's extract node was registering the wrong workflow class name in the AE DAG. MSSQL's connector registers its workflow as `mssql-metadata-extractor` (which is what the ported `ae-workflow.sh` used as the default), but MySQL's `MySQLApp` registers as just `mysql` (per `name: ClassVar[str] = "mysql"`). Diagnosis: the deployed `mysql-worker` pod on the test tenant failed every workflow task with `Workflow class mysql-metadata-extractor is not registered on this worker, available workflows: mysql, sdr:fetch_metadata, sdr:preflight_check, sdr:test_auth`. Temporal auto-retried the failed task indefinitely → AE saw the run as `RUNNING` → GitHub Actions polling timed out at 15min thinking extract was just slow.
+
+## 0.7.35 (May 20, 2026)
+
+### Bug Fixes
+
+- **`tenant-deploy.yaml`: read `CREDENTIAL_GUID` + `CONNECTION_QN` from repo secrets as fallback when dispatch inputs are empty.** The "Resolve config" error message already said "set the dispatch input or the repo secret" but the workflow code only read inputs — so setting a `CREDENTIAL_GUID` secret on the repo had no effect (matching the gap in `atlan-mssql-app`'s tenant-deploy where the secret exists but is unused). Adds `SECRET_CRED_GUID` / `SECRET_CONN_QN` env, falls back to them when the inputs are empty (`${INPUT_CRED_GUID:-${SECRET_CRED_GUID:-}}`). Once the secrets are set on the repo, `gh workflow run "Deploy to Tenant"` works with zero arguments. Discovered while triggering the first MySQL tenant deploy for REQ-925.
+
+## 0.7.34 (May 20, 2026)
+
+### Features
+
+- **Add `Deploy to Tenant` GitHub Actions workflow** (`.github/workflows/tenant-deploy.yaml` + `.github/scripts/ae-workflow.sh`). Builds the Docker image from a branch, deploys to a specific tenant via `atlan app deploy`, creates/updates the 5-node AE workflow (`extract → qi + publish → lineage-app → lineage-publish`), submits a run, polls every stage to completion, and renders a rich step summary with per-stage durations, extract counts, publish metrics, and Temporal workflow links. Ported from `atlan-mssql-app`'s tenant-deploy pattern with mysql-specific queue names + workflow type (`mysql-metadata-extractor`).
+  - Manual trigger only (`workflow_dispatch`). Inputs: `tenant`, `ref`, `credential_guid`, `connection_qn`, `connection_name`, `deployment` (default `production`), `cli_version`, optional `workflow_slug` (trigger-only mode).
+  - Two-scenario matrix per dispatch: `upgrade` (re-publish to existing connection, cache-driven incremental) + `fresh` (auto-generated `default/mysql/test-fresh-<run_id>` with `connection_creation_enabled: true` for a full-publish baseline).
+  - Required secrets: `ATLAN_API_KEY`, `ORG_PAT_GITHUB`, `ATLAN_BASE_URL`, optional `CONNECTION_NAME`.
+
+
+## 0.7.32 (May 20, 2026)
+
+### Breaking Changes
+
+- **Remove the explicit `upload_to_atlan` call from `MySQLApp.run()`'s procedure pipeline.** With BLDX-1281's canonical-storage-path fix in [application-sdk#1801](https://github.com/atlanhq/application-sdk/pull/1801), `extract_procedures` and `transform_procedures` now emit `FileReference` objects with pre-set canonical `storage_path` keys (`<run_prefix>/raw/extras-procedure/records.json` / `<run_prefix>/transformed/extras-procedure/entities.json`); the activity interceptor's persist step uploads each to that key before the activity returns. The explicit `upload_to_atlan` call was uploading the same files to the same keys — pure redundancy in single-pod runs, ineffective in cross-pod runs. The SDK has also removed `SqlApp.upload_to_atlan` entirely; this PR drops mysql-app's call to it (would otherwise be an `AttributeError`).
+
+### Bug Fixes
+
+- **Re-pin `atlan-application-sdk` → SHA `5979d749`** to pick up the canonical-storage-path fix + `upload_to_atlan` removal on [application-sdk#1801](https://github.com/atlanhq/application-sdk/pull/1801). Customer-tenant production incident: S3 listing showed both `<run_prefix>/file_refs/<uuid>.json` (interceptor uploads, complete) AND `<run_prefix>/transformed/<entity>/entities.json` (legacy directory walk, partial — missing entities due to cross-pod local-FS scheduling). Publish reads only `transformed/<entity>/` and was archiving assets whose canonical key was missing. The fix pre-sets `storage_path` on the FileReference at the SqlApp template's `_extract_entity` / `_transform_entity` emission sites so the interceptor lands the file at the canonical key directly, no separate upload pass needed.
+## 0.7.31 (May 20, 2026)
+
+### Bug Fixes
+
+- **Re-pin `atlan-application-sdk` → SHA `8514e7e3`** to pick up the canonical-storage-path fix on [application-sdk#1801](https://github.com/atlanhq/application-sdk/pull/1801) (follow-up to [#1792](https://github.com/atlanhq/application-sdk/pull/1792)). Customer-tenant production incident showed both `<run_prefix>/file_refs/<uuid>.json` (interceptor uploads, complete) AND `<run_prefix>/transformed/<entity>/entities.json` (legacy directory walk, partial — missing entities due to cross-pod local-FS scheduling). Publish reads only `transformed/<entity>/` and was archiving assets whose canonical key was missing. The SDK fix pre-sets `storage_path` on the FileReference emitted by `_extract_entity` / `_transform_entity` to the canonical entity-typed key, so the interceptor's persist lands the file where publish actually looks. No mysql-app code change.
+
 ## 0.7.30 (May 19, 2026)
 
 ### Bug Fixes

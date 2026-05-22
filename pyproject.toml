@@ -24,7 +24,17 @@ dev = [
     "pre-commit>=3.8.0",
     "isort>=5.13.2",
     "watchdog>=6.0.0",
-    "requests"
+    "requests",
+    # scalene — Python CPU/GPU/memory profiler used by the E2E Application
+    # Test workflow (`uv run scalene --profile-all --cli ...` at
+    # .github/workflows/e2e-test.yaml:52). The dep was never declared on
+    # any branch — every push since 2026-05-14 failed at "Start the
+    # application" with `Failed to spawn: scalene — No such file or directory`.
+    #
+    # Pinned <2.0: scalene 2.x introduced a subcommand CLI
+    # (`scalene run script.py`) and the workflow still uses the legacy
+    # 1.x invocation (`scalene script.py`). 1.5.x is the compatible range.
+    "scalene>=1.5.0,<2.0",
 ]
 test = [
     "pytest>=8.3.3",
@@ -43,7 +53,10 @@ test = [
 
 [tool.poe.tasks]
 # Dapr and Temporal service tasks
-start-dapr = "dapr run --enable-api-logging --log-level debug --app-id app --app-port 3000 --scheduler-host-address '' --placement-host-address '' --dapr-http-max-request-size 1024 --dapr-http-port 3500 --dapr-grpc-port 50001 --resources-path components"
+# Note: --dapr-http-max-request-size was removed in Dapr CLI v1.13+
+# (replaced by --max-body-size, units changed KB→MB). Omitting it
+# applies Dapr's default (4 MiB).
+start-dapr = "dapr run --enable-api-logging --log-level debug --app-id app --app-port 3000 --scheduler-host-address '' --placement-host-address '' --dapr-http-port 3500 --dapr-grpc-port 50001 --resources-path components"
 start-temporal = "temporal server start-dev --db-filename /tmp/temporal.db"
 start-deps.shell = "poe start-dapr & poe start-temporal &"
 stop-deps.shell = "lsof -ti:3000,3500,7233,50001 | xargs kill -9 2>/dev/null || true"
@@ -141,52 +154,3 @@ select = ["E4", "E7", "E9", "F", "PLC0415"]
 [tool.ruff.lint.per-file-ignores]
 "tests/unit/test_mysql_app.py" = ["PLC0415"]
 
-[tool.uv.sources]
-# atlan-application-sdk = { path = "../application-sdk", editable = true }
-# TEMPORARY (BLDX-1281): pointed at the fix branch for
-# atlanhq/application-sdk#1792, which reworks the v3 SqlApp template's
-# extract → transform handoff to use ``FileReference`` contracts:
-#
-#   * ``ExtractionTaskOutput`` carries ``raw_file: FileReference``
-#     (singular ref to raw/<entity>/records.json) — set by extract,
-#     consumed by the matching transform via the interceptor's
-#     materialise-on-input handshake.
-#   * ``TransformOutput`` carries ``transformed_file: FileReference``
-#     — set by transform, consumed downstream by publish.
-#   * Legacy ``TransformInput.file_names`` / ``chunk_start`` /
-#     ``typename`` stay on the schema as deprecated no-op placeholders
-#     for backward compat — none of them are populated or read by the
-#     v3 SqlApp flow. Deprecation notes only, no coordinated removal.
-#   * ``SqlApp.run()`` (and ``MySQLApp.run()`` override for procedures)
-#     threads each extract's durable ``raw_file`` into the matching
-#     transform's ``TransformInput`` via ``_build_transform_input``.
-#
-# Together these close the cross-worker silent-archive bug — extract
-# and transform activities scheduled on different worker pods now
-# automatically materialise the raw file with SHA-256 sidecar
-# verification, instead of silently returning ``total_record_count=0``
-# and triggering downstream asset archival. Observed in production on
-# the prior v3.10.0 pin.
-#
-# Pinned SHA: c9c40e1d (HEAD of aryaman/transform-file-reference at
-# time of writing — corrected tier model per @chrisgrote's review:
-#
-#   * TRANSIENT — internal task-to-task within a run (auto-cleaned).
-#     Used for raw_file (extract → transform handoff, both sides
-#     always in the same deployment).
-#   * RETAINED — handoff that may cross a deployment boundary
-#     (e.g. SDR → in-tenant publish). Used for transformed_file so
-#     it survives the SDR-side workflow's auto-cleanup.
-#
-# The real bug was TRANSIENT's path scheme ignoring run_prefix —
-# producing bare ``file_refs/<uuid>`` keys that Atlan's blob-storage
-# gateway rejects with 403 ``code 1009 Invalid Path``. Fix patches
-# ``StorageTier._file_ref_base`` so TRANSIENT honours run_prefix when
-# the activity interceptor supplies one, yielding
-# ``<run_prefix>/file_refs/<uuid>`` (gateway-permitted) without
-# changing tier semantics. Falls back to bare ``file_refs`` for
-# ad-hoc callers (local scripts, unit tests against local stores
-# with no path policy).
-#
-# Once the SDK PR merges and 3.12.0 ships, drop this override and
-# bump line 10's PyPI constraint to ``~=3.12.0``.
