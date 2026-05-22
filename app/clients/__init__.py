@@ -1,3 +1,4 @@
+import asyncio
 import os
 import re
 import ssl
@@ -17,6 +18,38 @@ from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import create_async_engine
 
 logger = get_logger(__name__)
+
+
+# Substrings that identify a transient network/server-side connection drop
+# during MySQL load (TCP RST, idle wait_timeout, server restart). These are
+# safe to retry; true auth failures (Access denied) have distinct messages
+# and are not matched. Walked across the full exception chain — the SDK
+# wraps the original pymysql error inside SqlClientAuthFailedError.
+_TRANSIENT_LOAD_MARKERS: tuple[str, ...] = (
+    "[errno 104]",
+    "connection reset by peer",
+    "lost connection to mysql server",
+    "(2013,",
+    "(2006,",
+    "mysql server has gone away",
+    "connection refused",
+    "broken pipe",
+)
+_LOAD_RETRY_ATTEMPTS = 3
+_LOAD_RETRY_BACKOFF_SECONDS = (1.0, 3.0)
+
+
+def _is_transient_load_error(exc: BaseException) -> bool:
+    cursor: BaseException | None = exc
+    seen: set[int] = set()
+    while cursor is not None and id(cursor) not in seen:
+        seen.add(id(cursor))
+        msg = str(cursor).lower()
+        for marker in _TRANSIENT_LOAD_MARKERS:
+            if marker in msg:
+                return True
+        cursor = cursor.__cause__ or cursor.__context__
+    return False
 
 
 class SQLClient(AsyncBaseSQLClient):
@@ -276,10 +309,52 @@ class SQLClient(AsyncBaseSQLClient):
                     os.environ.pop("AWS_SECRET_ACCESS_KEY", None)
 
     async def load(self, credentials: Dict[str, Any]) -> None:
-        """Override load to handle IAM authentication.
+        """Connect to MySQL with bounded retries on transient drops.
 
-        For IAM authentication, we create the engine directly similar to Redshift,
-        ensuring the IAM token is properly passed to the underlying driver.
+        The SDK base ``load()`` wraps any failure during the credential-ping
+        as ``SqlClientAuthFailedError`` (non-retryable). That's correct for
+        bad creds but wrong for ``[Errno 104] Connection reset by peer`` /
+        MySQL 2013/2006 — transient TCP RSTs and idle-wait_timeout drops on
+        a cron run-with-cached-connection that should simply reconnect.
+        Retry the load up to ``_LOAD_RETRY_ATTEMPTS`` times with backoff
+        when the exception chain matches a known transient marker; let
+        anything else (auth failure, DNS failure, etc.) surface
+        immediately so we don't mask real config problems behind retries.
+        """
+        last_exc: BaseException | None = None
+        for attempt in range(1, _LOAD_RETRY_ATTEMPTS + 1):
+            try:
+                return await self._load_once(credentials)
+            except Exception as exc:
+                if attempt >= _LOAD_RETRY_ATTEMPTS or not _is_transient_load_error(exc):
+                    raise
+                last_exc = exc
+                delay = _LOAD_RETRY_BACKOFF_SECONDS[
+                    min(attempt - 1, len(_LOAD_RETRY_BACKOFF_SECONDS) - 1)
+                ]
+                logger.warning(
+                    "MySQL load attempt %d/%d hit transient drop (%s); retrying in %.1fs",
+                    attempt,
+                    _LOAD_RETRY_ATTEMPTS,
+                    exc,
+                    delay,
+                )
+                if self.engine is not None:
+                    try:
+                        await self.engine.dispose()
+                    except Exception:  # noqa: BLE001 — cleanup best-effort
+                        pass
+                    self.engine = None
+                await asyncio.sleep(delay)
+        # Unreachable — final attempt re-raises above. Keep for type-checkers.
+        if last_exc is not None:
+            raise last_exc
+
+    async def _load_once(self, credentials: Dict[str, Any]) -> None:
+        """Single load attempt — original IAM + basic auth body.
+
+        Split out from ``load()`` so the retry wrapper can call this without
+        recursing through itself.
         """
         self.credentials = credentials
         auth_type = credentials.get("authType", "basic").lower()
