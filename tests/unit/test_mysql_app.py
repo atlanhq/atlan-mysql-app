@@ -75,31 +75,30 @@ class TestMySQLAppClassAttrs:
         from unittest.mock import MagicMock
 
         app = MySQLApp()
-        # Build a minimal input object — _prepare_sql reads filter fields
-        # via getattr; anything not set falls back to defaults.
+        # ``_prepare_sql`` now reads from ``self._control_config`` (populated
+        # by ``run()``). Default state is empty → canonical schema.
+        assert app._control_config == {}
         input_ = MagicMock()
         input_.exclude_filter = ""
         input_.include_filter = ""
         input_.temp_table_regex = ""
-        input_.control_config_strategy = None
-        input_.control_config = None
 
         prepared = app._prepare_sql(MySQLApp.fetch_table_sql, input_)
         assert "{information_schema}" not in prepared
         assert "information_schema.TABLES" in prepared
 
     def test_prepare_sql_resolves_mirror_information_schema(self):
-        """With clonedInformationSchema set, _prepare_sql substitutes the mirror."""
+        """With clonedInformationSchema in self._control_config, _prepare_sql rewrites."""
         from unittest.mock import MagicMock
 
         app = MySQLApp()
+        # Simulate what ``run()`` does: parse control-config from the
+        # workflow input and stash on self before any extract task runs.
+        app._control_config = {"clonedInformationSchema": "atlan_meta"}
         input_ = MagicMock()
         input_.exclude_filter = ""
         input_.include_filter = ""
         input_.temp_table_regex = ""
-        # Custom Control Config payload — strategy=custom + config dict
-        input_.control_config_strategy = "custom"
-        input_.control_config = {"clonedInformationSchema": "atlan_meta"}
 
         prepared = app._prepare_sql(MySQLApp.fetch_schema_sql, input_)
         assert "{information_schema}" not in prepared
@@ -109,21 +108,60 @@ class TestMySQLAppClassAttrs:
         # — that's a system-schema name to filter out, not a query target.
         assert "'information_schema'" in prepared
 
-    def test_prepare_sql_default_strategy_keeps_canonical_schema(self):
-        """control-config-strategy=default ignores any control-config payload."""
+    def test_run_parses_control_config_from_pydantic_input(self):
+        """REQ-925 regression: pydantic-v2 default ``extra='ignore'`` was
+        silently dropping ``control_config_strategy`` / ``control_config``
+        at the ``ExtractionInput`` boundary, so ``_prepare_sql`` always saw
+        empty control-config and queried native ``information_schema``.
+
+        Verifies the fix end-to-end: build a ``MySQLExtractionInput`` from
+        a raw dict (the AE payload shape) and confirm the typed fields
+        survive validation and ``extract_control_config`` reads them.
+        """
+        from app.mysql import MySQLExtractionInput
+        from app.utils import extract_control_config
+
+        # AE payload shape (what arrives over the wire).
+        payload = {
+            "workflow_id": "wf-123",
+            "credential_guid": "cred-456",
+            "extraction_method": "direct",
+            "control_config_strategy": "custom",
+            "control_config": {"clonedInformationSchema": "atlan_meta"},
+        }
+        model = MySQLExtractionInput.model_validate(payload)
+        # Typed fields must survive — pre-fix they were dropped.
+        assert model.control_config_strategy == "custom"
+        assert model.control_config == {"clonedInformationSchema": "atlan_meta"}
+        # ``extract_control_config`` must return the parsed dict.
+        assert extract_control_config(model) == {
+            "clonedInformationSchema": "atlan_meta",
+        }
+
+    def test_prepare_sql_ignores_input_attribute_only_reads_self(self):
+        """``_prepare_sql`` MUST read control-config from ``self._control_config``,
+        not from the ``input`` arg. The ``input`` here is an ``ExtractionTaskInput``
+        which doesn't carry these fields — relying on it would silently
+        no-op the mirror-schema flow (the bug we're fixing).
+        """
         from unittest.mock import MagicMock
 
         app = MySQLApp()
+        # Set on self — the only source of truth at _prepare_sql time.
+        app._control_config = {"clonedInformationSchema": "from_self"}
+
+        # ``input`` has a misleading attribute that should NOT win — confirms
+        # we don't accidentally fall back to reading control-config off the
+        # task input arg.
         input_ = MagicMock()
         input_.exclude_filter = ""
         input_.include_filter = ""
         input_.temp_table_regex = ""
-        input_.control_config_strategy = "default"
-        input_.control_config = {"clonedInformationSchema": "atlan_meta"}
+        input_.control_config = {"clonedInformationSchema": "from_input_ignored"}
 
         prepared = app._prepare_sql(MySQLApp.fetch_column_sql, input_)
-        assert "atlan_meta." not in prepared
-        assert "information_schema.COLUMNS" in prepared
+        assert "from_self.COLUMNS" in prepared
+        assert "from_input_ignored" not in prepared
 
 
 class TestMySQLAppMappers:
