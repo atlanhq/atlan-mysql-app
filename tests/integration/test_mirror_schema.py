@@ -101,6 +101,16 @@ SEED_USER_DATA = """
         ('a@synthetic-aisdlc.test', 'Alice'),
         ('b@synthetic-aisdlc.test', 'Bob');
     INSERT INTO orders (customer_id, total) VALUES (1, 250.00), (2, 50.00);
+
+    CREATE DATABASE IF NOT EXISTS sales;
+    USE sales;
+    CREATE TABLE invoices (id INT PRIMARY KEY, amount DECIMAL(10,2));
+    CREATE TABLE regions (id INT PRIMARY KEY, name VARCHAR(64));
+    CREATE TABLE tmp_etl_buffer (id INT PRIMARY KEY, payload VARCHAR(255));
+
+    CREATE DATABASE IF NOT EXISTS analytics;
+    USE analytics;
+    CREATE TABLE dashboards (id INT PRIMARY KEY, title VARCHAR(128));
 """
 
 
@@ -418,3 +428,325 @@ class TestPrivilegeIsolation:
                 row = _fetchone_dict(cur)
         assert row is not None
         assert row["c"] > 0
+
+
+class TestFilteredExtractionViaMirror:
+    """REQ-925 filter-combination tests — proves every extract SQL with
+    ``clonedInformationSchema = "atlan_meta"`` and various
+    include/exclude filters:
+
+    1. **Routing guarantee:** the rendered SQL targets ONLY
+       ``atlan_meta.<TABLE>`` and contains zero
+       ``information_schema.<TABLE>`` references. Checked on every
+       test via ``_assert_no_information_schema_query_target`` — a
+       regression at the resolver level trips on the first scenario.
+    2. **Result correctness:** executing the rendered SQL returns
+       exactly the schema/table set the filter combination implies —
+       no over- or under-fetching.
+
+    Execution uses ``root`` because MySQL's ``information_schema`` /
+    ``atlan_meta`` views are privilege-filtered at query time (per
+    CURRENT user, not view DEFINER). The independent privilege-
+    isolation guarantee — that ``atlan_reader`` CAN'T leak to native
+    ``information_schema`` — is covered by ``TestPrivilegeIsolation``.
+
+    Seed schemas: ``shop``, ``sales`` (with ``tmp_etl_buffer``),
+    ``analytics``. System schemas (``mysql``, ``performance_schema``,
+    ``sys``, ``information_schema``, ``atlan_meta`` itself) are
+    excluded by each SQL's hardcoded NOT IN clause.
+    """
+
+    @staticmethod
+    def _build_input(
+        *,
+        include_filter: dict | str = "",
+        exclude_filter: dict | str = "",
+        temp_table_regex: str = "",
+        control_config_strategy: str = "custom",
+        control_config=None,
+    ):
+        if control_config is None:
+            control_config = {"clonedInformationSchema": "atlan_meta"}
+        input_ = MagicMock()
+        input_.exclude_filter = exclude_filter
+        input_.include_filter = include_filter
+        input_.temp_table_regex = temp_table_regex
+        input_.control_config_strategy = control_config_strategy
+        input_.control_config = control_config
+        return input_
+
+    @staticmethod
+    def _user_schemas(rows: list[dict]) -> set[str]:
+        SYSTEM = {
+            "mysql", "performance_schema", "sys", "information_schema",
+            "atlan_meta",
+        }
+        return {
+            r["schema_name"] for r in rows
+            if r.get("schema_name") not in SYSTEM
+        }
+
+    @staticmethod
+    def _assert_no_information_schema_query_target(sql: str, *, sql_attr: str):
+        for forbidden in (
+            "information_schema.SCHEMATA",
+            "information_schema.TABLES",
+            "information_schema.COLUMNS",
+            "information_schema.ROUTINES",
+            "information_schema.KEY_COLUMN_USAGE",
+            "information_schema.TABLE_CONSTRAINTS",
+            "information_schema.PARTITIONS",
+            "information_schema.VIEWS",
+        ):
+            assert forbidden not in sql, (
+                f"{sql_attr} references {forbidden} as a query target — "
+                "control-config = custom must rewrite ALL of these to "
+                "atlan_meta.* "
+                f"\nfirst 300 chars: {sql[:300]}"
+            )
+        assert "atlan_meta." in sql, (
+            f"{sql_attr} did not produce any atlan_meta.* references — "
+            f"first 300 chars: {sql[:300]}"
+        )
+
+    # ── No-filter baseline ────────────────────────────────────────────
+
+    def test_no_filters_returns_all_user_schemas_via_mirror(
+        self, mysql_with_mirror
+    ):
+        host, port, root_pw, _ = mysql_with_mirror
+        input_ = self._build_input()
+
+        sql = MySQLApp()._prepare_sql(MySQLApp.fetch_schema_sql, input_)
+        self._assert_no_information_schema_query_target(
+            sql, sql_attr="fetch_schema_sql"
+        )
+
+        with _connect(host, port, "root", root_pw) as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                rows = _fetchall_dicts(cur)
+
+        user = self._user_schemas(rows)
+        assert {"shop", "sales", "analytics"}.issubset(user), (
+            f"expected all 3 seeded schemas; got {user}"
+        )
+
+    # ── Include-only ─────────────────────────────────────────────────
+
+    def test_include_only_one_schema(self, mysql_with_mirror):
+        host, port, root_pw, _ = mysql_with_mirror
+        input_ = self._build_input(include_filter={"^def$": ["^shop$"]})
+
+        sql = MySQLApp()._prepare_sql(MySQLApp.fetch_schema_sql, input_)
+        self._assert_no_information_schema_query_target(
+            sql, sql_attr="fetch_schema_sql"
+        )
+
+        with _connect(host, port, "root", root_pw) as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                rows = _fetchall_dicts(cur)
+
+        user = self._user_schemas(rows)
+        assert user == {"shop"}, f"expected only shop; got {user}"
+
+    def test_include_multiple_schemas(self, mysql_with_mirror):
+        host, port, root_pw, _ = mysql_with_mirror
+        input_ = self._build_input(
+            include_filter={"^def$": ["^shop$", "^analytics$"]}
+        )
+
+        sql = MySQLApp()._prepare_sql(MySQLApp.fetch_schema_sql, input_)
+        self._assert_no_information_schema_query_target(
+            sql, sql_attr="fetch_schema_sql"
+        )
+
+        with _connect(host, port, "root", root_pw) as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                rows = _fetchall_dicts(cur)
+
+        user = self._user_schemas(rows)
+        assert user == {"shop", "analytics"}, (
+            f"expected exactly shop + analytics; got {user}"
+        )
+
+    # ── Exclude-only ─────────────────────────────────────────────────
+
+    def test_exclude_only_one_schema(self, mysql_with_mirror):
+        host, port, root_pw, _ = mysql_with_mirror
+        input_ = self._build_input(exclude_filter={"^def$": ["^shop$"]})
+
+        sql = MySQLApp()._prepare_sql(MySQLApp.fetch_schema_sql, input_)
+        self._assert_no_information_schema_query_target(
+            sql, sql_attr="fetch_schema_sql"
+        )
+
+        with _connect(host, port, "root", root_pw) as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                rows = _fetchall_dicts(cur)
+
+        user = self._user_schemas(rows)
+        assert "shop" not in user, f"shop should be excluded; got {user}"
+        assert {"sales", "analytics"}.issubset(user), (
+            f"expected sales + analytics to remain; got {user}"
+        )
+
+    # ── Include + exclude (exclude takes precedence) ──────────────────
+
+    def test_include_and_exclude_intersection(self, mysql_with_mirror):
+        """Include {shop, sales} + exclude {sales} → only shop.
+
+        Matches the REQ-925 production verification on apps-typedef
+        (AE run 56cbf183) which used
+        ``include={atlan, sampledata, npdsample}`` + ``exclude={atlan}``
+        and saw 2 schemas in the result.
+        """
+        host, port, root_pw, _ = mysql_with_mirror
+        input_ = self._build_input(
+            include_filter={"^def$": ["^shop$", "^sales$"]},
+            exclude_filter={"^def$": ["^sales$"]},
+        )
+
+        sql = MySQLApp()._prepare_sql(MySQLApp.fetch_schema_sql, input_)
+        self._assert_no_information_schema_query_target(
+            sql, sql_attr="fetch_schema_sql"
+        )
+
+        with _connect(host, port, "root", root_pw) as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                rows = _fetchall_dicts(cur)
+
+        user = self._user_schemas(rows)
+        assert user == {"shop"}, (
+            f"include={{shop,sales}} - exclude={{sales}} should leave only "
+            f"shop; got {user}"
+        )
+
+    # ── Tables under include filter ──────────────────────────────────
+
+    def test_tables_under_include_filter(self, mysql_with_mirror):
+        host, port, root_pw, _ = mysql_with_mirror
+        input_ = self._build_input(include_filter={"^def$": ["^sales$"]})
+
+        sql = MySQLApp()._prepare_sql(MySQLApp.fetch_table_sql, input_)
+        self._assert_no_information_schema_query_target(
+            sql, sql_attr="fetch_table_sql"
+        )
+
+        with _connect(host, port, "root", root_pw) as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                rows = _fetchall_dicts(cur)
+
+        schemas_returned = {r.get("table_schema") for r in rows}
+        assert schemas_returned == {"sales"}, (
+            f"include={{sales}} should restrict to sales tables only; "
+            f"got schemas {schemas_returned}"
+        )
+        table_names = {r.get("table_name") for r in rows}
+        assert table_names == {"invoices", "regions", "tmp_etl_buffer"}, (
+            f"unexpected table set: {table_names}"
+        )
+
+    # ── Columns under include filter ─────────────────────────────────
+
+    def test_columns_under_include_filter(self, mysql_with_mirror):
+        host, port, root_pw, _ = mysql_with_mirror
+        input_ = self._build_input(include_filter={"^def$": ["^analytics$"]})
+
+        sql = MySQLApp()._prepare_sql(MySQLApp.fetch_column_sql, input_)
+        self._assert_no_information_schema_query_target(
+            sql, sql_attr="fetch_column_sql"
+        )
+
+        with _connect(host, port, "root", root_pw) as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                rows = _fetchall_dicts(cur)
+
+        schemas_returned = {r.get("table_schema") for r in rows}
+        assert schemas_returned == {"analytics"}, (
+            f"include={{analytics}} should restrict to analytics columns "
+            f"only; got schemas {schemas_returned}"
+        )
+        assert {r.get("column_name") for r in rows} == {"id", "title"}
+
+    # ── Temp-table regex (string-shape only — see SDK note below) ────
+
+    @pytest.mark.xfail(
+        reason=(
+            "Pre-existing SDK bug: ``{temp_table_regex_sql}`` placeholder "
+            "is also present in the parent template's header /* */ "
+            "comment block, and the SDK's _prepare_sql does a global "
+            "string replace. Substituting a multi-line fragment "
+            "(which itself starts with /* */) inside the parent header "
+            "yields nested /* */ comments → MySQL parser fails with "
+            "syntax error. Unrelated to REQ-925 — affects any temp_table_regex "
+            "value. File against atlanhq/application-sdk; until fixed, "
+            "this test is marked xfail."
+        ),
+        strict=False,
+    )
+    def test_temp_table_regex_excludes_matching_tables(
+        self, mysql_with_mirror
+    ):
+        host, port, root_pw, _ = mysql_with_mirror
+        input_ = self._build_input(
+            include_filter={"^def$": ["^sales$"]},
+            temp_table_regex="^tmp_",
+        )
+
+        sql = MySQLApp()._prepare_sql(MySQLApp.fetch_table_sql, input_)
+        self._assert_no_information_schema_query_target(
+            sql, sql_attr="fetch_table_sql"
+        )
+
+        with _connect(host, port, "root", root_pw) as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                rows = _fetchall_dicts(cur)
+
+        table_names = {r.get("table_name") for r in rows}
+        assert "tmp_etl_buffer" not in table_names
+        assert {"invoices", "regions"}.issubset(table_names)
+
+    # ── Strategy=default (backward compat) ──────────────────────────
+
+    def test_strategy_default_does_not_rewrite_string_shape(
+        self, mysql_with_mirror
+    ):
+        """SQL-string shape only — strategy=default keeps
+        information_schema as the query target, no atlan_meta rewrite."""
+        input_ = self._build_input(control_config_strategy="default")
+        sql = MySQLApp()._prepare_sql(MySQLApp.fetch_schema_sql, input_)
+
+        assert "information_schema.SCHEMATA" in sql, (
+            "strategy=default must leave native information_schema as "
+            f"the query target. first 300 chars: {sql[:300]}"
+        )
+        assert "atlan_meta.SCHEMATA" not in sql, (
+            "strategy=default must NOT rewrite to atlan_meta. "
+            f"first 300 chars: {sql[:300]}"
+        )
+
+    def test_strategy_default_executes_against_information_schema(
+        self, mysql_with_mirror
+    ):
+        """End-to-end backward compat with root user against the
+        canonical information_schema path."""
+        host, port, root_pw, _ = mysql_with_mirror
+        input_ = self._build_input(control_config_strategy="default")
+        sql = MySQLApp()._prepare_sql(MySQLApp.fetch_schema_sql, input_)
+        assert "information_schema.SCHEMATA" in sql
+
+        with _connect(host, port, "root", root_pw) as conn:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                rows = _fetchall_dicts(cur)
+
+        user = self._user_schemas(rows)
+        assert {"shop", "sales", "analytics"}.issubset(user)
