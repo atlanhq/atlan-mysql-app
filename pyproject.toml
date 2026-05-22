@@ -181,29 +181,18 @@ select = ["E4", "E7", "E9", "F", "PLC0415"]
 # and triggering downstream asset archival. Observed in production on
 # the prior v3.10.0 pin.
 #
-# Pinned SHA: df056bcf (HEAD of
-# canonical-storage-paths-internal-ref at time of writing —
-# pins canonical storage paths on extract/transform FileReferences
-# so publish can discover them).
+# Pinned SHA: 7862d1ad (HEAD of internal-ref — application-sdk #1835).
 #
-# Production incident on customer tenant: S3 listing showed both
-# ``<run_prefix>/file_refs/<uuid>.json`` (interceptor uploads,
-# complete) AND ``<run_prefix>/transformed/<entity>/entities.json``
-# (upload_to_atlan directory walk, partial — missing some entities
-# due to cross-pod local-FS scheduling). Publish reads only
-# ``transformed/<entity>/`` and archived assets whose canonical key
-# was missing.
-#
-# Fix: SqlApp's _extract_entity / _transform_entity now pre-set
-# ``storage_path`` on the emitted FileReference to the canonical
-# entity-typed key (``<run_prefix>/raw/<entity>/records.json`` /
-# ``<run_prefix>/transformed/<entity>/entities.json``). Persist
-# honours the pre-set key instead of auto-generating a
-# ``file_refs/<uuid>`` orphan. Cross-pod fault tolerance is
-# preserved — materialise just reads ``ref.storage_path`` to know
-# where to download from. Tier choices unchanged (raw=TRANSIENT,
-# transformed=RETAINED).
-#
-# Once the SDK PR merges and 3.12.0 ships, drop this override and
-# bump line 10's PyPI constraint to ``~=3.12.0``.
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "df056bcf15db832cf5830807174af185b85d093a" }
+# This commit adds the ``prime_sql_auth`` task to ``SqlApp``: ``run()``
+# now awaits a single serial probe connection before the parallel
+# ``extract_*`` fan-out, populating MySQL 8's ``caching_sha2_password``
+# server-side cache so the subsequent parallel extract activities take
+# the fast-auth path. Without this, N parallel extract activities all
+# hit cold-cache simultaneously, each independently tries full auth,
+# each fails, and those failures stack on the per-user
+# ``failed_login_attempts`` counter — tripping ``FAILED_LOGIN_ATTEMPTS``
+# lockouts at the source. Argo's serial extract pipeline never exposed
+# this; only v3's parallel-activity model does. Once the SDK PR merges
+# and a new tag ships, drop this override and bump line 10's PyPI
+# constraint accordingly.
+atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "7862d1adea8fe3bd3c046409edaf0deabc910742" }

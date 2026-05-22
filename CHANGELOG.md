@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.37 (May 22, 2026)
+
+### Bug Fixes
+
+- **Re-pin `atlan-application-sdk` → SHA `7862d1ad`** to pick up the new `prime_sql_auth` task in `SqlApp` ([application-sdk#1835](https://github.com/atlanhq/application-sdk/pull/1835)). `SqlApp.run()` now awaits one serial probe connection (a single `SELECT 1`) before fanning out the parallel `extract_*` activities. This populates MySQL 8's `caching_sha2_password` server-side auth cache so the subsequent parallel extract connections take the fast-auth path. Without this, N parallel extract activities all hit cold-cache simultaneously, each independently tries full auth, each can fail, and those failures stack on the per-user `failed_login_attempts` counter — tripping `FAILED_LOGIN_ATTEMPTS` lockouts at the source. Symptom: scheduled crawler runs failing with `Access denied for user 'atlan'@'<pod-ip>'` repeatedly, while manual "Test Authentication" works briefly between lockout windows. Argo's serial extract pipeline never exposed this; only v3's parallel-activity model does. Zero changes required in `mysql-app` code — the fix lives entirely in the SDK template that this app inherits from.
+
 ## 0.7.33 (May 20, 2026)
 
 ### Bug Fixes
