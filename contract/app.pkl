@@ -112,6 +112,8 @@ extraNodes {
     }
   }
   ["lineage-publish"] = new LineagePublishNode {
+    connectionCacheEnabled = false
+    connectionCacheViaAppEnabled = false
     waitForAssetPublish = false
     dependsOn = null
     dependsOnCondition = new DependencyCondition {
