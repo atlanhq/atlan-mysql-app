@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.39 (May 22, 2026)
+
+### Bug Fixes
+
+- **Disable shared connection cache on the lineage-publish DAG node** ([#135](https://github.com/atlanhq/atlan-mysql-app/pull/135),). Retroactive version bump — PR #135 merged the manifest fix (`connectionCacheEnabled` / `connectionCacheViaAppEnabled` set to `false` on the `lineage-publish` node in `contract/app.pkl` and the regenerated `app/generated/manifest.json`) but did not bump `version.txt` or add a `CHANGELOG.md` entry; this release is solely those two artefacts so the customer-tenant deploy reflects PR #135. Sibling fix: [atlan-mssql-app#145](https://github.com/atlanhq/atlan-mssql-app/pull/145). Context: the `LineagePublishNode` toolkit default for these flags is `true`, so connectors that inherited the default were rewriting the shared `connection-cache/{cqn}.sqlite` from lineage-stage data on every run — flipping the cache from `Database/Schema/Table` rows to `Process/ColumnProcess` rows and breaking downstream miner runs (a prior incident saw assets affected on an impacted tenant). Lineage publish never needs the shared connection cache; disabling it on the lineage node is the contract-level fix.
+
 ## 0.7.38 (May 22, 2026)
 
 ### Bug Fixes
