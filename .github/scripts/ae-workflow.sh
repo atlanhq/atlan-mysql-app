@@ -214,6 +214,15 @@ for _attempt in 1 2 3; do
             \"current_state_prefix\": \"\$.extract.outputs.current_state_prefix\",
             \"connection_creation_enabled\": $CONNECTION_CREATION_ENABLED,
             \"executor_enabled\": $EXECUTOR_ENABLED,
+            \"connection_entity\": {
+              \"typeName\": \"Connection\",
+              \"attributes\": {
+                \"qualified_name\": \"$CONN_QN\",
+                \"name\": \"$CONN_NAME\",
+                \"connector_name\": \"mysql\",
+                \"category\": \"database\"
+              }
+            },
             \"connection_cache_enabled\": $CONNECTION_CACHE_ENABLED,
             \"connection_cache_via_app_enabled\": $CONNECTION_CACHE_VIA_APP_ENABLED
           }
