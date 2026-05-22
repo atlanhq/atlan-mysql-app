@@ -20,11 +20,9 @@ from sqlalchemy.ext.asyncio import create_async_engine
 logger = get_logger(__name__)
 
 
-# Substrings that identify a transient network/server-side connection drop
-# during MySQL load (TCP RST, idle wait_timeout, server restart). These are
-# safe to retry; true auth failures (Access denied) have distinct messages
-# and are not matched. Walked across the full exception chain — the SDK
-# wraps the original pymysql error inside SqlClientAuthFailedError.
+# Substrings identifying a transient drop during MySQL load. Matched against
+# the full exception chain — the SDK wraps the inner pymysql error inside
+# SqlClientAuthFailedError, so str(outer) alone would miss them.
 _TRANSIENT_LOAD_MARKERS: tuple[str, ...] = (
     "[errno 104]",
     "connection reset by peer",
@@ -311,15 +309,11 @@ class SQLClient(AsyncBaseSQLClient):
     async def load(self, credentials: Dict[str, Any]) -> None:
         """Connect to MySQL with bounded retries on transient drops.
 
-        The SDK base ``load()`` wraps any failure during the credential-ping
-        as ``SqlClientAuthFailedError`` (non-retryable). That's correct for
-        bad creds but wrong for ``[Errno 104] Connection reset by peer`` /
-        MySQL 2013/2006 — transient TCP RSTs and idle-wait_timeout drops on
-        a cron run-with-cached-connection that should simply reconnect.
-        Retry the load up to ``_LOAD_RETRY_ATTEMPTS`` times with backoff
-        when the exception chain matches a known transient marker; let
-        anything else (auth failure, DNS failure, etc.) surface
-        immediately so we don't mask real config problems behind retries.
+        The SDK base ``load()`` wraps every credential-ping failure as
+        ``SqlClientAuthFailedError`` (non-retryable). Retry the load when the
+        exception chain matches a transient marker so a network blip during
+        the ping is not surfaced as an auth failure; let anything else fail
+        fast.
         """
         last_exc: BaseException | None = None
         for attempt in range(1, _LOAD_RETRY_ATTEMPTS + 1):
@@ -342,20 +336,16 @@ class SQLClient(AsyncBaseSQLClient):
                 if self.engine is not None:
                     try:
                         await self.engine.dispose()
-                    except Exception:  # noqa: BLE001 — cleanup best-effort
+                    except Exception:  # noqa: BLE001
                         pass
                     self.engine = None
                 await asyncio.sleep(delay)
-        # Unreachable — final attempt re-raises above. Keep for type-checkers.
+        # Unreachable — final attempt re-raises above. Kept for type-checkers.
         if last_exc is not None:
             raise last_exc
 
     async def _load_once(self, credentials: Dict[str, Any]) -> None:
-        """Single load attempt — original IAM + basic auth body.
-
-        Split out from ``load()`` so the retry wrapper can call this without
-        recursing through itself.
-        """
+        """Single load attempt — IAM + basic auth body."""
         self.credentials = credentials
         auth_type = credentials.get("authType", "basic").lower()
 
