@@ -334,11 +334,35 @@ uiConfig {
           default = "default"
           required = true
         }
-        ["control-config"] = new Config.TextInput {
+        // ``control-config`` is gated on ``control-config-strategy``.
+        // The field renders only when the user picks ``custom`` so the
+        // default-path UI doesn't expose an empty JSON box (REQ-925
+        // post-deploy feedback: the input was visible even on Default,
+        // which read as "fill me in" and was misleading).
+        ["control-config"] = new Config.ConditionalInput {
           title = "Custom Config"
           helpText = "Custom JSON config. To route all metadata queries through a customer-managed mirror schema, set: {\"clonedInformationSchema\": \"<your-mirror-schema-name>\"} — the connector will query <your-mirror-schema-name>.* instead of information_schema.*. Required when the connector user does not have SELECT on the native information_schema."
           placeholderText = "{\"clonedInformationSchema\": \"atlan_meta\"}"
+          baseWidgetType = "input"
           width = 8
+          conditions {
+            new Config.Condition {
+              property = "control-config-strategy"
+              value = "custom"
+              overrideUi = new Config.Widget {
+                widget = "input"
+                `hidden` = false
+              }
+            }
+            new Config.Condition {
+              property = "control-config-strategy"
+              value = "default"
+              overrideUi = new Config.Widget {
+                widget = "input"
+                `hidden` = true
+              }
+            }
+          }
         }
       }
     }

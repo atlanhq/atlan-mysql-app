@@ -328,7 +328,7 @@
         ]
       },
       "control-config": {
-        "type": "string",
+        "type": "conditional",
         "required": false,
         "ui": {
           "widget": "input",
@@ -337,7 +337,31 @@
           "help": "Custom JSON config. To route all metadata queries through a customer-managed mirror schema, set: {\"clonedInformationSchema\": \"<your-mirror-schema-name>\"} — the connector will query <your-mirror-schema-name>.* instead of information_schema.*. Required when the connector user does not have SELECT on the native information_schema.",
           "placeholder": "{\"clonedInformationSchema\": \"atlan_meta\"}",
           "grid": 8
-        }
+        },
+        "conditions": [
+          {
+            "property": "control-config-strategy",
+            "value": "custom",
+            "ui": {
+              "widget": "input",
+              "label": "",
+              "hidden": false,
+              "help": "",
+              "grid": 8
+            }
+          },
+          {
+            "property": "control-config-strategy",
+            "value": "default",
+            "ui": {
+              "widget": "input",
+              "label": "",
+              "hidden": true,
+              "help": "",
+              "grid": 8
+            }
+          }
+        ]
       }
     },
     "anyOf": [
