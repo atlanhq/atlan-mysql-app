@@ -381,11 +381,18 @@ jobs:
           # Wait sequentially in topological order. ``qi`` and ``publish``
           # depend on extract and run in parallel; either one finishing first
           # is fine — we just need both done before lineage-app picks up.
-          wait_for_stage extract         900
-          wait_for_stage qi              600
-          wait_for_stage publish         600
-          wait_for_stage lineage-app     600
-          wait_for_stage lineage-publish 600
+          # Production AE on apps-typedef takes ~15-22 min end-to-end for
+          # mysql extract; observed runs where Temporal's extract wf
+          # completes in <2 min but AE's DAG-node state machine doesn't
+          # flip ``extract: Succeeded`` until downstream nodes settle.
+          # Earlier 900s cap surfaced as ``extract timed out`` even when
+          # the AE run was actually green (run 26227621484 upgrade leg).
+          # Bump to 1800s so GHA reflects AE truth.
+          wait_for_stage extract         1800
+          wait_for_stage qi              900
+          wait_for_stage publish         900
+          wait_for_stage lineage-app     900
+          wait_for_stage lineage-publish 900
 
       # ── Summary ───────────────────────────────────────────────────────────
       # Pulls the AE run details (``/api/v1/runs/{run_guid}``) and renders
