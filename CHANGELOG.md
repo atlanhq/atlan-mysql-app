@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.8.3 (May 22, 2026)
+
+### Chores
+
+- **Apply `ruff-format` + `isort` fixes flagged by CI's `--all-files` pre-commit sweep.** Three files (`tests/integration/test_mirror_schema.py`, `tests/unit/test_dag_contracts.py`, `tests/unit/test_mysql_app.py`) had pre-existing format drift that pre-commit re-detected on every PR push — the unit-tests job was green but the pre-commit job was red on every run since the format change drifted in. Also re-sorted the now-3-name `from app.utils import (...)` block in `app/mysql.py` to satisfy the pinned `isort==5.13.2` profile. Zero behavioral changes.
+
 ## 0.8.2 (May 22, 2026)
 
 ### Features

@@ -174,9 +174,7 @@ def mysql_with_mirror():
             # syntax error. Comments are SQL-meaningless; strip them once
             # then split.
             stripped_lines = [
-                line.split("--", 1)[0]
-                for line in script.splitlines()
-                if line.strip()
+                line.split("--", 1)[0] for line in script.splitlines() if line.strip()
             ]
             stripped_script = "\n".join(stripped_lines)
             for raw in stripped_script.split(";"):
@@ -478,13 +476,13 @@ class TestFilteredExtractionViaMirror:
     @staticmethod
     def _user_schemas(rows: list[dict]) -> set[str]:
         SYSTEM = {
-            "mysql", "performance_schema", "sys", "information_schema",
+            "mysql",
+            "performance_schema",
+            "sys",
+            "information_schema",
             "atlan_meta",
         }
-        return {
-            r["schema_name"] for r in rows
-            if r.get("schema_name") not in SYSTEM
-        }
+        return {r["schema_name"] for r in rows if r.get("schema_name") not in SYSTEM}
 
     @staticmethod
     def _assert_no_information_schema_query_target(sql: str, *, sql_attr: str):
@@ -511,9 +509,7 @@ class TestFilteredExtractionViaMirror:
 
     # ── No-filter baseline ────────────────────────────────────────────
 
-    def test_no_filters_returns_all_user_schemas_via_mirror(
-        self, mysql_with_mirror
-    ):
+    def test_no_filters_returns_all_user_schemas_via_mirror(self, mysql_with_mirror):
         host, port, root_pw, _ = mysql_with_mirror
         input_ = self._build_input()
 
@@ -528,9 +524,9 @@ class TestFilteredExtractionViaMirror:
                 rows = _fetchall_dicts(cur)
 
         user = self._user_schemas(rows)
-        assert {"shop", "sales", "analytics"}.issubset(user), (
-            f"expected all 3 seeded schemas; got {user}"
-        )
+        assert {"shop", "sales", "analytics"}.issubset(
+            user
+        ), f"expected all 3 seeded schemas; got {user}"
 
     # ── Include-only ─────────────────────────────────────────────────
 
@@ -553,9 +549,7 @@ class TestFilteredExtractionViaMirror:
 
     def test_include_multiple_schemas(self, mysql_with_mirror):
         host, port, root_pw, _ = mysql_with_mirror
-        input_ = self._build_input(
-            include_filter={"^def$": ["^shop$", "^analytics$"]}
-        )
+        input_ = self._build_input(include_filter={"^def$": ["^shop$", "^analytics$"]})
 
         sql = MySQLApp()._prepare_sql(MySQLApp.fetch_schema_sql, input_)
         self._assert_no_information_schema_query_target(
@@ -568,9 +562,10 @@ class TestFilteredExtractionViaMirror:
                 rows = _fetchall_dicts(cur)
 
         user = self._user_schemas(rows)
-        assert user == {"shop", "analytics"}, (
-            f"expected exactly shop + analytics; got {user}"
-        )
+        assert user == {
+            "shop",
+            "analytics",
+        }, f"expected exactly shop + analytics; got {user}"
 
     # ── Exclude-only ─────────────────────────────────────────────────
 
@@ -590,9 +585,9 @@ class TestFilteredExtractionViaMirror:
 
         user = self._user_schemas(rows)
         assert "shop" not in user, f"shop should be excluded; got {user}"
-        assert {"sales", "analytics"}.issubset(user), (
-            f"expected sales + analytics to remain; got {user}"
-        )
+        assert {"sales", "analytics"}.issubset(
+            user
+        ), f"expected sales + analytics to remain; got {user}"
 
     # ── Include + exclude (exclude takes precedence) ──────────────────
 
@@ -633,9 +628,7 @@ class TestFilteredExtractionViaMirror:
         input_ = self._build_input(include_filter={"^def$": ["^sales$"]})
 
         sql = MySQLApp()._prepare_sql(MySQLApp.fetch_table_sql, input_)
-        self._assert_no_information_schema_query_target(
-            sql, sql_attr="fetch_table_sql"
-        )
+        self._assert_no_information_schema_query_target(sql, sql_attr="fetch_table_sql")
 
         with _connect(host, port, "root", root_pw) as conn:
             with conn.cursor() as cur:
@@ -648,9 +641,11 @@ class TestFilteredExtractionViaMirror:
             f"got schemas {schemas_returned}"
         )
         table_names = {r.get("table_name") for r in rows}
-        assert table_names == {"invoices", "regions", "tmp_etl_buffer"}, (
-            f"unexpected table set: {table_names}"
-        )
+        assert table_names == {
+            "invoices",
+            "regions",
+            "tmp_etl_buffer",
+        }, f"unexpected table set: {table_names}"
 
     # ── Columns under include filter ─────────────────────────────────
 
@@ -691,9 +686,7 @@ class TestFilteredExtractionViaMirror:
         ),
         strict=False,
     )
-    def test_temp_table_regex_excludes_matching_tables(
-        self, mysql_with_mirror
-    ):
+    def test_temp_table_regex_excludes_matching_tables(self, mysql_with_mirror):
         host, port, root_pw, _ = mysql_with_mirror
         input_ = self._build_input(
             include_filter={"^def$": ["^sales$"]},
@@ -701,9 +694,7 @@ class TestFilteredExtractionViaMirror:
         )
 
         sql = MySQLApp()._prepare_sql(MySQLApp.fetch_table_sql, input_)
-        self._assert_no_information_schema_query_target(
-            sql, sql_attr="fetch_table_sql"
-        )
+        self._assert_no_information_schema_query_target(sql, sql_attr="fetch_table_sql")
 
         with _connect(host, port, "root", root_pw) as conn:
             with conn.cursor() as cur:
@@ -716,9 +707,7 @@ class TestFilteredExtractionViaMirror:
 
     # ── Strategy=default (backward compat) ──────────────────────────
 
-    def test_strategy_default_does_not_rewrite_string_shape(
-        self, mysql_with_mirror
-    ):
+    def test_strategy_default_does_not_rewrite_string_shape(self, mysql_with_mirror):
         """SQL-string shape only — strategy=default keeps
         information_schema as the query target, no atlan_meta rewrite."""
         input_ = self._build_input(control_config_strategy="default")

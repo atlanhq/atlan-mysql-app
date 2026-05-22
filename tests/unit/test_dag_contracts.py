@@ -79,12 +79,12 @@ class TestGeneratedMySQLJson:
         )
 
         by_value = {c["value"]: c["ui"]["hidden"] for c in conditions}
-        assert by_value.get("default") is True, (
-            "control-config must be hidden when strategy=default"
-        )
-        assert by_value.get("custom") is False, (
-            "control-config must be visible when strategy=custom"
-        )
+        assert (
+            by_value.get("default") is True
+        ), "control-config must be hidden when strategy=default"
+        assert (
+            by_value.get("custom") is False
+        ), "control-config must be visible when strategy=custom"
 
     def test_advanced_config_step_exists(self, config):
         """The PKL contract groups the two fields into a dedicated step."""
@@ -170,8 +170,7 @@ class TestAeWorkflowShell:
         trip JSONPath-reference grep on, e.g., the ``view_data_prefix``
         explanation we left in for posterity."""
         return "\n".join(
-            line.split("#", 1)[0]
-            for line in AE_WORKFLOW_SH.read_text().splitlines()
+            line.split("#", 1)[0] for line in AE_WORKFLOW_SH.read_text().splitlines()
         )
 
     def test_jsonpath_references_are_real_output_fields(self, script_code_only):
@@ -219,7 +218,7 @@ class TestAeWorkflowShell:
             re.DOTALL,
         ), (
             "ae-workflow.sh must pass connection as the nested Atlas "
-            "entity shape (``{\"attributes\": {\"qualified_name\": ...}}``) "
+            'entity shape (``{"attributes": {"qualified_name": ...}}``) '
             "— the SDK reads ``input.connection.attributes.qualified_name``, "
             "and a flat ``{connection_name, connection_qualified_name}`` "
             "shape silently breaks the activity (connection_qn = '')"
@@ -241,7 +240,7 @@ class TestAeWorkflowShell:
         """
         assert re.search(r'\\"connection_entity\\"\s*:', script), (
             "ae-workflow.sh publish node must include "
-            "``\\\"connection_entity\\\": { … }`` so publish can call the "
+            '``\\"connection_entity\\": { … }`` so publish can call the '
             "connection-create flow when connection_creation_enabled=true. "
             "Without it, fresh-leg dispatches fail with "
             "'No connection entity provided, skipping connection creation'."

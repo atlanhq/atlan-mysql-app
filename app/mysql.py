@@ -12,14 +12,14 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 import pandas as pd
+from application_sdk.app import task
 from application_sdk.contracts.base import Output
 from application_sdk.execution._temporal.activity_utils import get_object_store_prefix
 from application_sdk.templates.contracts.sql_metadata import (
     ExtractionInput,
     ExtractionTaskInput,
+    ExtractionTaskOutput,
 )
-from application_sdk.app import task
-from application_sdk.templates.contracts.sql_metadata import ExtractionTaskOutput
 from application_sdk.templates.sql_app import SqlApp
 from pydantic import ConfigDict
 

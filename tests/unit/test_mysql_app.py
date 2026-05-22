@@ -189,9 +189,9 @@ class TestMySQLAppClassAttrs:
             "fetch_procedure_sql",
         ]:
             prepared = app._prepare_sql(getattr(MySQLApp, attr), input_)
-            assert "{excluded_schemas}" not in prepared, (
-                f"{attr}: {{excluded_schemas}} placeholder not resolved"
-            )
+            assert (
+                "{excluded_schemas}" not in prepared
+            ), f"{attr}: {{excluded_schemas}} placeholder not resolved"
             assert (
                 "NOT IN ('mysql', 'performance_schema', 'information_schema', "
                 "'sys', 'atlan_meta')"
