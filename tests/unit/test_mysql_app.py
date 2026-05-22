@@ -404,6 +404,7 @@ class TestMySQLAppRun:
 
         from application_sdk.templates.contracts.sql_metadata import (
             ExtractionTaskOutput,
+            PrimeAuthOutput,
         )
 
         # SDK v3.12+ (BLDX-1281): each extract_* returns
@@ -420,6 +421,17 @@ class TestMySQLAppRun:
 
         with (
             patch("temporalio.workflow.info", return_value=wf_info),
+            # SDK BLDX-1295: SqlApp.run() now awaits prime_sql_auth before
+            # the parallel extract fan-out. The real prime task opens a
+            # SQL connection — patch it out for these run() tests since
+            # they're about output-prefix derivation, not the prime
+            # itself (the prime has its own dedicated coverage in
+            # application-sdk's tests/unit/templates/test_sql_app.py).
+            patch.object(
+                MySQLApp,
+                "prime_sql_auth",
+                new=AsyncMock(return_value=PrimeAuthOutput(duration_ms=1.0)),
+            ),
             patch.object(
                 MySQLApp,
                 "extract_databases",
