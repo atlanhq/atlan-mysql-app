@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.8.2 (May 22, 2026)
+
+### Features
+
+- **Move `clonedInformationSchema` to the Credentials page so Preflight has the mirror context (REQ-925).** PR #121's first iteration only exposed the mirror-schema name via Advanced Config → Control Config JSON, which sits *after* the Credentials step in the workflow wizard. Test Connection and Preflight fire at the Credentials step — they ran with empty Control Config and the placeholder fell back to native `information_schema`. For Bandwidth-style restricted-access deployments where `atlan_reader` has zero privilege on `information_schema`, Preflight either misled (returning 8 rows for the mirror's own views) or failed outright, even though the customer had configured the mirror correctly. Promotes `clonedInformationSchema` to a first-class credential common field (`contract/app.pkl`) so it travels with the connection identity. The handler's preflight, test-auth, and fetch_metadata endpoints now read the mirror name directly from the credential record via a new `_control_config_from_request()` helper. **Precedence:** credential field wins over the legacy Control Config JSON when both are set, so existing customers mid-migration keep working. **Backward compatible:** the JSON path still resolves the same way for any workflow that doesn't touch the new credential field. **Scope note:** this commit covers the handler path (preflight + auth + fetch_metadata); the extraction-task path still reads control-config from the workflow input as before — a follow-up will sync the credential value into `MySQLExtractionTaskInput.control_config` at workflow start so the new field also drives extract activities without requiring the user to set both.
+
 ## 0.8.1 (May 22, 2026)
 
 ### Bug Fixes

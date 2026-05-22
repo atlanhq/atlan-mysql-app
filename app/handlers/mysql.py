@@ -61,17 +61,48 @@ _FILTER_METADATA_SQL_TEMPLATE = (
 )
 
 
-def _resolve_handler_sql(template: str, connection_config: Any | None) -> str:
-    """Resolve handler-side SQL placeholders from per-request control-config.
+def _control_config_from_request(
+    credentials: list[HandlerCredential] | None,
+    connection_config: Any | None,
+) -> dict[str, Any]:
+    """Combine credentials and connection_config into one control-config dict.
 
-    Pulls control-config from the request's ``connection_config`` (which is
-    a ``BaseConnectionConfig`` with ``extra='allow'``, so customer-supplied
-    fields like ``clonedInformationSchema`` are preserved) and applies both
-    the ``{information_schema}`` and ``{excluded_schemas}`` resolvers. With
-    no override configured, the resulting SQL is byte-identical to today's
+    Precedence (REQ-925):
+
+    1. ``clonedInformationSchema`` from the **credential record** (the new
+       canonical home, on the Credentials page so Test Auth and Preflight
+       have the value before the workflow wizard reaches Advanced Config).
+    2. ``clonedInformationSchema`` from the **Control Config JSON** under
+       Advanced Config (legacy fallback for existing customers / workflows
+       that configured the mirror via the JSON blob).
+
+    When both are set, credentials win — silently. We don't warn because
+    the credential-side is unambiguously authoritative; the JSON path is
+    deprecated and kept only for backward compatibility.
+    """
+    config = dict(extract_control_config(connection_config))
+    for cred in credentials or ():
+        if cred.key == "clonedInformationSchema":
+            value = cred.value
+            if isinstance(value, str) and value.strip():
+                config["clonedInformationSchema"] = value.strip()
+            break
+    return config
+
+
+def _resolve_handler_sql(
+    template: str,
+    credentials: list[HandlerCredential] | None,
+    connection_config: Any | None,
+) -> str:
+    """Resolve handler-side SQL placeholders from per-request config.
+
+    Reads ``clonedInformationSchema`` from credentials first, then falls
+    back to the legacy Control Config JSON on ``connection_config``. With
+    neither configured, the resulting SQL is byte-identical to pre-REQ-925
     behavior.
     """
-    config = extract_control_config(connection_config)
+    config = _control_config_from_request(credentials, connection_config)
     resolved = resolve_information_schema(template, config)
     return resolve_excluded_schemas(resolved, config)
 
@@ -113,15 +144,19 @@ class MySQLAppHandler(Handler):
         """Run preflight checks: auth + connectivity.
 
         ``{information_schema}`` in the connectivity check SQL is resolved
-        per-request using control-config from ``input.connection_config``.
-        That allows preflight to succeed against a customer's mirror schema
-        (e.g. ``atlan_meta``) when ``clonedInformationSchema`` is set,
-        without granting them ``SELECT`` on the native ``information_schema``.
+        per-request — primarily from the credential record's
+        ``clonedInformationSchema`` field (the canonical location, REQ-925)
+        and falling back to ``input.connection_config``'s legacy Control
+        Config JSON. Either path lets preflight succeed against a
+        customer's mirror schema (e.g. ``atlan_meta``) without granting
+        ``SELECT`` on the native ``information_schema``.
         """
         checks: list[PreflightCheck] = []
 
         tables_check_sql = _resolve_handler_sql(
-            _TABLES_CHECK_SQL_TEMPLATE, getattr(input, "connection_config", None)
+            _TABLES_CHECK_SQL_TEMPLATE,
+            input.credentials,
+            getattr(input, "connection_config", None),
         )
 
         client = SQLClient()
@@ -184,13 +219,15 @@ class MySQLAppHandler(Handler):
     async def fetch_metadata(self, input: MetadataInput) -> SqlMetadataOutput:
         """Fetch schema metadata for the UI tree.
 
-        Resolves ``{information_schema}`` per-request from
-        ``input.connection_config`` so the UI tree honors a configured
-        mirror schema. Falls back to ``information_schema`` when no
-        ``clonedInformationSchema`` override is present.
+        Resolves ``{information_schema}`` per-request from the credential
+        record's ``clonedInformationSchema`` field first, falling back to
+        the legacy Control Config JSON on ``input.connection_config``.
+        Falls back to ``information_schema`` when no override is present.
         """
         filter_metadata_sql = _resolve_handler_sql(
-            _FILTER_METADATA_SQL_TEMPLATE, getattr(input, "connection_config", None)
+            _FILTER_METADATA_SQL_TEMPLATE,
+            input.credentials,
+            getattr(input, "connection_config", None),
         )
 
         client = SQLClient()

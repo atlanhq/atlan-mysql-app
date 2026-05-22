@@ -332,7 +332,7 @@ class TestMirrorPath:
             "control-config": {"clonedInformationSchema": "atlan_meta"},
         })
 
-        sql = _resolve_handler_sql(_TABLES_CHECK_SQL_TEMPLATE, conn_cfg)
+        sql = _resolve_handler_sql(_TABLES_CHECK_SQL_TEMPLATE, None, conn_cfg)
         assert "atlan_meta.TABLES" in sql
         assert "information_schema.TABLES" not in sql
 
@@ -353,7 +353,7 @@ class TestMirrorPath:
             "control-config": {"clonedInformationSchema": "atlan_meta"},
         })
 
-        sql = _resolve_handler_sql(_FILTER_METADATA_SQL_TEMPLATE, conn_cfg)
+        sql = _resolve_handler_sql(_FILTER_METADATA_SQL_TEMPLATE, None, conn_cfg)
         assert "atlan_meta.SCHEMATA" in sql
 
         with _connect(host, port, "atlan_reader", reader_pw) as conn:

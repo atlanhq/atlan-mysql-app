@@ -34,6 +34,29 @@ credentialCommonFields {
     defaultValue = "3306"
     width = 2
   }
+  // Cloned INFORMATION_SCHEMA (REQ-925).
+  //
+  // Optional. For deployments where the connector user does NOT have
+  // SELECT on the native information_schema (security-restricted MySQL /
+  // MariaDB), enter the name of a customer-managed mirror schema (e.g.
+  // ``atlan_meta``) that contains views over information_schema. When set,
+  // every metadata query — including Test Auth and Preflight — routes
+  // through the mirror; native information_schema is never touched.
+  //
+  // Placed in credentialCommonFields (not Advanced Config) because the
+  // value belongs to the *connection* identity: Test Auth and Preflight
+  // fire at the Credentials step, before any workflow-time control-config
+  // is set. Without this here, Preflight would fail for restricted users
+  // even when the mirror schema is configured later in the wizard.
+  //
+  // The Advanced Config -> Control Config JSON path is preserved as a
+  // legacy fallback. When both are set, the credential value wins.
+  new FieldSpec {
+    name = "clonedInformationSchema"
+    displayName = "Cloned INFORMATION_SCHEMA (optional)"
+    placeholder = "atlan_meta"
+    width = 4
+  }
 }
 
 credentialAuthOptions {
