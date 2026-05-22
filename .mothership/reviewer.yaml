@@ -1,0 +1,15 @@
+# Mothership PR Reviewer — repository config
+#
+# trigger: pr-open  → auto-review fires ONCE when a PR is first opened.
+#   Subsequent pushes do NOT trigger a new review cycle.
+#   To re-trigger: add label  mothership-review  or comment  @mothership-reviewer run
+
+trigger: pr-open
+
+review_mode: both       # standard + security on first PR open
+
+branches:
+  - main
+
+skip_drafts: true
+min_diff_lines: 0
