@@ -2,6 +2,18 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.38 (May 22, 2026)
+
+### Bug Fixes
+
+- **Re-pin `atlan-application-sdk` → SHA `710ad447`** to pick up the post-review refactor of `prime_sql_auth` and three follow-up reviewer fixes ([application-sdk#1835](https://github.com/atlanhq/application-sdk/pull/1835), BLDX-1295). Changes in this bump:
+  1. `prime_sql_auth` reports probe failure as structured data on `PrimeAuthOutput` (`success` / `error_type` / `error_message`) instead of raising. `SqlApp.run()` inspects that and raises a typed error carrying actionable context — see (2) below for which error type. The parallel extract burst still never runs on prime failure (short-circuit guarantee from 0.7.37 preserved).
+  2. **Typed-error classification** ([application-sdk#1835/comment-3287630230](https://github.com/atlanhq/application-sdk/pull/1835#discussion_r3287630230)): `SqlApp._classify_prime_failure` discriminates on `error_type` / `error_message` and raises `AuthError` only for true credential rejections, `AppTimeoutError` for timeouts, and `DependencyUnavailableError` for network / DNS / TLS / connection-refused. Previously every probe failure was mis-labelled as auth-lockout, which would send an on-call investigating a DNS misconfiguration down the wrong rabbit hole. The DNS/network branch's `suggested_action` explicitly disclaims ACCOUNT UNLOCK work; unknown driver exceptions fall through to `InternalError(classification_pending=True)` so they're never silently mis-categorised.
+  3. **`retry_max_attempts=1` on the `@task` decorator** ([application-sdk#1835/comment-3287629972](https://github.com/atlanhq/application-sdk/pull/1835#discussion_r3287629972), CRITICAL): the `@task()` decorator default was `retry_max_attempts=3`. The body try/except only catches Python exceptions — NOT Temporal-level failures (start-to-close timeout, worker eviction, heartbeat timeout, OOM). Any of those triggers activity retry, which re-runs `_init_sql_client → load → auth handshake` and re-stacks `failed_login_attempts` on the source — exactly the lockout cycle this task was added to prevent. Explicit `retry_max_attempts=1` closes that loophole.
+  4. **Traceback preserved on failure** ([application-sdk#1835/issuecomment-4517743180](https://github.com/atlanhq/application-sdk/pull/1835#issuecomment-4517743180)): the failure-path `logger.error()` in `prime_sql_auth` passes `exc_info=True` so worker logs keep the original traceback for the long-tail (TLS negotiation, driver bugs, version skew) even though the exception is converted to structured return data.
+
+  Zero changes required in `mysql-app` code — all four changes live entirely in the SDK template this app inherits from.
+
 ## 0.7.37 (May 22, 2026)
 
 ### Bug Fixes
