@@ -132,7 +132,7 @@ FROM
 LEFT JOIN
     {information_schema}.TABLES T ON (C.TABLE_SCHEMA = T.TABLE_SCHEMA AND C.TABLE_NAME = T.TABLE_NAME)
 WHERE
-    C.TABLE_SCHEMA NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')
+    C.TABLE_SCHEMA NOT IN ({excluded_schemas})
     AND CONCAT(COALESCE(DATABASE(), '{database_placeholder}'), CONCAT('.', C.TABLE_SCHEMA)) NOT REGEXP '{normalized_exclude_regex}'
     AND CONCAT(COALESCE(DATABASE(), '{database_placeholder}'), CONCAT('.', C.TABLE_SCHEMA)) REGEXP '{normalized_include_regex}'
     {temp_table_regex_sql}

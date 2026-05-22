@@ -66,6 +66,33 @@ class TestMySQLAppClassAttrs:
                 "runtime resolution would silently fail"
             )
 
+    def test_excluded_schemas_placeholder_present_in_ddl_sql(self):
+        """`{excluded_schemas}` must be in every SQL ClassVar so _prepare_sql
+        can render either the default 4-schema list or the 5-schema list that
+        includes the customer's mirror. Without it, the mirror's pass-through
+        views would be crawled as user assets."""
+        for attr in [
+            "fetch_database_sql",
+            "fetch_schema_sql",
+            "fetch_table_sql",
+            "fetch_column_sql",
+            "fetch_procedure_sql",
+        ]:
+            sql = getattr(MySQLApp, attr)
+            assert "{excluded_schemas}" in sql, (
+                f"{attr} lost the {{excluded_schemas}} placeholder — "
+                "the mirror schema would leak into the crawl"
+            )
+            # And the OLD literal must be gone — if any file still hardcodes
+            # the list, the mirror auto-exclusion silently breaks for it.
+            assert (
+                "NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')"
+                not in sql
+            ), (
+                f"{attr} still contains the hardcoded exclusion list — "
+                "every site must go through {excluded_schemas}"
+            )
+
     def test_prepare_sql_resolves_default_information_schema(self):
         """Without control-config, _prepare_sql substitutes the canonical schema.
 
@@ -114,6 +141,61 @@ class TestMySQLAppClassAttrs:
         # The literal "information_schema" inside the NOT IN clause is untouched
         # — that's a system-schema name to filter out, not a query target.
         assert "'information_schema'" in prepared
+
+    def test_prepare_sql_renders_default_excluded_schemas(self):
+        """Without control-config, _prepare_sql renders the original 4-schema list.
+
+        Backward-compat check: the rendered NOT IN list must equal the literal
+        that lived in every SQL file pre-fix.
+        """
+        from unittest.mock import MagicMock
+
+        app = MySQLApp()
+        input_ = MagicMock()
+        input_.exclude_filter = ""
+        input_.include_filter = ""
+        input_.temp_table_regex = ""
+        input_.control_config_strategy = "default"
+        input_.control_config = ""
+
+        prepared = app._prepare_sql(MySQLApp.fetch_schema_sql, input_)
+        assert "{excluded_schemas}" not in prepared
+        assert (
+            "NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')"
+            in prepared
+        )
+        # Mirror name must NOT appear when no override was supplied.
+        assert "'atlan_meta'" not in prepared
+
+    def test_prepare_sql_appends_mirror_to_excluded_schemas(self):
+        """When clonedInformationSchema is set, _prepare_sql appends the mirror
+        name to the NOT IN list — so the mirror's pass-through views are not
+        crawled as user assets (REQ-925)."""
+        from unittest.mock import MagicMock
+
+        app = MySQLApp()
+        input_ = MagicMock()
+        input_.exclude_filter = ""
+        input_.include_filter = ""
+        input_.temp_table_regex = ""
+        input_.control_config_strategy = "custom"
+        input_.control_config = {"clonedInformationSchema": "atlan_meta"}
+
+        for attr in [
+            "fetch_database_sql",
+            "fetch_schema_sql",
+            "fetch_table_sql",
+            "fetch_column_sql",
+            "fetch_procedure_sql",
+        ]:
+            prepared = app._prepare_sql(getattr(MySQLApp, attr), input_)
+            assert "{excluded_schemas}" not in prepared, (
+                f"{attr}: {{excluded_schemas}} placeholder not resolved"
+            )
+            assert (
+                "NOT IN ('mysql', 'performance_schema', 'information_schema', "
+                "'sys', 'atlan_meta')"
+            ) in prepared, f"{attr}: mirror schema name not appended to exclusion list"
 
     def test_run_parses_control_config_from_pydantic_input(self):
         """REQ-925 regression: pydantic-v2 default ``extra='ignore'`` was
@@ -165,15 +247,13 @@ class TestMySQLAppClassAttrs:
 
         from app.mysql import MySQLApp, MySQLExtractionInput, MySQLExtractionTaskInput
 
-        src = MySQLExtractionInput.model_validate(
-            {
-                "workflow_id": "wf-123",
-                "credential_guid": "cred-456",
-                "extraction_method": "direct",
-                "control_config_strategy": "custom",
-                "control_config": {"clonedInformationSchema": "atlan_meta"},
-            }
-        )
+        src = MySQLExtractionInput.model_validate({
+            "workflow_id": "wf-123",
+            "credential_guid": "cred-456",
+            "extraction_method": "direct",
+            "control_config_strategy": "custom",
+            "control_config": {"clonedInformationSchema": "atlan_meta"},
+        })
         task_input = MySQLApp.build_task_input(_SDKExtractionTaskInput, src)
 
         # The SDK requested ``ExtractionTaskInput`` but the override
@@ -181,9 +261,7 @@ class TestMySQLAppClassAttrs:
         # survive the activity boundary.
         assert isinstance(task_input, MySQLExtractionTaskInput)
         assert task_input.control_config_strategy == "custom"
-        assert task_input.control_config == {
-            "clonedInformationSchema": "atlan_meta"
-        }
+        assert task_input.control_config == {"clonedInformationSchema": "atlan_meta"}
 
     def test_extract_task_signatures_use_mysql_subclass(self):
         """REQ-925 regression: the @task method annotations must declare

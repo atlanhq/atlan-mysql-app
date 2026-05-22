@@ -5,8 +5,10 @@ from __future__ import annotations
 import pytest
 
 from app.utils import (
+    DEFAULT_EXCLUDED_SCHEMAS,
     DEFAULT_INFORMATION_SCHEMA,
     extract_control_config,
+    resolve_excluded_schemas,
     resolve_information_schema,
 )
 
@@ -261,3 +263,153 @@ class TestEndToEnd:
             resolve_information_schema(sql, config)
             == "SELECT * FROM information_schema.SCHEMATA"
         )
+
+    def test_combined_resolvers_apply_same_mirror(self):
+        """Both placeholders must read the same control-config and stay in sync."""
+        source = {
+            "control-config-strategy": "custom",
+            "control-config": '{"clonedInformationSchema": "atlan_meta"}',
+        }
+        sql = (
+            "SELECT * FROM {information_schema}.TABLES T "
+            "WHERE T.TABLE_SCHEMA NOT IN ({excluded_schemas})"
+        )
+        config = extract_control_config(source)
+        prepared = resolve_information_schema(sql, config)
+        prepared = resolve_excluded_schemas(prepared, config)
+        # information_schema → mirror
+        assert "atlan_meta.TABLES" in prepared
+        # mirror name appended to the exclusion list (so the mirror's own
+        # pass-through views aren't crawled as user assets)
+        assert (
+            "NOT IN ("
+            "'mysql', 'performance_schema', 'information_schema', 'sys', "
+            "'atlan_meta')"
+        ) in prepared
+        # No unresolved placeholders left
+        assert "{information_schema}" not in prepared
+        assert "{excluded_schemas}" not in prepared
+
+
+# ── resolve_excluded_schemas ──────────────────────────────────────────
+
+
+class TestResolveExcludedSchemasDefaults:
+    """Without a mirror configured, the rendered list equals the original literal."""
+
+    def test_default_constant_matches_legacy_sql_literal(self):
+        """Tuple ordering matters — every legacy SQL file used this exact set."""
+        assert DEFAULT_EXCLUDED_SCHEMAS == (
+            "mysql",
+            "performance_schema",
+            "information_schema",
+            "sys",
+        )
+
+    def test_no_control_config_renders_default_list(self):
+        sql = "WHERE S.SCHEMA_NAME NOT IN ({excluded_schemas})"
+        assert resolve_excluded_schemas(sql, None) == (
+            "WHERE S.SCHEMA_NAME NOT IN "
+            "('mysql', 'performance_schema', 'information_schema', 'sys')"
+        )
+
+    def test_empty_dict_renders_default_list(self):
+        sql = "NOT IN ({excluded_schemas})"
+        assert resolve_excluded_schemas(sql, {}) == (
+            "NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')"
+        )
+
+    def test_dict_without_cloned_key_renders_default_list(self):
+        sql = "NOT IN ({excluded_schemas})"
+        assert resolve_excluded_schemas(sql, {"otherKey": "value"}) == (
+            "NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')"
+        )
+
+    def test_template_without_placeholder_unchanged(self):
+        assert resolve_excluded_schemas("SELECT 1", None) == "SELECT 1"
+
+    def test_empty_template_returns_empty(self):
+        assert resolve_excluded_schemas("", None) == ""
+
+
+class TestResolveExcludedSchemasWithMirror:
+    """With clonedInformationSchema set, the mirror is appended to the list."""
+
+    def test_mirror_name_appended(self):
+        sql = "NOT IN ({excluded_schemas})"
+        assert resolve_excluded_schemas(
+            sql, {"clonedInformationSchema": "atlan_meta"}
+        ) == (
+            "NOT IN ("
+            "'mysql', 'performance_schema', 'information_schema', 'sys', "
+            "'atlan_meta')"
+        )
+
+    def test_mirror_already_in_default_list_not_duplicated(self):
+        """Defensive: if a customer configures a system schema name, list once."""
+        sql = "NOT IN ({excluded_schemas})"
+        result = resolve_excluded_schemas(sql, {"clonedInformationSchema": "mysql"})
+        assert result.count("'mysql'") == 1
+
+    def test_multiple_placeholders_all_substituted(self):
+        sql = "WHERE S NOT IN ({excluded_schemas}) AND T NOT IN ({excluded_schemas})"
+        result = resolve_excluded_schemas(
+            sql, {"clonedInformationSchema": "atlan_meta"}
+        )
+        assert "{excluded_schemas}" not in result
+        assert result.count("'atlan_meta'") == 2
+
+    def test_whitespace_stripped_before_appending(self):
+        sql = "NOT IN ({excluded_schemas})"
+        result = resolve_excluded_schemas(
+            sql, {"clonedInformationSchema": "  atlan_meta  "}
+        )
+        assert "'atlan_meta'" in result
+        assert "'  atlan_meta  '" not in result
+
+
+class TestResolveExcludedSchemasValidation:
+    """Identifier validation contract is identical to resolve_information_schema."""
+
+    @pytest.mark.parametrize(
+        "bad_name",
+        [
+            "atlan-meta",  # hyphen not allowed
+            "atlan meta",  # space not allowed
+            "atlan.meta",  # dot not allowed
+            "1atlan",  # cannot start with digit
+            "atlan;DROP TABLE users;--",  # SQL-injection attempt
+            "atlan`meta",  # backtick
+            "atlan'meta",  # quote
+            "x" * 65,  # too long (>64 chars)
+            "",  # empty
+            "   ",  # whitespace-only
+        ],
+    )
+    def test_invalid_identifier_raises(self, bad_name):
+        sql = "NOT IN ({excluded_schemas})"
+        with pytest.raises(ValueError, match="clonedInformationSchema"):
+            resolve_excluded_schemas(sql, {"clonedInformationSchema": bad_name})
+
+    @pytest.mark.parametrize(
+        "non_string",
+        [123, 12.5, ["atlan_meta"], {"name": "atlan_meta"}, True],
+    )
+    def test_non_string_value_raises(self, non_string):
+        sql = "NOT IN ({excluded_schemas})"
+        with pytest.raises(ValueError, match="clonedInformationSchema"):
+            resolve_excluded_schemas(sql, {"clonedInformationSchema": non_string})
+
+    def test_none_value_falls_back_to_default(self):
+        sql = "NOT IN ({excluded_schemas})"
+        assert resolve_excluded_schemas(sql, {"clonedInformationSchema": None}) == (
+            "NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')"
+        )
+
+    def test_max_length_identifier_accepted(self):
+        """64-char identifier is the MySQL limit — must be allowed."""
+        name = "a" + ("b" * 63)
+        assert len(name) == 64
+        sql = "NOT IN ({excluded_schemas})"
+        result = resolve_excluded_schemas(sql, {"clonedInformationSchema": name})
+        assert f"'{name}'" in result

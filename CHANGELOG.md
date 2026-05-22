@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.8.1 (May 22, 2026)
+
+### Bug Fixes
+
+- **Auto-exclude the `clonedInformationSchema` mirror from crawled schemas (REQ-925).** When a customer configured `{"clonedInformationSchema": "atlan_meta"}`, every metadata-extraction SQL file still carried a hardcoded `WHERE … NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')`. The mirror schema itself was missing from that list, so the connector crawled `atlan_meta` and its 8 pass-through views as user assets — 1 extra schema, 8 phantom views, and ~136 phantom columns surfacing in the customer's Atlan tenant. Adds a second placeholder `{excluded_schemas}` that resolves to the same 4-schema literal by default and appends the mirror name when configured. Substitution runs alongside `{information_schema}` in both `_prepare_sql` (extraction) and `_resolve_handler_sql` (handler/preflight). Identifier validation is shared with `resolve_information_schema` — no new SQL-injection surface. Backward compatible: with no override, rendered SQL is byte-identical to today (verified by `tests/unit/test_mysql_app.py::test_prepare_sql_renders_default_excluded_schemas` + the rewritten preflight test asserting the canonical NOT IN literal still appears).
+
 ## 0.7.33 (May 20, 2026)
 
 ### Bug Fixes

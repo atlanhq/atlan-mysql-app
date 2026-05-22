@@ -23,7 +23,11 @@ from application_sdk.observability.logger_adaptor import get_logger
 
 from app.clients import SQLClient
 from app.constants import DATABASE_PLACEHOLDER
-from app.utils import extract_control_config, resolve_information_schema
+from app.utils import (
+    extract_control_config,
+    resolve_excluded_schemas,
+    resolve_information_schema,
+)
 
 logger = get_logger(__name__)
 
@@ -58,16 +62,18 @@ _FILTER_METADATA_SQL_TEMPLATE = (
 
 
 def _resolve_handler_sql(template: str, connection_config: Any | None) -> str:
-    """Resolve ``{information_schema}`` for a handler-side SQL template.
+    """Resolve handler-side SQL placeholders from per-request control-config.
 
     Pulls control-config from the request's ``connection_config`` (which is
     a ``BaseConnectionConfig`` with ``extra='allow'``, so customer-supplied
-    fields like ``clonedInformationSchema`` are preserved) and applies the
-    resolver. With no override configured, the resulting SQL is
-    byte-identical to today's behavior.
+    fields like ``clonedInformationSchema`` are preserved) and applies both
+    the ``{information_schema}`` and ``{excluded_schemas}`` resolvers. With
+    no override configured, the resulting SQL is byte-identical to today's
+    behavior.
     """
     config = extract_control_config(connection_config)
-    return resolve_information_schema(template, config)
+    resolved = resolve_information_schema(template, config)
+    return resolve_excluded_schemas(resolved, config)
 
 
 def _creds_to_dict(credentials: list[HandlerCredential]) -> dict[str, Any]:

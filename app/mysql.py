@@ -28,7 +28,11 @@ from app.constants import DATABASE_PLACEHOLDER, TENANT_ID
 from app.handlers.mysql import (  # noqa: F401 — SDK discovers {AppClass}Handler by convention
     MySQLAppHandler,
 )
-from app.utils import extract_control_config, resolve_information_schema
+from app.utils import (
+    extract_control_config,
+    resolve_excluded_schemas,
+    resolve_information_schema,
+)
 
 # S3 bucket for QI + lineage-app — forwarded as extract output so the manifest
 # JSONPath expressions ($.extract.outputs.storage_bucket) resolve correctly.
@@ -226,10 +230,14 @@ class MySQLApp(SqlApp):
 
         Runs the base ``SqlApp._prepare_sql`` first (which handles
         ``{normalized_exclude_regex}``, ``{normalized_include_regex}`` and
-        ``{temp_table_regex_sql}``) and then resolves ``{information_schema}``
-        using the control-config carried on the input. Backward compatible:
-        when no config is supplied, the placeholder resolves to the
-        canonical ``information_schema`` identifier and output SQL is
+        ``{temp_table_regex_sql}``) and then resolves the connector-specific
+        placeholders — ``{information_schema}`` (which catalog to query) and
+        ``{excluded_schemas}`` (which schemas to filter out, including the
+        mirror itself so its pass-through views don't surface as user
+        assets). Both pull from the same control-config carried on the
+        input. Backward compatible: when no config is supplied, the
+        placeholders resolve to the canonical ``information_schema`` and
+        the original 4-schema exclusion list, and output SQL is
         byte-identical to the pre-REQ-925 behavior.
 
         Reads control-config FROM the input — ``input`` here is a
@@ -243,7 +251,8 @@ class MySQLApp(SqlApp):
         """
         prepared = super()._prepare_sql(sql, input)
         control_config = extract_control_config(input)
-        return resolve_information_schema(prepared, control_config)
+        prepared = resolve_information_schema(prepared, control_config)
+        return resolve_excluded_schemas(prepared, control_config)
 
     @staticmethod
     def build_task_input(input_cls, src, *, cred_ref=None):  # type: ignore[override]

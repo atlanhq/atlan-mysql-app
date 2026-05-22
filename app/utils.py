@@ -7,6 +7,11 @@ Currently contains:
   ``information_schema`` identifier or a customer-provided mirror schema
   name (e.g. ``atlan_meta``).
 
+* `resolve_excluded_schemas()` — replaces the ``{excluded_schemas}``
+  placeholder with the system-schema exclusion list. When a mirror schema
+  is configured, the mirror name is appended so its pass-through views
+  aren't crawled as user assets.
+
 * `extract_control_config()` — pull control-config from a connection-config
   dict (handler side) or workflow input (extraction side), normalizing
   shape (JSON string → dict, ``control-config-strategy`` gating).
@@ -33,6 +38,18 @@ from typing import Any
 # Canonical MySQL system schema. Used when no customer override is provided.
 DEFAULT_INFORMATION_SCHEMA = "information_schema"
 
+# System schemas the connector never wants to crawl as user metadata.
+# Substituted into SQL templates via the ``{excluded_schemas}`` placeholder.
+# When a customer configures ``clonedInformationSchema``, the mirror schema
+# name is appended so the mirror's own pass-through views (e.g. atlan_meta.TABLES)
+# are not surfaced as user assets in Atlan.
+DEFAULT_EXCLUDED_SCHEMAS: tuple[str, ...] = (
+    "mysql",
+    "performance_schema",
+    "information_schema",
+    "sys",
+)
+
 # Conservative MySQL identifier pattern. Schema names entered by customers
 # arrive via JSON config and are concatenated directly into SQL templates,
 # so we hard-validate the shape before substitution. Accepts the standard
@@ -45,9 +62,39 @@ DEFAULT_INFORMATION_SCHEMA = "information_schema"
 # https://dev.mysql.com/doc/refman/8.0/en/identifiers.html for the simple case.
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 
-# Placeholder string that SQL templates use. Kept as a constant so callers
-# don't sprinkle the literal across the codebase.
+# Placeholder strings SQL templates use. Kept as constants so callers
+# don't sprinkle the literals across the codebase.
 _PLACEHOLDER = "{information_schema}"
+_EXCLUDED_PLACEHOLDER = "{excluded_schemas}"
+
+
+def _validated_cloned_information_schema(
+    control_config: dict[str, Any] | None,
+) -> str | None:
+    """Return the validated ``clonedInformationSchema`` value or ``None``.
+
+    Used by both :func:`resolve_information_schema` and
+    :func:`resolve_excluded_schemas` so the identifier validation lives in
+    exactly one place. Returns ``None`` when no override is configured.
+    Raises ``ValueError`` for malformed values — better an early, explicit
+    failure than a confusing SQL syntax error deeper in the pipeline.
+    """
+    if not control_config:
+        return None
+    candidate = control_config.get("clonedInformationSchema")
+    if candidate is None:
+        return None
+    if not isinstance(candidate, str) or not candidate.strip():
+        raise ValueError(
+            f"clonedInformationSchema must be a non-empty string; got {candidate!r}"
+        )
+    stripped = candidate.strip()
+    if not _IDENTIFIER_RE.match(stripped):
+        raise ValueError(
+            "clonedInformationSchema must match the MySQL identifier "
+            f"pattern [A-Za-z_][A-Za-z0-9_]{{0,63}}; got {stripped!r}"
+        )
+    return stripped
 
 
 def _coerce_to_dict(value: Any) -> dict[str, Any]:
@@ -163,21 +210,48 @@ def resolve_information_schema(
     if not sql_template:
         return sql_template
 
-    target = DEFAULT_INFORMATION_SCHEMA
-    if control_config:
-        candidate = control_config.get("clonedInformationSchema")
-        if candidate is not None:
-            if not isinstance(candidate, str) or not candidate.strip():
-                raise ValueError(
-                    "clonedInformationSchema must be a non-empty string; "
-                    f"got {candidate!r}"
-                )
-            stripped = candidate.strip()
-            if not _IDENTIFIER_RE.match(stripped):
-                raise ValueError(
-                    "clonedInformationSchema must match the MySQL identifier "
-                    f"pattern [A-Za-z_][A-Za-z0-9_]{{0,63}}; got {stripped!r}"
-                )
-            target = stripped
-
+    mirror = _validated_cloned_information_schema(control_config)
+    target = mirror or DEFAULT_INFORMATION_SCHEMA
     return sql_template.replace(_PLACEHOLDER, target)
+
+
+def resolve_excluded_schemas(
+    sql_template: str,
+    control_config: dict[str, Any] | None = None,
+) -> str:
+    """Replace ``{excluded_schemas}`` in *sql_template* with the system-schema list.
+
+    The default list is :data:`DEFAULT_EXCLUDED_SCHEMAS`. When *control_config*
+    contains a non-empty ``clonedInformationSchema``, that value (after
+    identifier validation) is appended to the list so the customer's mirror
+    schema and its pass-through views are never crawled as user assets in
+    Atlan. The list is rendered as a comma-separated tuple of single-quoted
+    identifiers, ready for direct substitution into a SQL ``NOT IN (...)``
+    clause.
+
+    Args:
+        sql_template: The SQL string, expected to contain zero or more
+            occurrences of the literal ``{excluded_schemas}``.
+        control_config: Optional parsed control-config dict (from
+            :func:`extract_control_config`).
+
+    Returns:
+        The SQL string with all ``{excluded_schemas}`` occurrences replaced.
+        If the template contains no placeholder, the input is returned
+        unchanged. When no override is configured, the rendered list is
+        byte-identical to the literal that used to live in each SQL file.
+
+    Raises:
+        ValueError: When ``clonedInformationSchema`` is present but malformed.
+            Mirrors the contract of :func:`resolve_information_schema`.
+    """
+    if not sql_template:
+        return sql_template
+
+    schemas = list(DEFAULT_EXCLUDED_SCHEMAS)
+    mirror = _validated_cloned_information_schema(control_config)
+    if mirror and mirror not in schemas:
+        schemas.append(mirror)
+
+    rendered = ", ".join(f"'{s}'" for s in schemas)
+    return sql_template.replace(_EXCLUDED_PLACEHOLDER, rendered)

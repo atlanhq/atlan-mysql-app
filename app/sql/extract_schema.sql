@@ -33,7 +33,7 @@ LEFT JOIN
 ) as table_counts
 ON (table_counts.TABLE_SCHEMA = S.SCHEMA_NAME)
 WHERE
-    S.SCHEMA_NAME NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')
+    S.SCHEMA_NAME NOT IN ({excluded_schemas})
     AND CONCAT(COALESCE(DATABASE(), '{database_placeholder}'), CONCAT('.', S.SCHEMA_NAME)) NOT REGEXP '{normalized_exclude_regex}'
     AND CONCAT(COALESCE(DATABASE(), '{database_placeholder}'), CONCAT('.', S.SCHEMA_NAME)) REGEXP '{normalized_include_regex}'
 ORDER BY S.SCHEMA_NAME;

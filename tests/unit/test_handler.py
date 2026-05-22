@@ -254,6 +254,14 @@ class TestMySQLHandlerClonedInformationSchema:
         # tables-check, which must reference the mirror schema.
         assert any("atlan_meta.TABLES" in sql for sql in captured_sql)
         assert not any("information_schema.TABLES" in sql for sql in captured_sql)
+        # And the mirror must appear in the exclusion list so its own
+        # pass-through views (atlan_meta.SCHEMATA, atlan_meta.COLUMNS, ...)
+        # aren't double-counted when the connector walks user schemas.
+        assert any(
+            "NOT IN ('mysql', 'performance_schema', 'information_schema', "
+            "'sys', 'atlan_meta')" in sql
+            for sql in captured_sql
+        )
 
     @pytest.mark.asyncio
     async def test_preflight_uses_canonical_schema_by_default(
@@ -280,6 +288,12 @@ class TestMySQLHandlerClonedInformationSchema:
         # Canonical path uses information_schema.TABLES
         assert any("information_schema.TABLES" in sql for sql in captured_sql)
         assert not any("atlan_meta." in sql for sql in captured_sql)
+        # The rendered exclusion list must equal the pre-fix literal — drifting
+        # this changes the user-asset surface and counts as a regression.
+        assert any(
+            "NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')" in sql
+            for sql in captured_sql
+        )
 
     @pytest.mark.asyncio
     async def test_fetch_metadata_uses_mirror_schema_when_configured(
@@ -309,3 +323,10 @@ class TestMySQLHandlerClonedInformationSchema:
         assert len(result.objects) == 1
         assert any("atlan_meta.SCHEMATA" in sql for sql in captured_sql)
         assert not any("information_schema.SCHEMATA" in sql for sql in captured_sql)
+        # Mirror must also be excluded from the rendered NOT IN list so that
+        # filter_metadata.sql doesn't return atlan_meta as a discovered schema.
+        assert any(
+            "NOT IN ('mysql', 'performance_schema', 'information_schema', "
+            "'sys', 'atlan_meta')" in sql
+            for sql in captured_sql
+        )
