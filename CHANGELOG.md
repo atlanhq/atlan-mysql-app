@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.42 (May 24, 2026)
+
+### Bug Fixes
+
+- **Auto-retry on `caching_sha2_password` cold-cache auth failure** (internal-ref follow-up). `SQLClient.load()` now retries once immediately when the first basic-auth connection attempt raises `SqlClientAuthFailedError`. MySQL 8's `caching_sha2_password` server-side cache is cold on the first connection after a pod start or long idle period; the failed attempt still populates the cache as a side-effect, so one immediate retry always succeeds. No sleep or jitter is needed — the cache is populated synchronously on the server during the first handshake. If the retry also fails, the error propagates unchanged (wrong credentials, not a cold-cache issue). This eliminates the production symptom where clicking "Test Authentication" once returned 401 and clicking again immediately returned 200.
+
 ## 0.7.41 (May 24, 2026)
 
 ### Dependencies
