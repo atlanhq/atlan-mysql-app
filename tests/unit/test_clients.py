@@ -94,6 +94,74 @@ class TestMySQLClient:
             assert client.credentials == basic_credentials
             mock_create_engine.assert_called_once()
 
+    @pytest.mark.parametrize("succeed_on_attempt", [1, 2, 3, 4, 5])
+    @pytest.mark.asyncio
+    async def test_load_basic_auth_retries_on_cold_cache(
+        self, basic_credentials, succeed_on_attempt
+    ):
+        """Basic auth retries up to 5 times (tenacity) on SqlClientAuthFailedError.
+
+        MySQL 8's caching_sha2_password server-side cache can require several
+        failed connection attempts before it is warm enough for a subsequent
+        connection to take the fast path and succeed.
+        """
+        call_count = 0
+
+        async def _flaky_load(_creds):
+            nonlocal call_count
+            call_count += 1
+            if call_count < succeed_on_attempt:
+                raise SqlClientAuthFailedError(
+                    message="SQL client authentication failed",
+                    failure_reason="OperationalError(1045, Access denied)",
+                )
+
+        with (
+            patch.object(SQLClient.__bases__[0], "load", side_effect=_flaky_load),
+            patch("sqlalchemy.ext.asyncio.create_async_engine") as mock_engine_factory,
+            patch("asyncio.sleep", new=AsyncMock()),
+        ):
+            mock_engine = MagicMock()
+            mock_engine.dispose = AsyncMock()
+            mock_engine_factory.return_value = mock_engine
+
+            client = SQLClient()
+            client.engine = mock_engine
+            await client.load(basic_credentials)
+
+        assert call_count == succeed_on_attempt
+
+    @pytest.mark.asyncio
+    async def test_load_basic_auth_stops_after_max_attempts(self, basic_credentials):
+        """If all 5 attempts fail, SqlClientAuthFailedError propagates — no infinite loop."""
+        call_count = 0
+
+        async def _always_fail(_creds):
+            nonlocal call_count
+            call_count += 1
+            raise SqlClientAuthFailedError(
+                message="SQL client authentication failed",
+                failure_reason="OperationalError(1045, Access denied)",
+            )
+
+        with (
+            patch.object(SQLClient.__bases__[0], "load", side_effect=_always_fail),
+            patch("sqlalchemy.ext.asyncio.create_async_engine") as mock_engine_factory,
+            patch("asyncio.sleep", new=AsyncMock()),
+        ):
+            mock_engine = MagicMock()
+            mock_engine.dispose = AsyncMock()
+            mock_engine_factory.return_value = mock_engine
+
+            client = SQLClient()
+            client.engine = mock_engine
+            with pytest.raises(SqlClientAuthFailedError):
+                await client.load(basic_credentials)
+
+        assert (
+            call_count == 5
+        ), f"Expected exactly 5 attempts (tenacity max) before propagating, got {call_count}"
+
     @pytest.mark.asyncio
     async def test_load_iam_user_auth_success(self, iam_user_credentials):
         """Test successful loading with IAM user authentication."""

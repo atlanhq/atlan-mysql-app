@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 
 from application_sdk.clients.models import DatabaseConfig
 from application_sdk.clients.sql import AsyncBaseSQLClient
+from application_sdk.clients.sql_errors import SqlClientAuthFailedError
 from application_sdk.common.aws_utils import (
     generate_aws_rds_token_with_iam_role,
     generate_aws_rds_token_with_iam_user,
@@ -15,6 +16,7 @@ from application_sdk.observability.logger_adaptor import get_logger
 from sqlalchemy import event
 from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import create_async_engine
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_random
 
 logger = get_logger(__name__)
 
@@ -394,5 +396,22 @@ class SQLClient(AsyncBaseSQLClient):
                     or credentials.get("password"),
                 }
 
-            # Use base class - it will use the modified DB_CONFIG.connect_args
-            await super().load(credentials)
+            # Use base class - it will use the modified DB_CONFIG.connect_args.
+            # Tenacity retry for MySQL 8 caching_sha2_password cold-cache:
+            # the server-side cache can require several failed connection
+            # attempts before it is warm enough for a subsequent attempt to
+            # take the fast path and succeed. Each failed attempt progressively
+            # populates the cache. Jitter spreads retries to avoid thundering-
+            # herd when multiple workers start simultaneously on a cold server.
+            @retry(
+                retry=retry_if_exception_type(SqlClientAuthFailedError),
+                stop=stop_after_attempt(5),
+                wait=wait_random(min=0, max=0.5),
+                reraise=True,
+            )
+            async def _load_with_retry():
+                if self.engine:
+                    await self.engine.dispose()
+                await super(SQLClient, self).load(credentials)
+
+            await _load_with_retry()
