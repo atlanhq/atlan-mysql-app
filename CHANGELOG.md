@@ -2,6 +2,18 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.41 (May 24, 2026)
+
+### Dependencies
+
+- **Promote `atlan-application-sdk` from git-hash pin to PyPI `>=3.13.1,<4`** ([application-sdk#1835](https://github.com/atlanhq/application-sdk/pull/1835), BLDX-1295). The BLDX-1295 `prime_sql_auth` fix shipped in SDK v3.13.1 (released 2026-05-22). Dropping the temporary git-hash override and aligning with the standard PyPI range constraint.
+
+## 0.7.40 (May 24, 2026)
+
+### Bug Fixes
+
+- Reverted — `caching_sha2_password_get_server_public_key` is not a supported parameter in `aiomysql 0.3.2` (which uses `server_public_key` instead); passing it caused a `TypeError` that broke all connections in CI.
+
 ## 0.7.39 (May 22, 2026)
 
 ### Bug Fixes
