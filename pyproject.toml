@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 license = "Apache-2.0"
 readme = "README.md"
 dependencies = [
-    "atlan-application-sdk[daft,iam-auth,sql,workflows,pandas]",
+    "atlan-application-sdk[daft,iam-auth,sql,workflows,pandas]>=3.13.1,<4",
     "aiomysql>=0.3.0",
     "cryptography>=46.0.5",
     "poethepoet>=0.34.0",
@@ -156,88 +156,3 @@ select = ["E4", "E7", "E9", "F", "PLC0415"]
 
 [tool.uv.sources]
 # atlan-application-sdk = { path = "../application-sdk", editable = true }
-# TEMPORARY: pointed at the fix branch for
-# atlanhq/application-sdk#1792, which reworks the v3 SqlApp template's
-# extract → transform handoff to use ``FileReference`` contracts:
-#
-#   * ``ExtractionTaskOutput`` carries ``raw_file: FileReference``
-#     (singular ref to raw/<entity>/records.json) — set by extract,
-#     consumed by the matching transform via the interceptor's
-#     materialise-on-input handshake.
-#   * ``TransformOutput`` carries ``transformed_file: FileReference``
-#     — set by transform, consumed downstream by publish.
-#   * Legacy ``TransformInput.file_names`` / ``chunk_start`` /
-#     ``typename`` stay on the schema as deprecated no-op placeholders
-#     for backward compat — none of them are populated or read by the
-#     v3 SqlApp flow. Deprecation notes only, no coordinated removal.
-#   * ``SqlApp.run()`` (and ``MySQLApp.run()`` override for procedures)
-#     threads each extract's durable ``raw_file`` into the matching
-#     transform's ``TransformInput`` via ``_build_transform_input``.
-#
-# Together these close the cross-worker silent-archive bug — extract
-# and transform activities scheduled on different worker pods now
-# automatically materialise the raw file with SHA-256 sidecar
-# verification, instead of silently returning ``total_record_count=0``
-# and triggering downstream asset archival. Observed in production on
-# the prior v3.10.0 pin.
-#
-# Pinned SHA: 710ad447 (HEAD of internal-ref — application-sdk #1835).
-#
-# Base commit (bf06fb9e) added the ``prime_sql_auth`` task to ``SqlApp``:
-# ``run()`` now awaits a single serial probe connection before the
-# parallel ``extract_*`` fan-out, populating MySQL 8's
-# ``caching_sha2_password`` server-side cache so the subsequent parallel
-# extract activities take the fast-auth path. Without this, N parallel
-# extract activities all hit cold-cache simultaneously, each
-# independently tries full auth, each fails, and those failures stack
-# on the per-user ``failed_login_attempts`` counter — tripping
-# ``FAILED_LOGIN_ATTEMPTS`` lockouts at the source. Argo's serial
-# extract pipeline never exposed this; only v3's parallel-activity
-# model does.
-#
-# Post-review refactor (35f14df4) addresses application-sdk#1835
-# review-r3286877330: ``prime_sql_auth`` now reports probe failure as
-# structured data on ``PrimeAuthOutput`` (``success`` / ``error_type``
-# / ``error_message``) instead of raising, and ``run()`` translates
-# that into a typed ``AuthError`` (``effective_retryable=False``) with
-# ``auth_method``, ``failure_reason`` and a ``suggested_action`` that
-# explicitly names the ``FAILED_LOGIN_ATTEMPTS`` lockout policy.
-# Crucially, the ``@task(retry_max_attempts=3)`` decorator was dropped
-# from the prime — auto-retrying an ``Access denied`` here was actively
-# harmful (each retry stacks another increment on the source's
-# ``failed_login_attempts`` counter, i.e. accelerates the very lockout
-# cycle this task was added to prevent). Operators on customer tenants
-# now see an actionable error naming the prime step + the underlying
-# driver error + the recommended fix path instead of an opaque
-# ``OperationalError(1045, …)``.
-#
-# SDK-Review-bot follow-up (658c84e2) addresses
-# application-sdk#1835/issuecomment-4517743180: the failure-path
-# ``logger.error()`` now passes ``exc_info=True`` so worker logs
-# preserve the original traceback for the long-tail (TLS negotiation
-# errors, driver bugs, version skew) even though the exception is
-# converted to structured return data.
-#
-# Mothership-bot follow-ups (08525672 + 710ad447) address three
-# more findings:
-#   * [CRITICAL] application-sdk#1835/comment-3287629972: the
-#     ``@task()`` decorator default ``retry_max_attempts=3`` was
-#     silently re-introducing the lockout-stacking failure mode this
-#     task exists to prevent. The body try/except only catches Python
-#     exceptions — start-to-close timeout / worker eviction / heartbeat
-#     timeout / OOM still trigger Temporal-level retry. Fix: explicit
-#     ``@task(timeout_seconds=60, retry_max_attempts=1)``.
-#   * [HIGH] application-sdk#1835/comment-3287630230: not every probe
-#     failure is an auth failure. ``SqlApp._classify_prime_failure``
-#     now branches on ``error_type`` / ``error_message`` and raises
-#     ``AppTimeoutError`` / ``DependencyUnavailableError`` /
-#     ``InternalError`` instead of mis-labelling DNS/TLS/network
-#     failures as account-lockouts.
-#   * [HIGH] application-sdk#1835/comment-3287630369: the pre-fix
-#     bug-repro unit test was vacuous; rewritten to drive
-#     ``app.run()`` end-to-end and observe the real concurrency
-#     inside ``_init_sql_client``.
-#
-# Once application-sdk#1835 merges and a new tag ships, drop this
-# override and bump line 10's PyPI constraint accordingly.
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "710ad447108a4eba644cbb1415ac022957fc1509" }

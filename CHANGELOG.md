@@ -2,6 +2,24 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.7.42 (May 24, 2026)
+
+### Bug Fixes
+
+- **Auto-retry on `caching_sha2_password` cold-cache auth failure** (internal-ref follow-up). `SQLClient.load()` now retries once immediately when the first basic-auth connection attempt raises `SqlClientAuthFailedError`. MySQL 8's `caching_sha2_password` server-side cache is cold on the first connection after a pod start or long idle period; the failed attempt still populates the cache as a side-effect, so one immediate retry always succeeds. No sleep or jitter is needed — the cache is populated synchronously on the server during the first handshake. If the retry also fails, the error propagates unchanged (wrong credentials, not a cold-cache issue). This eliminates the production symptom where clicking "Test Authentication" once returned 401 and clicking again immediately returned 200.
+
+## 0.7.41 (May 24, 2026)
+
+### Dependencies
+
+- **Promote `atlan-application-sdk` from git-hash pin to PyPI `>=3.13.1,<4`** ([application-sdk#1835](https://github.com/atlanhq/application-sdk/pull/1835)). The internal-ref `prime_sql_auth` fix shipped in SDK v3.13.1 (released 2026-05-22). Dropping the temporary git-hash override and aligning with the standard PyPI range constraint.
+
+## 0.7.40 (May 24, 2026)
+
+### Bug Fixes
+
+- Reverted — `caching_sha2_password_get_server_public_key` is not a supported parameter in `aiomysql 0.3.2` (which uses `server_public_key` instead); passing it caused a `TypeError` that broke all connections in CI.
+
 ## 0.7.39 (May 22, 2026)
 
 ### Bug Fixes
