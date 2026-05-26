@@ -9,6 +9,27 @@ argo_package_names:
 build_tag: v1
 self_deployed_runtime: true
 deploy:
+  # Progressive canary rollout for all-channel releases.
+  # Stages auto-progress based on workflow success rate on selected tenants.
+  # Pattern ported from atlan-teradata-app. See:
+  # internal documentation
+  #
+  # NOTE: canary config is hand-maintained here rather than generated from
+  # contract/app.pkl because mysql amends NativeApp.pkl (single-entrypoint)
+  # which does not declare deploy{}. Teradata amends NativeAppBundle.pkl
+  # which does. Migrate this block to Pkl once NativeApp.pkl declares deploy{}
+  # upstream.
+  canary_enabled: true
+  canary_mode: auto
+  stages:
+    stage1:
+      cap: 5
+      stage_timeout: 6
+      multi_cloud: true
+    stage2:
+      cap: 50
+      stage_timeout: 18
+      multi_cloud: true
   execution_mode: native
   splitDeploymentEnabled: true
   env:
