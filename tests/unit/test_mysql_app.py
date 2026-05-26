@@ -708,6 +708,14 @@ class TestMySQLAppRun:
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch.object(MySQLApp, "_resolve_credential_ref", return_value=None),
+            # SDK v3.13.2 added a prime_sql_auth call at the start of
+            # SqlApp.run() that actually loads credentials. The unit tests
+            # exercise run() with empty credentials (we're only validating
+            # workflow-prefix / lineage-output wiring, not real auth), so
+            # stub it to a no-op. Real auth is covered by integration tests.
+            patch.object(
+                MySQLApp, "prime_sql_auth", new=AsyncMock(return_value=MagicMock())
+            ),
         ):
             return asyncio.get_event_loop().run_until_complete(app.run(input_))
 

@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.8.5 (May 26, 2026)
+
+### Chores
+
+- **Bump `atlan-application-sdk` from the in-flight git pin (`df056bcf`, 3.12.1) to the **`v3.13.2`** release tag.** The prior git pin temporarily pointed at `aryaman/canonical-storage-paths-bldx-1281@df056bcf` while PR #1801 was in review. That PR merged 2026-05-21 and v3.13.2 was tagged 2026-05-25 — replacing the branch SHA with the released tag now. v3.13.2 includes both PR #1792 (BLDX-1281 FileReference threading, merged 2026-05-19) and PR #1801 (canonical storage paths + `upload_to_atlan` removal). Verified each of the 4 critical commits from the branch (`8514e7e`, `da2d4b1`, `5979d74`, `c4776ee`) shipped in PR #1801. Transitive: `daft 0.7.10 → 0.7.3`, `fsspec 2026.2.0 → 2025.10.0` (both downgrades, matching SDK's pins). Updated `TestMySQLAppRun._run` to stub `prime_sql_auth` — v3.13.2 added a credential-loading call at the start of `SqlApp.run()` that empty-credentials unit tests need to bypass.
+
 ## 0.8.4 (May 26, 2026)
 
 ### Bug Fixes
