@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 license = "Apache-2.0"
 readme = "README.md"
 dependencies = [
-    "atlan-application-sdk[daft,iam-auth,sql,workflows,pandas]>=3.13.1,<4",
+    "atlan-application-sdk[daft,iam-auth,sql,workflows,pandas]>=3.13.2,<4",
     "aiomysql>=0.3.0",
     "cryptography>=46.0.5",
     "poethepoet>=0.34.0",
