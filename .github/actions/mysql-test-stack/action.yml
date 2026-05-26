@@ -1,0 +1,75 @@
+name: MySQL Test Stack
+description: >-
+  Install Dapr + Temporal + Python deps, start the MySQL app server on :8000,
+  and wait for it to respond on /server/health.
+
+runs:
+  using: composite
+  steps:
+    - name: Install Dapr CLI
+      shell: bash
+      run: |
+        set -euo pipefail
+        DAPR_VERSION="1.16.2"
+        wget -q "https://github.com/dapr/cli/releases/download/v${DAPR_VERSION}/dapr_linux_amd64.tar.gz" -O /tmp/dapr.tar.gz
+        tar -xzf /tmp/dapr.tar.gz -C /tmp
+        sudo mv /tmp/dapr /usr/local/bin/
+        chmod +x /usr/local/bin/dapr
+        dapr init --runtime-version "${DAPR_VERSION}" --slim
+
+    - name: Install Temporal CLI
+      shell: bash
+      run: curl -sSf https://temporal.download/cli.sh | sh
+
+    - name: Add Dapr and Temporal to PATH
+      shell: bash
+      run: |
+        echo "$HOME/.dapr/bin" >> "$GITHUB_PATH"
+        echo "$HOME/.temporalio/bin" >> "$GITHUB_PATH"
+
+    - name: Setup Python, uv, and dependencies
+      uses: atlanhq/application-sdk/.github/actions/setup-deps@v3.0.0
+
+    - name: Download Dapr components
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: uv run poe download-components
+
+    - name: Start Dapr + Temporal
+      shell: bash
+      run: |
+        uv run poe start-deps
+        sleep 5
+
+    - name: Setup local credentials
+      # Writes {local-mysql,authType,host,port,user,pass} into local Dapr
+      # state + secrets, so the app can resolve credentials by GUID when
+      # the e2e tests fire workflows. Honors MYSQL_HOST/PORT/USER/PASSWORD
+      # if set by the caller (e.g. for a testcontainers-managed DB).
+      shell: bash
+      run: make setup-local-creds
+
+    - name: Start app server and wait for health
+      shell: bash
+      env:
+        ATLAN_LOCAL_DEVELOPMENT: "true"
+        ATLAN_APPLICATION_NAME: mysql
+        ATLAN_HANDLER_MODULE: app.handlers.mysql:MySQLAppHandler
+        DAPR_HTTP_PORT: "3500"
+      run: |
+        mkdir -p results
+        uv run python main.py > results/app-server.log 2>&1 &
+        echo "Waiting for app server on :8000..."
+        for i in $(seq 1 60); do
+          if curl -sf http://localhost:8000/server/health > /dev/null 2>&1; then
+            echo "App server ready after ${i}s"
+            break
+          fi
+          if [ "$i" -eq 60 ]; then
+            echo "::error::App server failed to start within 60s"
+            tail -30 results/app-server.log
+            exit 1
+          fi
+          sleep 1
+        done

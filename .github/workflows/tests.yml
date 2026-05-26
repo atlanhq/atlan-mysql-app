@@ -1,26 +1,50 @@
 name: Tests
 
+# Unified workflow — pre-commit + unit + e2e all gated through
+# `tests-passed`. Templated from atlan-mssql-app/.github/workflows/tests.yaml
+# with the pre-commit job folded in from this repo's prior tests.yml.
+#
+# The certification gate at .github/workflows/build-and-publish.yaml:51
+# (`unit_tests_workflow_file: "tests.yml"`) waits on this workflow's
+# overall conclusion before publishing. Keep the filename `tests.yml` to
+# preserve that wiring.
+#
+# SDR runs in its own workflow (sdr-integration-tests.yaml) because it
+# supports cross-repo dispatch from application-sdk — folding it in here
+# would lose that capability.
+#
+# Trigger: every commit (push to main + PR open/synchronize/reopened).
+
 on:
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened]
   push:
-    branches: [main]
-  workflow_dispatch:
+    branches:
+      - main
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+    branches:
+      - main
+  workflow_dispatch:    # required by the unit-tests-gate (see SDK docs)
 
 permissions:
   contents: read
   pull-requests: write
 
 jobs:
-
   # ── Pre-commit: ruff, formatting, type checking ─────────────────────
   pre-commit:
-    name: Pre-commit Checks
+    name: pre-commit
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    concurrency:
+      group: tests-pre-commit-${{ github.ref }}
+      cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - uses: actions/setup-python@v5
         with:
@@ -34,210 +58,145 @@ jobs:
       - name: Run pre-commit
         run: uv run pre-commit run --all-files
 
-  # ── Unit tests (make test) ─────────────────────────────────────────
-  unit-tests:
-    name: Unit Tests
+  # ── Unit + e2e tests in a single parallel pytest invocation ─────────
+  unit-e2e:
+    name: unit + e2e
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 60
+    concurrency:
+      group: tests-unit-e2e-${{ github.ref }}
+      cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+    permissions:
+      pull-requests: write
+      contents: read
+    outputs:
+      summary: ${{ steps.tests.outputs.summary }}
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
+      - name: Checkout
+        uses: actions/checkout@v4
         with:
-          python-version: '3.11'
+          persist-credentials: false
 
-      - uses: astral-sh/setup-uv@v7
+      # Dapr + Temporal + setup-deps + setup-local-creds + native app on :8000.
+      # After this step, the connector is serving and we can run pytest.
+      - name: Bring up MySQL test stack
+        uses: ./.github/actions/mysql-test-stack
 
-      - name: Install dependencies
-        run: uv sync --extra dev --extra test
-
-      - name: Run unit tests
-        run: |
-          set -o pipefail
-          uv run pytest tests/unit/ -v \
-            --durations=10 \
-            --durations-min=0.5 \
-            --junit-xml=junit-unit.xml \
-            --cov=app \
-            --cov-report=xml:coverage-unit.xml \
-            --cov-report=term-missing \
-            2>&1 | tee pytest-output.txt
-
-      - name: Test summary
-        if: always()
-        run: |
-          echo "## Unit Test Results" >> $GITHUB_STEP_SUMMARY
-          if [ -f pytest-output.txt ]; then
-            SUMMARY=$(grep -E "^=+ .* =+$" pytest-output.txt | tail -1 || echo "no result")
-            echo "**$SUMMARY**" >> $GITHUB_STEP_SUMMARY
-          fi
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: test-results
-          path: junit-unit.xml
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: coverage
-          path: coverage-unit.xml
-
-  # ── Integration tests (make test-e2e) ────────────────────────────────
-  integration-tests:
-    name: Integration Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    env:
-      CREDENTIAL_GUID: local-mysql
-      DAPR_HTTP_PORT: "3500"
-      DAPR_GRPC_PORT: "50001"
-      # Keep extract / transform local artefacts on disk after on_complete()
-      # so the e2e test can validate raw/<entity>/records.json and
-      # transformed/<entity>/entities.json under the request-payload
-      # output_path. Default behaviour is to delete every tracked
-      # FileReference local path via cleanup_files (application_sdk
-      # base.py:cleanup_files) — correct for production where files are
-      # uploaded to the object store, but it strips the artefacts the
-      # test asserts on. Production deployments leave this unset (the
-      # SDK default of "true" applies).
-      APPLICATION_SDK_ENABLE_CLEANUP_INTERCEPTOR: "false"
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - uses: astral-sh/setup-uv@v7
-
-      - name: Install deps + pull images + install CLIs
+      # Single pytest invocation covering unit + e2e in parallel.
+      # `--dist=loadfile` groups tests by file so each test class's
+      # setup_class runs once (in the worker that owns its file), keeping
+      # xdist-with-stateful-fixtures predictable.
+      #
+      # tests/e2e/conftest.py spins up a testcontainers-managed mysql:8.0
+      # when MYSQL_HOST is not set — Docker is available on ubuntu-latest.
+      - name: Run unit + e2e (parallel via pytest-xdist)
+        id: tests
         env:
-          TEMPORAL_VERSION: "1.3.0"
+          # The composite action started the app on :8000; tests hit it
+          # via BASE_URL (default http://localhost:8000).
+          APP_BASE_URL: http://localhost:8000
+          CREDENTIAL_GUID: local-mysql
+          DAPR_HTTP_PORT: "3500"
+          DAPR_GRPC_PORT: "50001"
+          # Keep extract / transform local artefacts on disk after
+          # on_complete() so the e2e test can validate raw/<entity>/records.json
+          # and transformed/<entity>/entities.json under the request-payload
+          # output_path. See atlan-mssql-app/.github/workflows/tests.yaml for
+          # the equivalent rationale.
+          APPLICATION_SDK_ENABLE_CLEANUP_INTERCEPTOR: "false"
+          ATLAN_LOCAL_DEVELOPMENT: "true"
+          ATLAN_APPLICATION_NAME: mysql
         run: |
-          uv sync --extra dev --extra test &
-          PID_UV=$!
-          docker pull mysql:8.0 &
-          PID_MYSQL=$!
-          docker pull testcontainers/ryuk:0.8.1 &
-          PID_RYUK=$!
-          (wget -q https://raw.githubusercontent.com/dapr/cli/master/install/install.sh -O - | /bin/bash && dapr init --slim) &
-          PID_DAPR=$!
-          (curl -sL -o /tmp/temporal.tar.gz "https://temporal.download/cli/archive/v${TEMPORAL_VERSION}?platform=linux&arch=amd64" \
-            && mkdir -p ${HOME}/.temporalio/bin \
-            && tar -xzf /tmp/temporal.tar.gz -C ${HOME}/.temporalio/bin) &
-          PID_TEMPORAL=$!
-          wait $PID_UV $PID_MYSQL $PID_RYUK $PID_DAPR $PID_TEMPORAL
-          echo "${HOME}/.temporalio/bin" >> $GITHUB_PATH
-          echo "${HOME}/.dapr/bin" >> $GITHUB_PATH
-
-      - name: Verify CLIs
-        run: |
-          temporal --version
-          dapr --version
-
-      - name: Download Dapr components + setup creds
-        run: |
-          uv run poe download-components
-          make setup-local-creds
-
-      - name: Start Temporal
-        run: |
-          temporal server start-dev --db-filename /tmp/temporal.db &
-          echo "Waiting for Temporal on port 7233..."
-          for i in $(seq 1 60); do
-            if nc -z localhost 7233 2>/dev/null; then
-              echo "Temporal ready after ${i}s"
-              break
-            fi
-            if [ "$i" = "60" ]; then
-              echo "::error::Temporal failed to start after 60s"
-              exit 1
-            fi
-            sleep 1
-          done
-
-      - name: Start app with Dapr
-        run: |
-          nohup dapr run \
-            --app-id app \
-            --app-port 8000 \
-            --dapr-http-port $DAPR_HTTP_PORT \
-            --dapr-grpc-port $DAPR_GRPC_PORT \
-            --resources-path components \
-            --placement-host-address '' \
-            --scheduler-host-address '' \
-            -- uv run python main.py > /tmp/app.log 2>&1 &
-          echo "Waiting for app on port 8000..."
-          for i in $(seq 1 60); do
-            if curl -sf http://localhost:8000/server/health > /dev/null 2>&1; then
-              echo "App ready after ${i}s"
-              break
-            fi
-            if [ "$i" = "60" ]; then
-              echo "::error::App failed to start after 60s"
-              exit 1
-            fi
-            sleep 2
-          done
-
-      - name: Run integration tests
-        run: |
-          set -euo pipefail
-          uv run pytest tests/e2e/ -v \
-            --timeout=600 \
+          mkdir -p results
+          set +e
+          uv run --with pytest-xdist --with pytest-cov pytest tests/unit tests/e2e -v \
+            -n auto \
+            --dist=loadfile \
+            --cov=app \
+            --cov-report=xml \
+            --cov-report=html \
+            --cov-report=term \
+            --cov-fail-under=0 \
             --tb=short \
-            --junit-xml=junit-e2e.xml \
-            2>&1 | tee e2e-output.txt
+            --timeout=600 \
+            --junit-xml=results/test-results.xml \
+            2>&1 | tee results/test-output.txt
+          TEST_EXIT_CODE=${PIPESTATUS[0]}
+          set -e
+          echo "exit_code=$TEST_EXIT_CODE" >> "$GITHUB_OUTPUT"
+          # Extract the pytest summary line (last `=== ... ===` line) so
+          # the aggregator job can quote it in the PR comment.
+          SUMMARY=$(grep -E "^=+ .* =+$" results/test-output.txt | tail -1 | sed -E 's/^=+ *//; s/ *=+$//')
+          echo "summary=${SUMMARY:-no summary parsed}" >> "$GITHUB_OUTPUT"
+          exit "$TEST_EXIT_CODE"
 
-      - name: E2E test summary
-        if: always()
-        run: |
-          echo "## Integration Test Results" >> $GITHUB_STEP_SUMMARY
-          if [ -f e2e-output.txt ]; then
-            SUMMARY=$(grep -E "^=+ .* =+$" e2e-output.txt | tail -1 || echo "no result")
-            echo "**$SUMMARY**" >> $GITHUB_STEP_SUMMARY
-          fi
-
-      - name: Capture app log on failure (helps debug workflow activity errors)
+      - name: Capture app log on failure
         if: failure()
         run: |
-          cp /tmp/app.log ./app.log || true
-          echo "## App log tail" >> $GITHUB_STEP_SUMMARY
-          echo "<pre>" >> $GITHUB_STEP_SUMMARY
-          tail -200 ./app.log 2>/dev/null >> $GITHUB_STEP_SUMMARY || true
-          echo "</pre>" >> $GITHUB_STEP_SUMMARY
+          echo "## App log tail" >> "$GITHUB_STEP_SUMMARY"
+          echo "<pre>" >> "$GITHUB_STEP_SUMMARY"
+          tail -200 results/app-server.log 2>/dev/null >> "$GITHUB_STEP_SUMMARY" || true
+          echo "</pre>" >> "$GITHUB_STEP_SUMMARY"
 
-      - uses: actions/upload-artifact@v4
-        if: always()
+      - name: Comment coverage on PR
+        if: always() && github.event_name == 'pull_request'
+        uses: orgoro/coverage@3f13a558c5af7376496aa4848bf0224aead366ac # v3.2
         with:
-          name: e2e-results
-          path: |
-            junit-e2e.xml
-            app.log
-
-  # ── E2E on K8s (make test-e2e-remote) ──────────────────────────────
-  # TODO: add K8s e2e tests via port-forward to vcluster
-  # Trigger: workflow_dispatch or PR label 'run-e2e-remote'
-  # Secrets needed: CREDENTIAL_GUID, kubeconfig
-
-  # ── Coverage comment on PR ──────────────────────────────────────────
-  coverage-report:
-    name: Coverage Report
-    runs-on: ubuntu-latest
-    needs: unit-tests
-    if: always() && github.event_name == 'pull_request'
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: coverage
-          path: coverage-data
+          coverageFile: coverage.xml
+          token: ${{ secrets.GITHUB_TOKEN }}
         continue-on-error: true
 
-      - uses: MishaKav/pytest-coverage-comment@v1
-        if: hashFiles('coverage-data/coverage-unit.xml') != ''
+      - name: Upload test + coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          pytest-xml-coverage-path: coverage-data/coverage-unit.xml
-          title: MySQL Connector — Coverage Report
-          badge-title: Coverage
+          name: unit-e2e-results
+          path: |
+            results/
+            coverage.xml
+            htmlcov/
+          retention-days: 14
+
+  # Aggregator gate — succeeds only if BOTH child jobs succeeded.
+  # Mark this as the single required check in branch protection
+  # (Settings → Branches → Branch protection rule for main → Require
+  # status checks → add `Tests / tests-passed`).
+  tests-passed:
+    name: tests-passed
+    needs: [pre-commit, unit-e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Post unified test-summary comment on PR
+        # Posts BEFORE the verify step so the comment lands even on failure.
+        # `message-id: tests-summary` makes mshick/add-pr-comment update the
+        # same comment on subsequent runs instead of stacking new ones.
+        if: always() && github.event_name == 'pull_request'
+        uses: mshick/add-pr-comment@b8f338c590a895d50bcbfa6c5859251edc8952fc # v2.8.2
+        with:
+          message-id: tests-summary
+          message: |
+            ## Tests Summary
+
+            | Job | Status | Result |
+            |---|---|---|
+            | pre-commit | ${{ needs.pre-commit.result == 'success' && '✅ Passed' || (needs.pre-commit.result == 'skipped' && '⊘ Skipped' || '❌ Failed') }} | — |
+            | unit + e2e | ${{ needs.unit-e2e.result == 'success' && '✅ Passed' || (needs.unit-e2e.result == 'skipped' && '⊘ Skipped' || '❌ Failed') }} | `${{ needs.unit-e2e.outputs.summary || 'no summary' }}` |
+
+            **Overall:** ${{ (needs.pre-commit.result == 'success' && needs.unit-e2e.result == 'success') && '✅ All passed' || '❌ Some failed' }} — [view run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+        continue-on-error: true
+
+      - name: Verify all test jobs succeeded
+        run: |
+          if [ "${{ needs.pre-commit.result }}" != "success" ]; then
+            echo "::error::pre-commit job did not succeed (result=${{ needs.pre-commit.result }})"
+            exit 1
+          fi
+          if [ "${{ needs.unit-e2e.result }}" != "success" ]; then
+            echo "::error::unit + e2e job did not succeed (result=${{ needs.unit-e2e.result }})"
+            exit 1
+          fi
+          echo "All test jobs passed."
