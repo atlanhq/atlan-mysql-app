@@ -67,6 +67,7 @@
           "connection_entity": "{{connection}}",
           "connection_cache_enabled": true,
           "connection_cache_via_app_enabled": true,
+          "current_state_enabled": true,
           "current_state_via_app_enabled": true
         }
       },
@@ -92,9 +93,7 @@
           "parsed_views_path": "$.extract.outputs.view_lineage_output_prefix",
           "lineage_output_path": "$.extract.outputs.lineage_stage_prefix",
           "cache_path": "connection-cache",
-          "file_type": "json",
-          "lake_provider": "aws",
-          "cloud_storage_bucket": "$.extract.outputs.storage_bucket"
+          "file_type": "json"
         }
       },
       "depends_on": {
