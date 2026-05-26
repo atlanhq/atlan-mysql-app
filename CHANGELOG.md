@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.8.4 (May 26, 2026)
+
+### Bug Fixes
+
+- **Regenerate `app/generated/` so the new `clonedInformationSchema` credential field actually ships to the marketplace.** Commit `b2bfd77` added the field to `contract/app.pkl` but the compiled `app/generated/atlan-connectors-mysql.json` (which the credential-builder UI reads) was never regenerated, so the field didn't appear in the credential form on tenants where 0.8.2/0.8.3 was deployed. The Makefile's docstring claims `make generate` exists but the recipe was never written — regenerated manually via `pkl eval --project-dir contract -m app/generated contract/app.pkl` (Pkl 0.31.1 + app-contract-toolkit 0.9.0). Also marked the field as `required = false` in the Pkl FieldSpec — without this the toolkit defaults to required, which would block credential creation when an operator doesn't want a mirror schema. The toolkit also refreshed `app/generated/_input.py`'s import block; 196 unit tests still pass.
+
 ## 0.8.3 (May 22, 2026)
 
 ### Chores

@@ -1,9 +1,7 @@
 # AUTO-GENERATED from app.pkl — DO NOT EDIT MANUALLY.
 # To regenerate: make generate
 from __future__ import annotations
-
 from typing import ClassVar
-
 from application_sdk.templates.contracts import ExtractionInput
 
 

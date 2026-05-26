@@ -55,6 +55,7 @@ credentialCommonFields {
     name = "clonedInformationSchema"
     displayName = "Cloned INFORMATION_SCHEMA (optional)"
     placeholder = "atlan_meta"
+    required = false
     width = 4
   }
 }

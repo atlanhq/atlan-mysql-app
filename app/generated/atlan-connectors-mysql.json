@@ -56,6 +56,16 @@
           "grid": 2
         }
       },
+      "clonedInformationSchema": {
+        "type": "string",
+        "ui": {
+          "widget": "input",
+          "label": "Cloned INFORMATION_SCHEMA (optional)",
+          "hidden": false,
+          "placeholder": "atlan_meta",
+          "grid": 4
+        }
+      },
       "auth-type": {
         "type": "string",
         "enum": [
