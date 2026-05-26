@@ -1,0 +1,949 @@
+name: Platform API Smoke Test
+
+# Exercises the 4 API calls the Atlan UI makes when a user configures and
+# submits a MySQL extraction via the app-service layer:
+#
+#   1. POST /api/service/credentials/test   — verify credentials reach MySQL
+#   2. POST /api/service/credentials/query  — fetch available schemas
+#   3. POST /api/service/sage               — AI recommendation / form validation
+#   4. POST /api/service/package-workflows  — submit the Argo extraction workflow
+#
+# This flow is NOT covered by integration-tests.yaml or ae-publish-test.yaml,
+# both of which bypass app-service and talk directly to the connector or AE.
+#
+# Required secrets (all shared with existing workflows):
+#   ATLAN_BASE_URL        — tenant URL (e.g. https://apps-typedef.atlan.com)
+#   ATLAN_API_KEY         — API key used as Bearer token
+#   E2E_MYSQL_HOST        — MySQL host reachable from the tenant
+#   E2E_MYSQL_PORT        — MySQL port (default 3306)
+#   E2E_MYSQL_USERNAME    — MySQL username
+#   E2E_MYSQL_PASSWORD    — MySQL password
+#   E2E_MYSQL_DATABASE    — database name
+
+on:
+  pull_request:
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      connection_name:
+        description: "Connection display name (default: platform-smoke-test)"
+        required: false
+        type: string
+
+jobs:
+  platform-smoke-test:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.label.name == 'platform-test'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    concurrency:
+      group: platform-smoke-test-${{ github.ref }}
+      cancel-in-progress: true
+    permissions:
+      pull-requests: write
+      contents: read
+      statuses: write
+
+    steps:
+
+      # ── Mask sensitive computed values ───────────────────────────────────
+      # GitHub auto-masks secret references, but values built from secrets
+      # (e.g. full URLs with credentials) need explicit masking.
+      - name: Mask secrets
+        env:
+          E2E_MYSQL_PASSWORD: ${{ secrets.E2E_MYSQL_PASSWORD }}
+          ATLAN_API_KEY: ${{ secrets.ATLAN_API_KEY }}
+        run: |
+          echo "::add-mask::${E2E_MYSQL_PASSWORD}"
+          echo "::add-mask::${ATLAN_API_KEY}"
+
+      # ── Checkout (needed for atlan.yaml queue derivation) ────────────────
+      - name: Checkout
+        uses: actions/checkout@v4.0.0
+        with:
+          persist-credentials: false
+
+      # ── Resolve config ────────────────────────────────────────────────────
+      # Derives a timestamp-unique connection QN and credential name so every
+      # run creates fresh resources on the tenant without colliding with prior runs.
+      - name: Resolve config
+        id: cfg
+        env:
+          ATLAN_BASE_URL: ${{ secrets.ATLAN_BASE_URL }}
+          INPUT_CONN_NAME: ${{ inputs.connection_name }}
+        run: |
+          set -euo pipefail
+
+          TENANT_URL="${ATLAN_BASE_URL%/}"   # strip trailing slash
+          TS=$(date +%s)
+          CONN_NAME="${INPUT_CONN_NAME:-platform-smoke-test-${TS}}"
+
+          # Queue names from atlan.yaml app name + production tier
+          APP_NAME=$(grep "^name:" atlan.yaml | awk '{print $2}' | tr -d '[:space:]')
+
+          # Derived identifiers — pattern is consistent across all connectors
+          APP_ID="atlan-${APP_NAME}"
+          CONNECTOR_CONFIG_NAME="atlan-connectors-${APP_NAME}"
+
+          # Read from atlan.yaml so smoke test tracks the canonical values
+          ICON_URL=$(grep "^icon_url:" atlan.yaml | awk '{print $2}' | tr -d '"[:space:]')
+          PKG_NAME=$(grep -A2 "^argo_package_names:" atlan.yaml \
+            | grep '^\s*-' | head -1 | sed 's/.*- //' | tr -d '"[:space:]')
+
+          # Read system-database exclusion list from app/constants.py
+          # Falls back to the canonical MySQL system schemas if SYSTEM_DATABASES
+          # is not defined (mysql's SQL queries hardcode these exclusions).
+          SCHEMA_EXCLUDE=$(python3 -c "
+          import sys, json
+          sys.path.insert(0, '.')
+          try:
+              from app.constants import SYSTEM_DATABASES
+              print(json.dumps(list(SYSTEM_DATABASES)))
+          except ImportError:
+              print(json.dumps(['mysql', 'performance_schema', 'information_schema', 'sys']))
+          ")
+
+          echo "tenant_url=${TENANT_URL}"                                     >> "$GITHUB_OUTPUT"
+          echo "conn_timestamp=${TS}"                                         >> "$GITHUB_OUTPUT"
+          echo "conn_qn=default/mysql/${TS}"                                 >> "$GITHUB_OUTPUT"
+          echo "conn_name=${CONN_NAME}"                                       >> "$GITHUB_OUTPUT"
+          echo "cred_name=default-mysql-${TS}-0"                             >> "$GITHUB_OUTPUT"
+          echo "mysql_queue=atlan-${APP_NAME}-production"                    >> "$GITHUB_OUTPUT"
+          echo "publish_queue=atlan-publish-production"                      >> "$GITHUB_OUTPUT"
+          echo "qi_queue=atlan-query-intelligence-production"                >> "$GITHUB_OUTPUT"
+          echo "lineage_queue=atlan-lineage-production"                      >> "$GITHUB_OUTPUT"
+          echo "app_id=${APP_ID}"                                             >> "$GITHUB_OUTPUT"
+          echo "connector_config_name=${CONNECTOR_CONFIG_NAME}"              >> "$GITHUB_OUTPUT"
+          echo "icon_url=${ICON_URL}"                                         >> "$GITHUB_OUTPUT"
+          echo "package_name=${PKG_NAME}"                                     >> "$GITHUB_OUTPUT"
+          echo "schema_exclude_pattern=${SCHEMA_EXCLUDE}"                    >> "$GITHUB_OUTPUT"
+
+          echo "Tenant:        ${TENANT_URL}"
+          echo "Connection QN: default/mysql/${TS}"
+          echo "MySQL queue:   atlan-${APP_NAME}-production"
+          echo "App ID:        ${APP_ID}"
+          echo "Package:       ${PKG_NAME}"
+
+      # ── 1. credentials/test ───────────────────────────────────────────────
+      # Validates that the MySQL credentials can reach and authenticate to
+      # MySQL. This call proxies through app-service to the connector pod.
+      - name: "API 1 — credentials/test"
+        id: creds_test
+        env:
+          ATLAN_API_KEY: ${{ secrets.ATLAN_API_KEY }}
+          E2E_MYSQL_HOST: ${{ secrets.E2E_MYSQL_HOST }}
+          E2E_MYSQL_PORT: ${{ secrets.E2E_MYSQL_PORT }}
+          E2E_MYSQL_USERNAME: ${{ secrets.E2E_MYSQL_USERNAME }}
+          E2E_MYSQL_PASSWORD: ${{ secrets.E2E_MYSQL_PASSWORD }}
+          E2E_MYSQL_DATABASE: ${{ secrets.E2E_MYSQL_DATABASE }}
+          TENANT_URL: ${{ steps.cfg.outputs.tenant_url }}
+          APP_ID: ${{ steps.cfg.outputs.app_id }}
+          CONNECTOR_CONFIG_NAME: ${{ steps.cfg.outputs.connector_config_name }}
+        run: |
+          set -euo pipefail
+
+          BODY=$(python3 -c "
+          import json, os
+          print(json.dumps({
+              'host':                os.environ['E2E_MYSQL_HOST'],
+              'port':                int(os.environ.get('E2E_MYSQL_PORT', '3306')),
+              'authType':            'basic',
+              'username':            os.environ['E2E_MYSQL_USERNAME'],
+              'password':            os.environ['E2E_MYSQL_PASSWORD'],
+              'extra':               {'database': os.environ['E2E_MYSQL_DATABASE']},
+              'connectorConfigName': os.environ['CONNECTOR_CONFIG_NAME'],
+          }))
+          ")
+
+          RESP=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+            -X POST "${TENANT_URL}/api/service/credentials/test?app_id=${APP_ID}" \
+            -H "Authorization: Bearer ${ATLAN_API_KEY}" \
+            -H "Content-Type: application/json" \
+            --data-raw "${BODY}")
+
+          HTTP_STATUS=$(echo "$RESP" | grep "HTTP_STATUS:" | cut -d: -f2)
+          BODY_RESP=$(echo "$RESP" | sed '/HTTP_STATUS:/d')
+          echo "HTTP ${HTTP_STATUS}"
+          echo "status_code=${HTTP_STATUS}" >> "$GITHUB_OUTPUT"
+
+          # Validate: 2xx + body does not indicate explicit failure
+          SUCCESS=$(echo "${BODY_RESP}" | python3 -c "
+          import json, sys
+          try:
+              d = json.load(sys.stdin)
+              # Fail if top-level success is explicitly false
+              if d.get('success') is False:
+                  sys.exit(1)
+          except Exception:
+              pass  # non-JSON or missing field: defer to HTTP status check
+          " 2>/dev/null; echo $?)
+          [ "${HTTP_STATUS}" -ge 200 ] && [ "${HTTP_STATUS}" -lt 300 ] || \
+            { echo "::error::credentials/test returned HTTP ${HTTP_STATUS}"; exit 1; }
+          [ "${SUCCESS}" = "0" ] || \
+            { echo "::error::credentials/test returned success=false"; exit 1; }
+          echo "credentials/test passed."
+
+      # ── 2. credentials/query ──────────────────────────────────────────────
+      # Fetches available schemas from MySQL via app-service, used to
+      # populate the schema picker in the UI setup wizard.
+      - name: "API 2 — credentials/query"
+        id: creds_query
+        env:
+          ATLAN_API_KEY: ${{ secrets.ATLAN_API_KEY }}
+          E2E_MYSQL_HOST: ${{ secrets.E2E_MYSQL_HOST }}
+          E2E_MYSQL_PORT: ${{ secrets.E2E_MYSQL_PORT }}
+          E2E_MYSQL_USERNAME: ${{ secrets.E2E_MYSQL_USERNAME }}
+          E2E_MYSQL_PASSWORD: ${{ secrets.E2E_MYSQL_PASSWORD }}
+          E2E_MYSQL_DATABASE: ${{ secrets.E2E_MYSQL_DATABASE }}
+          TENANT_URL: ${{ steps.cfg.outputs.tenant_url }}
+          APP_ID: ${{ steps.cfg.outputs.app_id }}
+          CONNECTOR_CONFIG_NAME: ${{ steps.cfg.outputs.connector_config_name }}
+          SCHEMA_EXCLUDE_PATTERN: ${{ steps.cfg.outputs.schema_exclude_pattern }}
+        run: |
+          set -euo pipefail
+
+          BODY=$(python3 -c "
+          import json, os
+          print(json.dumps({
+              'host':                os.environ['E2E_MYSQL_HOST'],
+              'port':                int(os.environ.get('E2E_MYSQL_PORT', '3306')),
+              'authType':            'basic',
+              'username':            os.environ['E2E_MYSQL_USERNAME'],
+              'password':            os.environ['E2E_MYSQL_PASSWORD'],
+              'extra':               {'database': os.environ['E2E_MYSQL_DATABASE']},
+              'connectorConfigName': os.environ['CONNECTOR_CONFIG_NAME'],
+              'query':               'show atlan schemas',
+              'schemaExcludePattern': json.loads(os.environ['SCHEMA_EXCLUDE_PATTERN']),
+          }))
+          ")
+
+          RESP=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+            -X POST "${TENANT_URL}/api/service/credentials/query?app_id=${APP_ID}" \
+            -H "Authorization: Bearer ${ATLAN_API_KEY}" \
+            -H "Content-Type: application/json" \
+            --data-raw "${BODY}")
+
+          HTTP_STATUS=$(echo "$RESP" | grep "HTTP_STATUS:" | cut -d: -f2)
+          BODY_RESP=$(echo "$RESP" | sed '/HTTP_STATUS:/d')
+          echo "HTTP ${HTTP_STATUS}"
+          echo "status_code=${HTTP_STATUS}" >> "$GITHUB_OUTPUT"
+
+          # Count schemas returned (response is a list or wrapped list)
+          SCHEMA_COUNT=$(echo "${BODY_RESP}" | python3 -c "
+          import json, sys
+          try:
+              d = json.load(sys.stdin)
+              # Shape may be a list directly or {data: [...]}
+              items = d if isinstance(d, list) else d.get('data', d)
+              print(len(items) if isinstance(items, list) else 0)
+          except Exception:
+              print(0)
+          " 2>/dev/null || echo "0")
+          echo "Schemas returned: ${SCHEMA_COUNT}"
+          echo "schema_count=${SCHEMA_COUNT}" >> "$GITHUB_OUTPUT"
+
+          [ "${HTTP_STATUS}" -ge 200 ] && [ "${HTTP_STATUS}" -lt 300 ] || \
+            { echo "::error::credentials/query returned HTTP ${HTTP_STATUS}"; exit 1; }
+          echo "credentials/query passed (${SCHEMA_COUNT} schemas)."
+
+      # ── 3. sage ───────────────────────────────────────────────────────────
+      # AI-assisted recommendation step — validates the full form submission
+      # before the workflow is created. Passes credential + all formData fields.
+      - name: "API 3 — sage"
+        id: sage
+        env:
+          ATLAN_API_KEY: ${{ secrets.ATLAN_API_KEY }}
+          E2E_MYSQL_HOST: ${{ secrets.E2E_MYSQL_HOST }}
+          E2E_MYSQL_PORT: ${{ secrets.E2E_MYSQL_PORT }}
+          E2E_MYSQL_USERNAME: ${{ secrets.E2E_MYSQL_USERNAME }}
+          E2E_MYSQL_PASSWORD: ${{ secrets.E2E_MYSQL_PASSWORD }}
+          E2E_MYSQL_DATABASE: ${{ secrets.E2E_MYSQL_DATABASE }}
+          TENANT_URL: ${{ steps.cfg.outputs.tenant_url }}
+          CONN_QN: ${{ steps.cfg.outputs.conn_qn }}
+          CONN_NAME: ${{ steps.cfg.outputs.conn_name }}
+          CONN_TIMESTAMP: ${{ steps.cfg.outputs.conn_timestamp }}
+          APP_ID: ${{ steps.cfg.outputs.app_id }}
+          CONNECTOR_CONFIG_NAME: ${{ steps.cfg.outputs.connector_config_name }}
+          ICON_URL: ${{ steps.cfg.outputs.icon_url }}
+        run: |
+          set -euo pipefail
+
+          BODY=$(python3 -c "
+          import json, os
+          host      = os.environ['E2E_MYSQL_HOST']
+          port      = int(os.environ.get('E2E_MYSQL_PORT', '3306'))
+          username  = os.environ['E2E_MYSQL_USERNAME']
+          password  = os.environ['E2E_MYSQL_PASSWORD']
+          database  = os.environ['E2E_MYSQL_DATABASE']
+          conn_qn   = os.environ['CONN_QN']
+          conn_name = os.environ['CONN_NAME']
+          ts        = os.environ['CONN_TIMESTAMP']
+          cfg_name  = os.environ['CONNECTOR_CONFIG_NAME']
+          icon_url  = os.environ['ICON_URL']
+
+          cred = {
+              'host': host, 'port': port, 'authType': 'basic',
+              'username': username, 'password': password,
+              'extra': {'database': database},
+              'connectorConfigName': cfg_name,
+          }
+          body = {
+              'credential': cred,
+              'formData': {
+                  'extraction-method':                    'direct',
+                  'include-filter':                       {},
+                  'exclude-filter':                       '{}',
+                  'credential-guid.credential-type':      cfg_name,
+                  'credential-guid.host':                 host,
+                  'credential-guid.port':                 port,
+                  'credential-guid.auth-type':            'basic',
+                  'credential-guid.basic.username':       username,
+                  'credential-guid.basic.password':       password,
+                  'credential-guid.basic.extra.database': database,
+                  'connection.name':                      conn_name,
+                  'connection.qualifiedName':             conn_qn,
+                  'connection.allowQuery':                True,
+                  'connection.allowQueryPreview':         True,
+                  'connection.rowLimit':                  10000,
+                  'connection.connectorName':             'mysql',
+                  'connection.sourceLogo':                icon_url,
+                  'connection.isDiscoverable':            True,
+                  'connection.isEditable':                False,
+                  'connection.category':                  'warehouse',
+                  'connection.adminUsers':                [],
+                  'connection.adminGroups':               [],
+                  'connection.adminRoles':                [],
+              },
+          }
+          print(json.dumps(body))
+          ")
+
+          RESP=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+            -X POST "${TENANT_URL}/api/service/sage?sageType=default&app_id=${APP_ID}" \
+            -H "Authorization: Bearer ${ATLAN_API_KEY}" \
+            -H "Content-Type: application/json" \
+            --data-raw "${BODY}")
+
+          HTTP_STATUS=$(echo "$RESP" | grep "HTTP_STATUS:" | cut -d: -f2)
+          BODY_RESP=$(echo "$RESP" | sed '/HTTP_STATUS:/d')
+          echo "HTTP ${HTTP_STATUS}"
+          echo "status_code=${HTTP_STATUS}" >> "$GITHUB_OUTPUT"
+
+          [ "${HTTP_STATUS}" -ge 200 ] && [ "${HTTP_STATUS}" -lt 300 ] || \
+            { echo "Response: ${BODY_RESP}"; echo "::error::sage returned HTTP ${HTTP_STATUS}"; exit 1; }
+
+          # Log truncated response body (safe — sage response contains no credentials)
+          echo "Sage response (first 500 chars):"
+          echo "${BODY_RESP}" | python3 -c "import sys; print(sys.stdin.read()[:500])" || true
+
+          echo "sage passed."
+
+      # ── 3b. Create + publish AE workflow (seed version) ─────────────────────
+      # Heracles pre-creates an AE workflow and publishes a seed version before
+      # calling package-workflows. Without a PUBLISHED version, AE returns EOF
+      # when package-workflows calls /submit. The seed version uses a placeholder
+      # credential; package-workflows replaces it with a new version carrying the
+      # real credential GUID before submitting the run.
+      #
+      # The seed must contain the full 5-node DAG (extract → qi + publish →
+      # lineage-app → lineage-publish). If the seed only has extract, the run
+      # that package-workflows submits will also only run extract — publish never
+      # fires and the Atlas connection entity is never created.
+      - name: "Create and publish AE workflow"
+        id: ae_workflow
+        env:
+          ATLAN_API_KEY: ${{ secrets.ATLAN_API_KEY }}
+          TENANT_URL: ${{ steps.cfg.outputs.tenant_url }}
+          CONN_TIMESTAMP: ${{ steps.cfg.outputs.conn_timestamp }}
+          CONN_QN: ${{ steps.cfg.outputs.conn_qn }}
+          CONN_NAME: ${{ steps.cfg.outputs.conn_name }}
+          MYSQL_QUEUE: ${{ steps.cfg.outputs.mysql_queue }}
+          PUBLISH_QUEUE: ${{ steps.cfg.outputs.publish_queue }}
+          QI_QUEUE: ${{ steps.cfg.outputs.qi_queue }}
+          LINEAGE_QUEUE: ${{ steps.cfg.outputs.lineage_queue }}
+        run: |
+          set -euo pipefail
+          AE_URL="${TENANT_URL}/automation"
+          WF_NAME="mysql"
+
+          CREATE_RESP=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+            -X POST "${AE_URL}/api/v1/workflows" \
+            -H "Authorization: Bearer ${ATLAN_API_KEY}" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\": \"${WF_NAME}\", \"description\": \"CI smoke test ${CONN_TIMESTAMP} — safe to delete\"}")
+          HTTP_STATUS=$(echo "$CREATE_RESP" | grep "HTTP_STATUS:" | cut -d: -f2)
+          CREATE_BODY=$(echo "$CREATE_RESP" | sed '/HTTP_STATUS:/d')
+          [ "${HTTP_STATUS}" -ge 200 ] && [ "${HTTP_STATUS}" -lt 300 ] || \
+            { echo "::error::Create workflow HTTP ${HTTP_STATUS}: ${CREATE_BODY}"; exit 1; }
+
+          SLUG=$(echo "${CREATE_BODY}" | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          s = d.get('data', {}).get('slug') or d.get('slug')
+          if not s: raise ValueError('No slug: ' + repr(d)[:300])
+          print(s)
+          ")
+          echo "Created workflow: ${SLUG}"
+          sleep 3
+
+          # Build full 5-node DAG via Python to avoid bash JSON-escaping issues.
+          # credential_guid is a placeholder — package-workflows creates the real
+          # credential and publishes a new version with the real GUID before submit.
+          VERSION=$(date +%s)
+          VER_JSON=$(python3 -c "
+          import json, os
+          mq  = os.environ['MYSQL_QUEUE']
+          pq  = os.environ['PUBLISH_QUEUE']
+          qq  = os.environ['QI_QUEUE']
+          lq  = os.environ['LINEAGE_QUEUE']
+          cn  = os.environ['CONN_NAME']
+          cqn = os.environ['CONN_QN']
+          print(json.dumps({
+            'version': ${VERSION},
+            'dag': {
+              'extract': {
+                'node_type': 'workflow',
+                'activity_name': 'execute_workflow',
+                'activity_display_name': 'Extract MySQL Metadata',
+                'app_name': 'mysql',
+                'app_task_queue': mq,
+                'inputs': {
+                  'workflow_type': 'mysql-metadata-extractor',
+                  'task_queue': mq,
+                  'args': {
+                    'credential_guid': '__placeholder__',
+                    'connection': {'connection_name': cn, 'connection_qualified_name': cqn},
+                    'extraction_method': 'direct',
+                    'include_filter': '',
+                    'exclude_filter': '',
+                    'temp_table_regex': '',
+                  }
+                }
+              },
+              'qi': {
+                'node_type': 'workflow',
+                'activity_name': 'execute_workflow',
+                'activity_display_name': 'Parse View Lineage',
+                'app_name': 'query-intelligence',
+                'app_task_queue': qq,
+                'inputs': {
+                  'workflow_type': 'QueryIntelligenceWorkflow',
+                  'task_queue': qq,
+                  'args': {
+                    'connection_qualified_name': '$.extract.outputs.connection_qualified_name',
+                    'vendor_name': 'mysql',
+                    'sql_key': 'attributes.definition',
+                    'catalog_key': 'attributes.databaseName',
+                    'schema_key': 'attributes.schemaName',
+                    'timestamp_key': '',
+                    'mine_output_type': 'json',
+                    'parsing_mode': 'lorien-only',
+                    'lake_provider': 'aws',
+                    'storage_bucket': '$.extract.outputs.storage_bucket',
+                    'input_prefix': '$.extract.outputs.view_data_prefix',
+                    'output_prefix': '$.extract.outputs.view_lineage_output_prefix',
+                  }
+                },
+                'depends_on': {'node_id': 'extract'}
+              },
+              'publish': {
+                'node_type': 'workflow',
+                'activity_name': 'execute_workflow',
+                'activity_display_name': 'Publish to Atlas',
+                'app_name': 'publish',
+                'app_task_queue': pq,
+                'inputs': {
+                  'workflow_type': 'PublishWorkflow',
+                  'task_queue': pq,
+                  'args': {
+                    'connection_qualified_name': '$.extract.outputs.connection_qualified_name',
+                    'transformed_data_prefix': '$.extract.outputs.transformed_data_prefix',
+                    'publish_state_prefix': '$.extract.outputs.publish_state_prefix',
+                    'current_state_prefix': '$.extract.outputs.current_state_prefix',
+                    'connection_creation_enabled': True,
+                    'executor_enabled': True,
+                    'connection_cache_enabled': True,
+                    'connection_cache_via_app_enabled': True,
+                  }
+                },
+                'depends_on': {'node_id': 'extract'}
+              },
+              'lineage-app': {
+                'node_type': 'workflow',
+                'activity_name': 'execute_workflow',
+                'activity_display_name': 'Build Lineage Entities',
+                'app_name': 'lineage',
+                'app_task_queue': lq,
+                'inputs': {
+                  'workflow_type': 'LineageWorkflow',
+                  'task_queue': lq,
+                  'args': {
+                    'connection_qualified_name': '$.extract.outputs.connection_qualified_name',
+                    'connector_name': 'mysql',
+                    'session_key': 'view-lineage',
+                    'sql_unquoted_case': 'lower',
+                    'ignore_all_case': False,
+                    'input_path': '',
+                    'parsed_views_path': '$.extract.outputs.view_lineage_output_prefix',
+                    'lineage_output_path': '$.extract.outputs.lineage_stage_prefix',
+                    'cache_path': 'connection-cache',
+                    'file_type': 'json',
+                    'lake_provider': 'aws',
+                    'cloud_storage_bucket': '$.extract.outputs.storage_bucket',
+                  }
+                },
+                'depends_on': {'and_conditions': [{'node_id': 'qi'}, {'node_id': 'publish'}]}
+              },
+              'lineage-publish': {
+                'node_type': 'workflow',
+                'activity_name': 'execute_workflow',
+                'activity_display_name': 'Publish Lineage to Atlas',
+                'app_name': 'publish',
+                'app_task_queue': pq,
+                'inputs': {
+                  'workflow_type': 'PublishWorkflow',
+                  'task_queue': pq,
+                  'args': {
+                    'connection_qualified_name': '$.extract.outputs.connection_qualified_name',
+                    'transformed_data_prefix': '$.extract.outputs.lineage_stage_prefix',
+                    'publish_state_prefix': '$.extract.outputs.lineage_publish_state_prefix',
+                    'current_state_prefix': '$.extract.outputs.lineage_current_state_prefix',
+                    'connection_creation_enabled': False,
+                    'executor_enabled': True,
+                    'cache_namespace': 'lineage',
+                    'connection_cache_enabled': True,
+                    'connection_cache_via_app_enabled': True,
+                  }
+                },
+                'depends_on': {'node_id': 'lineage-app'}
+              },
+            }
+          }))
+          ")
+
+          VER_RESP=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+            -X POST "${AE_URL}/api/v1/workflows/${SLUG}/versions" \
+            -H "Authorization: Bearer ${ATLAN_API_KEY}" \
+            -H "Content-Type: application/json" \
+            --data-raw "${VER_JSON}")
+          VER_HTTP=$(echo "$VER_RESP" | grep "HTTP_STATUS:" | cut -d: -f2)
+          VER_BODY=$(echo "$VER_RESP" | sed '/HTTP_STATUS:/d')
+          [ "${VER_HTTP}" -ge 200 ] && [ "${VER_HTTP}" -lt 300 ] || \
+            { echo "::error::Create version HTTP ${VER_HTTP}: ${VER_BODY}"; exit 1; }
+
+          REAL_VER=$(echo "$VER_BODY" | python3 -c "
+          import json, sys
+          d = json.load(sys.stdin)
+          v = d.get('data', {}).get('version') or d.get('version')
+          if v: print(v)
+          " 2>/dev/null || true)
+          [ -n "${REAL_VER}" ] || { echo "::error::No version in: ${VER_BODY}"; exit 1; }
+
+          # Publish with retry — AE may take a moment to index the
+          # newly-created version, returning 404 to publish calls that
+          # arrive too soon (AE-WF-404-02).
+          PUB_STATUS="unknown"
+          PUB_RESP=""
+          for _attempt in 1 2 3 4 5; do
+            PUB_RESP=$(curl -s -X POST "${AE_URL}/api/v1/workflows/${SLUG}/versions/${REAL_VER}/publish" \
+              -H "Authorization: Bearer ${ATLAN_API_KEY}")
+            PUB_STATUS=$(echo "$PUB_RESP" | python3 -c "import json,sys; print(json.load(sys.stdin).get('status','unknown'))" 2>/dev/null || echo "unknown")
+            [ "$PUB_STATUS" = "success" ] && break
+            echo "Publish attempt ${_attempt} returned: ${PUB_RESP} — retrying in 5s..."
+            sleep 5
+          done
+          [ "$PUB_STATUS" = "success" ] || { echo "::error::Publish failed after retries: ${PUB_RESP}"; exit 1; }
+          echo "Published seed version ${REAL_VER} → workflow PUBLISHED"
+
+          echo "ae_workflow_slug=${SLUG}" >> "$GITHUB_OUTPUT"
+
+      # ── 4. package-workflows (submit) ─────────────────────────────────────
+      # Submits the extraction workflow through the app-service layer —
+      # the same path the UI takes. Creates a named credential on the tenant
+      # (${CRED_NAME}) and submits the workflow manifest.
+      - name: "API 4 — package-workflows"
+        id: submit
+        env:
+          ATLAN_API_KEY: ${{ secrets.ATLAN_API_KEY }}
+          E2E_MYSQL_HOST: ${{ secrets.E2E_MYSQL_HOST }}
+          E2E_MYSQL_PORT: ${{ secrets.E2E_MYSQL_PORT }}
+          E2E_MYSQL_USERNAME: ${{ secrets.E2E_MYSQL_USERNAME }}
+          E2E_MYSQL_PASSWORD: ${{ secrets.E2E_MYSQL_PASSWORD }}
+          E2E_MYSQL_DATABASE: ${{ secrets.E2E_MYSQL_DATABASE }}
+          TENANT_URL: ${{ steps.cfg.outputs.tenant_url }}
+          CONN_QN: ${{ steps.cfg.outputs.conn_qn }}
+          CONN_NAME: ${{ steps.cfg.outputs.conn_name }}
+          CONN_TIMESTAMP: ${{ steps.cfg.outputs.conn_timestamp }}
+          AE_WORKFLOW_SLUG: ${{ steps.ae_workflow.outputs.ae_workflow_slug }}
+          CRED_NAME: ${{ steps.cfg.outputs.cred_name }}
+          MYSQL_QUEUE: ${{ steps.cfg.outputs.mysql_queue }}
+          APP_ID: ${{ steps.cfg.outputs.app_id }}
+          CONNECTOR_CONFIG_NAME: ${{ steps.cfg.outputs.connector_config_name }}
+          ICON_URL: ${{ steps.cfg.outputs.icon_url }}
+          PACKAGE_NAME: ${{ steps.cfg.outputs.package_name }}
+        run: |
+          set -euo pipefail
+
+          BODY=$(python3 -c "
+          import json, os
+          host       = os.environ['E2E_MYSQL_HOST']
+          port       = int(os.environ.get('E2E_MYSQL_PORT', '3306'))
+          username   = os.environ['E2E_MYSQL_USERNAME']
+          password   = os.environ['E2E_MYSQL_PASSWORD']
+          database   = os.environ['E2E_MYSQL_DATABASE']
+          conn_qn    = os.environ['CONN_QN']
+          conn_name  = os.environ['CONN_NAME']
+          ts         = os.environ['CONN_TIMESTAMP']
+          cred_name  = os.environ['CRED_NAME']
+          mysql_q    = os.environ['MYSQL_QUEUE']
+          ae_wf_slug = os.environ['AE_WORKFLOW_SLUG']
+          app_id     = os.environ['APP_ID']
+          cfg_name   = os.environ['CONNECTOR_CONFIG_NAME']
+          icon_url   = os.environ['ICON_URL']
+          pkg_name   = os.environ['PACKAGE_NAME']
+
+          wf_name    = f'{app_id}-{ts}'
+
+          # connection JSON string embedded as a workflow parameter value
+          conn_attrs = json.dumps({
+              'attributes': {
+                  'name':                 conn_name,
+                  'qualifiedName':        conn_qn,
+                  'allowQuery':           True,
+                  'allowQueryPreview':    True,
+                  'rowLimit':             10000,
+                  'defaultCredentialGuid': '{{credentialGuid}}',
+                  'connectorName':        'mysql',
+                  'sourceLogo':           icon_url,
+                  'isDiscoverable':       True,
+                  'isEditable':           False,
+                  'category':             'warehouse',
+                  'adminUsers':           [],
+                  'adminGroups':          [],
+                  'adminRoles':           [],
+              },
+              'typeName': 'Connection',
+          })
+
+          body = {
+              'metadata': {
+                  'labels': {
+                      f'orchestration.atlan.com/default-mysql-{ts}': 'true',
+                      'orchestration.atlan.com/atlan-ui':             'true',
+                  },
+                  'annotations': {
+                      'orchestration.atlan.com/name':      'MySQL Assets',
+                      'package.argoproj.io/name':          pkg_name,
+                      'orchestration.atlan.com/atlanName': f'{app_id}-default-mysql-{ts}',
+                  },
+                  'name':            wf_name,
+                  'namespace':       'default',
+                  'ae_workflow_slug': ae_wf_slug,
+                  'app_service_url': f'http://mysql.mysql-app.svc.cluster.local',
+              },
+              'spec': {
+                  'templates': [
+                      {
+                          'name': 'main',
+                          'dag': {
+                              'tasks': [
+                                  {
+                                      'name': 'run',
+                                      'arguments': {
+                                          'parameters': [
+                                              {'name': 'extraction-method',                   'value': 'direct'},
+                                              {'name': 'credential-guid',                     'value': '{{credentialGuid}}'},
+                                              {'name': 'connection',                           'value': conn_attrs},
+                                              {'name': 'include-filter',                       'value': '{}'},
+                                              {'name': 'exclude-filter',                       'value': '{}'},
+                                              {'name': 'credential-guid.credential-type',      'value': cfg_name},
+                                              {'name': 'credential-guid.host',                 'value': host},
+                                              {'name': 'credential-guid.port',                 'value': port},
+                                              {'name': 'credential-guid.auth-type',            'value': 'basic'},
+                                              {'name': 'credential-guid.basic.username',       'value': username},
+                                              {'name': 'credential-guid.basic.password',       'value': password},
+                                              {'name': 'credential-guid.basic.extra.database', 'value': database},
+                                              {'name': 'connection.name',                      'value': conn_name},
+                                              {'name': 'connection.qualifiedName',             'value': conn_qn},
+                                              {'name': 'connection.allowQuery',                'value': True},
+                                              {'name': 'connection.allowQueryPreview',         'value': True},
+                                              {'name': 'connection.rowLimit',                  'value': 10000},
+                                              {'name': 'connection.connectorName',             'value': 'mysql'},
+                                              {'name': 'connection.isDiscoverable',            'value': True},
+                                              {'name': 'connection.isEditable',                'value': False},
+                                              {'name': 'connection.category',                  'value': 'warehouse'},
+                                              {'name': 'connection.adminUsers',                'value': '[]'},
+                                              {'name': 'connection.adminGroups',               'value': '[]'},
+                                              {'name': 'connection.adminRoles',                'value': '[]'},
+                                          ]
+                                      },
+                                      'templateRef': {
+                                          'name':         app_id,
+                                          'template':     'main',
+                                          'clusterScope': True,
+                                      },
+                                  }
+                              ]
+                          }
+                      }
+                  ],
+                  'entrypoint': 'main',
+                  'workflowMetadata': {
+                      'annotations': {
+                          'package.argoproj.io/name': pkg_name,
+                      }
+                  },
+              },
+              'payload': [
+                  {
+                      'parameter': 'credentialGuid',
+                      'type':      'credential',
+                      'body': {
+                          'name':                cred_name,
+                          'host':                host,
+                          'port':                port,
+                          'authType':            'basic',
+                          'username':            username,
+                          'password':            password,
+                          'extra':               {'database': database},
+                          'connectorConfigName': cfg_name,
+                      }
+                  }
+              ],
+              'execution_mode': 'native',
+          }
+          print(json.dumps(body))
+          ")
+
+          # Do NOT log the body — it contains credentials in the payload
+          RESP=$(curl -s -w "\nHTTP_STATUS:%{http_code}" \
+            -X POST "${TENANT_URL}/api/service/package-workflows?submit=true" \
+            -H "Authorization: Bearer ${ATLAN_API_KEY}" \
+            -H "Content-Type: application/json" \
+            --data-raw "${BODY}")
+
+          HTTP_STATUS=$(echo "$RESP" | grep "HTTP_STATUS:" | cut -d: -f2)
+          BODY_RESP=$(echo "$RESP" | sed '/HTTP_STATUS:/d')
+          echo "HTTP ${HTTP_STATUS}"
+          echo "status_code=${HTTP_STATUS}" >> "$GITHUB_OUTPUT"
+
+          # Log truncated error body on failure — server error messages don't contain credentials
+          if [ "${HTTP_STATUS}" -ge 400 ]; then
+            echo "Response (first 1000 chars):"
+            echo "${BODY_RESP}" | python3 -c "import sys; print(sys.stdin.read()[:1000])" || true
+          fi
+
+          # Extract workflow name from response — safe to log (no creds in response)
+          WF_ID=$(echo "${BODY_RESP}" | python3 -c "
+          import json, sys
+          try:
+              d = json.load(sys.stdin)
+              # Response shape varies: top-level 'metadata.name', 'name', or 'data.name'
+              name = (d.get('metadata') or {}).get('name') \
+                  or d.get('name') \
+                  or (d.get('data') or {}).get('name') \
+                  or ''
+              print(name)
+          except Exception:
+              print('')
+          " 2>/dev/null || true)
+          echo "workflow_id=${WF_ID}" >> "$GITHUB_OUTPUT"
+          [ -n "${WF_ID}" ] && echo "Submitted workflow: ${WF_ID}"
+
+          [ "${HTTP_STATUS}" -ge 200 ] && [ "${HTTP_STATUS}" -lt 300 ] || \
+            { echo "::error::package-workflows returned HTTP ${HTTP_STATUS}"; exit 1; }
+          echo "package-workflows passed."
+
+      # ── 5. Wait for connection entity ─────────────────────────────────────
+      # Poll Atlas until the Connection entity with QN default/mysql/{ts}
+      # appears — this confirms the full extract+publish pipeline completed,
+      # not just that the workflow was submitted.
+      - name: "Wait for connection"
+        id: wait_connection
+        env:
+          ATLAN_API_KEY: ${{ secrets.ATLAN_API_KEY }}
+          TENANT_URL: ${{ steps.cfg.outputs.tenant_url }}
+          CONN_QN: ${{ steps.cfg.outputs.conn_qn }}
+        run: |
+          set -euo pipefail
+          MAX_WAIT=1500   # 25 minutes — extraction + publish can take a while
+          INTERVAL=30
+          ELAPSED=0
+
+          echo "Polling Atlas for connection: ${CONN_QN}"
+          echo "Will poll every ${INTERVAL}s, timeout ${MAX_WAIT}s"
+
+          while [ $ELAPSED -lt $MAX_WAIT ]; do
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+              "${TENANT_URL}/api/meta/entity/uniqueAttribute/type/Connection?attr:qualifiedName=${CONN_QN}" \
+              -H "Authorization: Bearer ${ATLAN_API_KEY}" \
+              -H "Accept: application/json")
+
+            echo "  [${ELAPSED}s] HTTP ${HTTP_STATUS}"
+
+            if [ "${HTTP_STATUS}" = "200" ]; then
+              echo "Connection ${CONN_QN} confirmed in Atlas."
+              exit 0
+            fi
+
+            sleep $INTERVAL
+            ELAPSED=$((ELAPSED + INTERVAL))
+          done
+
+          echo "::error::Connection ${CONN_QN} not found in Atlas after ${MAX_WAIT}s"
+          exit 1
+
+      # ── Diagnose tenant AE run on failure ─────────────────────────────────
+      # When "Wait for connection" times out, the AE workflow on tenant has
+      # almost certainly failed (publish never created the connection). The
+      # connector logs aren't visible from CI, so pull the latest run for our
+      # AE workflow slug and print each DAG node's status + error so the
+      # failure cause is visible in the GH log.
+      - name: "Dump tenant AE run diagnostics"
+        if: always() && steps.wait_connection.outcome == 'failure'
+        env:
+          ATLAN_API_KEY: ${{ secrets.ATLAN_API_KEY }}
+          TENANT_URL: ${{ steps.cfg.outputs.tenant_url }}
+          AE_WORKFLOW_SLUG: ${{ steps.ae_workflow.outputs.ae_workflow_slug }}
+        run: |
+          set -euo pipefail
+          AE_URL="${TENANT_URL}/automation"
+          [ -n "${AE_WORKFLOW_SLUG}" ] || { echo "No AE slug — nothing to diagnose."; exit 0; }
+
+          probe() {
+            local LABEL="$1" URL="$2"
+            echo "================================================================"
+            echo "Probe: ${LABEL}"
+            echo "URL:   ${URL}"
+            local RESP HTTP_STATUS BODY CT
+            RESP=$(curl -s -w "\nHTTP_STATUS:%{http_code}\nCONTENT_TYPE:%{content_type}" \
+              "${URL}" \
+              -H "Authorization: Bearer ${ATLAN_API_KEY}" \
+              -H "Accept: application/json" 2>&1 || echo "HTTP_STATUS:000")
+            HTTP_STATUS=$(echo "$RESP" | grep "HTTP_STATUS:" | cut -d: -f2)
+            CT=$(echo "$RESP" | grep "CONTENT_TYPE:" | cut -d: -f2-)
+            BODY=$(echo "$RESP" | sed -e '/HTTP_STATUS:/d' -e '/CONTENT_TYPE:/d')
+            echo "HTTP ${HTTP_STATUS} content-type=${CT} body-len=${#BODY}"
+            if [ "${#BODY}" -le 4000 ]; then
+              echo "--- body ---"; echo "${BODY}"; echo "--- end body ---"
+            else
+              echo "--- body first 2000 chars ---"; echo "${BODY:0:2000}"; echo "--- (truncated) ---"
+            fi
+          }
+
+          probe "workflow detail"          "${AE_URL}/api/v1/workflows/${AE_WORKFLOW_SLUG}"
+          probe "workflow runs (existing)" "${AE_URL}/api/v1/workflows/${AE_WORKFLOW_SLUG}/runs"
+          probe "workflow versions"        "${AE_URL}/api/v1/workflows/${AE_WORKFLOW_SLUG}/versions"
+          probe "workflows top-level"      "${AE_URL}/api/v1/workflows?slug=${AE_WORKFLOW_SLUG}"
+
+      # ── Summary ───────────────────────────────────────────────────────────
+      - name: Summary
+        if: always()
+        run: |
+          set -euo pipefail
+          TENANT="${{ steps.cfg.outputs.tenant_url }}"
+          CONN_QN="${{ steps.cfg.outputs.conn_qn }}"
+          WF_ID="${{ steps.submit.outputs.workflow_id || '' }}"
+          SCHEMA_COUNT="${{ steps.creds_query.outputs.schema_count || '-' }}"
+
+          declare -A STATUSES=(
+            [creds_test]="${{ steps.creds_test.outcome }}"
+            [creds_query]="${{ steps.creds_query.outcome }}"
+            [sage]="${{ steps.sage.outcome }}"
+            [submit]="${{ steps.submit.outcome }}"
+            [wait_connection]="${{ steps.wait_connection.outcome }}"
+          )
+
+          declare -A HTTP_CODES=(
+            [creds_test]="${{ steps.creds_test.outputs.status_code || '-' }}"
+            [creds_query]="${{ steps.creds_query.outputs.status_code || '-' }}"
+            [sage]="${{ steps.sage.outputs.status_code || '-' }}"
+            [submit]="${{ steps.submit.outputs.status_code || '-' }}"
+          )
+
+          icon() {
+            case "$1" in
+              success) echo "✅" ;;
+              failure) echo "❌" ;;
+              skipped) echo "⏭️" ;;
+              *)       echo "⏳" ;;
+            esac
+          }
+
+          {
+            echo "## Platform API Smoke Test — \`${TENANT}\`"
+            echo ""
+            echo "| # | Step | HTTP | Result |"
+            echo "|---|------|-----:|:------:|"
+            echo "| 1 | \`credentials/test\`      | ${HTTP_CODES[creds_test]}  | $(icon ${STATUSES[creds_test]})       |"
+            echo "| 2 | \`credentials/query\`     | ${HTTP_CODES[creds_query]} | $(icon ${STATUSES[creds_query]})      |"
+            echo "| 3 | \`sage\`                  | ${HTTP_CODES[sage]}        | $(icon ${STATUSES[sage]})             |"
+            echo "| 3b| AE workflow (create+pub) | —                          | $(icon ${{ steps.ae_workflow.outcome }}) |"
+            echo "| 4 | \`package-workflows\`     | ${HTTP_CODES[submit]}      | $(icon ${STATUSES[submit]})           |"
+            echo "| 5 | Connection in Atlas      | —                          | $(icon ${STATUSES[wait_connection]}) |"
+            echo ""
+            echo "**Tenant:** \`${TENANT}\`"
+            echo "**Connection QN:** \`${CONN_QN}\`"
+            echo "**Schemas returned by query:** ${SCHEMA_COUNT}"
+            [ -z "${WF_ID}" ] || echo "**Submitted workflow:** \`${WF_ID}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # ── PR comment ────────────────────────────────────────────────────────
+      - name: Post PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: mshick/add-pr-comment@b8f338c590a895d50bcbfa6c5859251edc8952fc # v2.8.2
+        with:
+          message-id: platform_smoke_test_results
+          message: |
+            ## Platform API Smoke Test
+
+            **Status:** ${{ (steps.creds_test.outcome == 'success' && steps.creds_query.outcome == 'success' && steps.sage.outcome == 'success' && steps.submit.outcome == 'success' && steps.wait_connection.outcome == 'success') && '✅ Passed' || '❌ Failed' }}
+            **Tenant:** `${{ steps.cfg.outputs.tenant_url }}`
+            **Connection QN:** `${{ steps.cfg.outputs.conn_qn }}`
+            **Run:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            | # | Step | Result |
+            |---|------|:------:|
+            | 1 | `credentials/test`   | ${{ steps.creds_test.outcome      == 'success' && '✅' || '❌' }} |
+            | 2 | `credentials/query`  | ${{ steps.creds_query.outcome     == 'success' && '✅' || '❌' }} |
+            | 3 | `sage`               | ${{ steps.sage.outcome            == 'success' && '✅' || '❌' }} |
+            | 3b | AE workflow (create+pub) | ${{ steps.ae_workflow.outcome == 'success' && '✅' || '❌' }} |
+            | 4 | `package-workflows`  | ${{ steps.submit.outcome          == 'success' && '✅' || '❌' }} |
+            | 5 | Connection in Atlas  | ${{ steps.wait_connection.outcome == 'success' && '✅' || '❌' }} |
+
+            <details>
+            <summary>Re-run</summary>
+
+            Remove and re-add the `platform-test` label, or trigger manually from the Actions tab.
+            </details>
+        continue-on-error: true
+
+      # ── Commit status ─────────────────────────────────────────────────────
+      - name: Set commit status
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const outcomes = [
+              '${{ steps.creds_test.outcome }}',
+              '${{ steps.creds_query.outcome }}',
+              '${{ steps.sage.outcome }}',
+              '${{ steps.ae_workflow.outcome }}',
+              '${{ steps.submit.outcome }}',
+              '${{ steps.wait_connection.outcome }}',
+            ];
+            const state = outcomes.every(o => o === 'success') ? 'success' : 'failure';
+            await github.rest.repos.createCommitStatus({
+              owner:       context.repo.owner,
+              repo:        context.repo.repo,
+              sha:         context.payload.pull_request.head.sha,
+              state,
+              target_url:  `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              description: state === 'success'
+                ? 'Platform API smoke test passed'
+                : 'Platform API smoke test failed',
+              context: 'platform-smoke-test',
+            });
+        continue-on-error: true
