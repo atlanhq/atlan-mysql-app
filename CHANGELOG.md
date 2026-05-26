@@ -2,6 +2,23 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 1.0.0 (May 26, 2026)
+
+GA release. Marks the connector's transition out of the `0.x` series alongside the introduction of progressive canary rollout.
+
+### New Features
+
+- **Progressive canary rollout** (`atlan.yaml` `deploy:` block). Adds two-stage canary deployment for all-channel releases: stage 1 caps at 5% of tenants with a 6-hour auto-progression timeout, stage 2 caps at 50% with an 18-hour timeout, then goes GA. `canary_mode: auto` lets workflow success rate drive stage progression. Pattern ported from `atlan-teradata-app`. Note: hand-maintained in YAML until `NativeApp.pkl` declares `deploy{}` upstream (teradata uses `NativeAppBundle.pkl` which already declares it).
+
+### Bug Fixes
+
+- **Make `current_state_enabled = true` explicit on the publish node** ([atlanhq/atlan-azure-event-hub-app#86](https://github.com/atlanhq/atlan-azure-event-hub-app/pull/86) parity). Previously mysql relied on publish-app's env default (`true` per `atlan-publish-app/app/constants.py:78-82`) for this flag. Now set explicitly in `contract/app.pkl` `extraNodes.publish.args` alongside the other three publish flags, so the activity behavior is no longer at the mercy of publish-app default changes.
+
+### Packages
+
+- **Bump `atlan-application-sdk` 3.13.1 → 3.13.2.** Latest patch. Tightens pyproject lower bound to `>=3.13.2` and re-pins the lockfile.
+- **Bump Pkl `app-contract-toolkit` 0.9.0 → 0.10.1.** Toolkit is now released as part of `atlanhq/application-sdk` (`contract-toolkit/src/`). URI path moved from `app-contract-toolkit/app-contract-toolkit@…` to `application-sdk/contracts/app-contract-toolkit@…`. `PklProject.deps.json` checksum resolved cleanly. The 0.10.1 schema also drops `lake_provider` and `cloud_storage_bucket` from `lineage-app` args in the generated manifest — those fields are now SDK-injected at runtime, matching teradata's manifest shape at 0.10.0. `_input.py` imports refreshed by the 0.10.1 code generator.
+
 ## 0.7.42 (May 24, 2026)
 
 ### Bug Fixes
