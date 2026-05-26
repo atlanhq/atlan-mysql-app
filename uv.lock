@@ -186,7 +186,7 @@ wheels = [
 
 [[package]]
 name = "atlan-application-sdk"
-version = "3.13.1"
+version = "3.13.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -206,9 +206,9 @@ dependencies = [
     { name = "temporalio" },
     { name = "uvloop", marker = "sys_platform != 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/4a/25/28518aa07c6e10f3f6808b5d3f4a550e0d5eda635ecba1541f9473504718/atlan_application_sdk-3.13.1.tar.gz", hash = "sha256:cd97950f02bad1a4a6722e34b52b201c9ada242fbe0f424a74c671a467bc4532", size = 2779904, upload-time = "2026-05-22T21:05:01.895Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6e/34/3b315d372ba97b19c65a9ff01555e2937d21ca1517837265be7d619a722f/atlan_application_sdk-3.13.2.tar.gz", hash = "sha256:868d947fff501eab5d1a8afefbc51e6b1f7752c067461b258dd974d8043f1d8b", size = 2794885, upload-time = "2026-05-25T17:18:41.91Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f9/9c/17d1bdb7748815934d9de53c5aceca55ec4251f4e358d6f63e36bb11f1e9/atlan_application_sdk-3.13.1-py3-none-any.whl", hash = "sha256:c4ea5bcd0658620a7acbb33f5ba840eadb49f7862e207b96ee236e1729823655", size = 762013, upload-time = "2026-05-22T21:04:59.593Z" },
+    { url = "https://files.pythonhosted.org/packages/19/59/c854b9bc3d1cc1af14f70cc24b7d9a569b7f73530a93a317438518f796c3/atlan_application_sdk-3.13.2-py3-none-any.whl", hash = "sha256:ca4a3e96af420cd5dfdbc55cf4fdf60b2414ae8f2d82714cdaacb2bf36fdd9d3", size = 766513, upload-time = "2026-05-25T17:18:40.007Z" },
 ]
 
 [package.optional-dependencies]
@@ -276,7 +276,7 @@ test = [
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.13.3" },
     { name = "aiomysql", specifier = ">=0.3.0" },
-    { name = "atlan-application-sdk", extras = ["daft", "iam-auth", "pandas", "sql", "workflows"], specifier = ">=3.13.1,<4" },
+    { name = "atlan-application-sdk", extras = ["daft", "iam-auth", "pandas", "sql", "workflows"], specifier = ">=3.13.2,<4" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.6.1" },
     { name = "cryptography", specifier = ">=46.0.5" },
     { name = "docker", marker = "extra == 'test'", specifier = ">=7.0.0" },
