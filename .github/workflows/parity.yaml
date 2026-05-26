@@ -1,0 +1,314 @@
+name: Parity
+
+# Regression gate: runs e2e scenarios against both ``main`` (baseline) and
+# the PR branch using the same MySQL target, then diffs the normalized
+# transformed output + API response shapes. Fails the check on any
+# mismatch.
+#
+# Triggered manually by adding the ``run-parity`` label to a PR, or via
+# workflow_dispatch for ad-hoc runs.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [labeled]
+  workflow_dispatch:
+    inputs:
+      baseline_ref:
+        description: "Baseline ref to diff against (e.g. origin/main)"
+        default: "origin/main"
+        required: false
+
+concurrency:
+  group: parity-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  parity:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.label.name == 'run-parity' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    permissions:
+      pull-requests: write
+      contents: read
+      statuses: write
+
+    env:
+      ATLAN_LOCAL_DEVELOPMENT: "true"
+      ATLAN_APPLICATION_NAME: mysql
+      DAPR_HTTP_PORT: "3500"
+      BASELINE_TREE: /tmp/baseline-tree
+      BASELINE_REF: ${{ github.event.inputs.baseline_ref || 'origin/main' }}
+
+    steps:
+      # ── Checkout PR branch ────────────────────────────────────────────
+      - name: Checkout PR branch
+        uses: actions/checkout@v4.0.0
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      # ── Worktree the baseline ref ────────────────────────────────────
+      - name: Worktree baseline branch
+        run: |
+          echo "Baseline ref: $BASELINE_REF"
+          git worktree add $BASELINE_TREE $BASELINE_REF
+
+      # ── Guard: parity only works if PR has scenarios + baseline is runnable ──
+      # Scenarios are always discovered from the PR branch's TestMySQLIntegration.
+      # The baseline only needs a runnable main.py — it does not need the integration module.
+      - name: Check baseline has scenarios
+        id: scenarios
+        run: |
+          if [ -f "$GITHUB_WORKSPACE/tests/integration/test_mysql_integration.py" ] && \
+             [ -f "$BASELINE_TREE/main.py" ]; then
+            echo "has_scenarios=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::No integration scenarios on PR branch or baseline has no main.py — skipping parity run"
+            echo "has_scenarios=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Install Dapr CLI ──────────────────────────────────────────────
+      - name: Install Dapr CLI
+        if: steps.scenarios.outputs.has_scenarios == 'true'
+        run: |
+          DAPR_VERSION="1.16.2"
+          wget -q https://github.com/dapr/cli/releases/download/v${DAPR_VERSION}/dapr_linux_amd64.tar.gz -O /tmp/dapr.tar.gz
+          tar -xzf /tmp/dapr.tar.gz -C /tmp
+          sudo mv /tmp/dapr /usr/local/bin/
+          chmod +x /usr/local/bin/dapr
+          dapr init --runtime-version ${DAPR_VERSION} --slim
+
+      # ── Install Temporal CLI ──────────────────────────────────────────
+      - name: Install Temporal CLI
+        if: steps.scenarios.outputs.has_scenarios == 'true'
+        run: curl -sSf https://temporal.download/cli.sh | sh
+
+      # ── Add CLIs to PATH ──────────────────────────────────────────────
+      - name: Add Dapr and Temporal to PATH
+        if: steps.scenarios.outputs.has_scenarios == 'true'
+        run: |
+          echo "$HOME/.dapr/bin" >> $GITHUB_PATH
+          echo "$HOME/.temporalio/bin" >> $GITHUB_PATH
+
+      # ── Python + uv + PR deps ─────────────────────────────────────────
+      # MySQL uses pure-Python pymysql / aiomysql, so no system packages
+      # are required beyond what setup-deps brings in.
+      - name: Setup Python, uv, and PR branch deps
+        if: steps.scenarios.outputs.has_scenarios == 'true'
+        uses: atlanhq/application-sdk/.github/actions/setup-deps@main
+
+      # ── Baseline deps (in worktree) ───────────────────────────────────
+      - name: Install baseline branch deps
+        if: steps.scenarios.outputs.has_scenarios == 'true'
+        run: |
+          cd $BASELINE_TREE
+          uv sync --all-extras --all-groups
+
+      # ── Download Dapr components ──────────────────────────────────────
+      - name: Download Dapr components (PR + baseline)
+        if: steps.scenarios.outputs.has_scenarios == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          uv run poe download-components
+          cp -r components $BASELINE_TREE/components
+
+      # ── Start platform services ───────────────────────────────────────
+      - name: Start Dapr + Temporal
+        if: steps.scenarios.outputs.has_scenarios == 'true'
+        run: |
+          uv run poe start-deps
+          sleep 5
+
+      # ── Phase 1: Baseline (main) ──────────────────────────────────────
+      - name: Run baseline collection
+        if: steps.scenarios.outputs.has_scenarios == 'true'
+        env:
+          E2E_MYSQL_HOST: ${{ secrets.E2E_MYSQL_HOST }}
+          E2E_MYSQL_PORT: ${{ secrets.E2E_MYSQL_PORT }}
+          E2E_MYSQL_USERNAME: ${{ secrets.E2E_MYSQL_USERNAME }}
+          E2E_MYSQL_PASSWORD: ${{ secrets.E2E_MYSQL_PASSWORD }}
+          E2E_MYSQL_DATABASE: ${{ secrets.E2E_MYSQL_DATABASE }}
+          E2E_RUN_WORKFLOW: "1"
+          ATLAN_CLEANUP_BASE_PATHS: /tmp/parity-cleanup-noop
+        run: |
+          set -euo pipefail
+          rm -rf "$GITHUB_WORKSPACE/tests/parity/output"
+
+          # Resolve PR's Python executable (has application_sdk.testing from v3 SDK).
+          # The baseline venv only has the v2 SDK so it cannot import the PR's
+          # integration test module — we must use the PR's interpreter for the
+          # orchestrator while keeping CWD=$BASELINE_TREE so artifact paths resolve.
+          PR_PYTHON=$(uv run python -c "import sys; print(sys.executable)")
+          echo "PR Python: $PR_PYTHON"
+
+          # Start baseline app using its own venv, in background.
+          (cd $BASELINE_TREE && uv run python main.py) &
+          APP_PID=$!
+          echo "Waiting for baseline app on :8000..."
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8000/health > /dev/null 2>&1 || \
+               curl -sf http://localhost:8000/server/health > /dev/null 2>&1; then
+              echo "Baseline app ready after ${i}s"
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "::error::Baseline app failed to start within 60s"
+              exit 1
+            fi
+            sleep 1
+          done
+
+          # Run orchestrator from BASELINE_TREE so _find_workflow_output() resolves
+          # relative artifact paths correctly, but with PR's Python so it can import
+          # application_sdk.testing used by tests/integration/test_mysql_integration.py.
+          cd $BASELINE_TREE
+          $PR_PYTHON "$GITHUB_WORKSPACE/tests/parity/run_parity.py" \
+            --v2-only \
+            --v2-host=http://localhost:8000 \
+            --no-test
+
+          kill $APP_PID 2>/dev/null || true
+          lsof -ti :8000 | xargs -r kill 2>/dev/null || true
+          sleep 2
+
+      # ── Reset Temporal state between runs ─────────────────────────────
+      - name: Flush Temporal state, restart services
+        if: steps.scenarios.outputs.has_scenarios == 'true'
+        run: |
+          uv run poe stop-deps || true
+          rm -f /tmp/temporal.db
+          uv run poe start-deps
+          sleep 5
+
+      # ── Phase 2: PR branch ────────────────────────────────────────────
+      - name: Run PR collection
+        if: steps.scenarios.outputs.has_scenarios == 'true'
+        env:
+          E2E_MYSQL_HOST: ${{ secrets.E2E_MYSQL_HOST }}
+          E2E_MYSQL_PORT: ${{ secrets.E2E_MYSQL_PORT }}
+          E2E_MYSQL_USERNAME: ${{ secrets.E2E_MYSQL_USERNAME }}
+          E2E_MYSQL_PASSWORD: ${{ secrets.E2E_MYSQL_PASSWORD }}
+          E2E_MYSQL_DATABASE: ${{ secrets.E2E_MYSQL_DATABASE }}
+          E2E_RUN_WORKFLOW: "1"
+        run: |
+          set -euo pipefail
+          uv run python main.py &
+          APP_PID=$!
+          echo "Waiting for PR app on :8000..."
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:8000/health > /dev/null 2>&1 || \
+               curl -sf http://localhost:8000/server/health > /dev/null 2>&1; then
+              echo "PR app ready after ${i}s"
+              break
+            fi
+            if [ "$i" -eq 60 ]; then
+              echo "::error::PR app failed to start within 60s"
+              exit 1
+            fi
+            sleep 1
+          done
+
+          uv run python tests/parity/run_parity.py \
+            --v3-only \
+            --v3-host=http://localhost:8000 \
+            --no-test
+
+          kill $APP_PID 2>/dev/null || true
+          lsof -ti :8000 | xargs -r kill 2>/dev/null || true
+          sleep 2
+
+      # ── Compare baseline vs PR ────────────────────────────────────────
+      # Intentionally runs only tests/parity/ (golden vs v3 diff), not the
+      # full integration suite under tests/integration/.
+      - name: Run parity comparison
+        id: tests
+        if: steps.scenarios.outputs.has_scenarios == 'true'
+        run: |
+          mkdir -p results
+          set +e
+          uv run pytest tests/parity/ -v \
+            --tb=short \
+            --junit-xml=results/parity.xml \
+            2>&1 | tee results/parity.txt
+          TEST_EXIT_CODE=${PIPESTATUS[0]}
+          set -e
+
+          SUMMARY=$(grep -E "^(FAILED|ERROR|=)" results/parity.txt | tail -1)
+          echo "summary=$SUMMARY" >> "$GITHUB_OUTPUT"
+          exit $TEST_EXIT_CODE
+
+      # ── Build parity summary ──────────────────────────────────────────
+      - name: Build parity summary
+        id: summary
+        if: always() && steps.scenarios.outputs.has_scenarios == 'true'
+        run: |
+          mkdir -p results
+          uv run python tests/parity/summarize.py > results/summary.md || \
+            echo "_summary generation failed_" > results/summary.md
+          cat results/summary.md >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "markdown<<EOF_SUMMARY"
+            cat results/summary.md
+            echo "EOF_SUMMARY"
+          } >> "$GITHUB_OUTPUT"
+
+      # ── Upload artifacts ──────────────────────────────────────────────
+      - name: Upload parity results
+        if: always() && steps.scenarios.outputs.has_scenarios == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: parity-results
+          path: |
+            results/
+            tests/parity/output/
+          retention-days: 14
+
+      # ── Post PR comment ───────────────────────────────────────────────
+      - name: Post PR comment
+        if: always() && github.event_name == 'pull_request' && steps.scenarios.outputs.has_scenarios == 'true'
+        uses: mshick/add-pr-comment@b8f338c590a895d50bcbfa6c5859251edc8952fc # v2.8.2
+        with:
+          message-id: "parity_results"
+          message: |
+            **Status:** ${{ steps.tests.outcome == 'success' && 'Parity holds' || 'Parity mismatch' }}
+            **Pytest:** `${{ steps.tests.outputs.summary || 'n/a' }}`
+            **Run:** [${{ github.run_id }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+
+            ${{ steps.summary.outputs.markdown }}
+
+            <details>
+            <summary>How to re-run / bypass</summary>
+
+            - **Re-run:** remove and re-add the `run-parity` label, or re-run from the Actions tab.
+            - **Artifacts:** download `parity-results` from the run page for the raw normalized outputs (`golden/` + `v3/`) and the full pytest report.
+            </details>
+        continue-on-error: true
+
+      # ── Set commit status ─────────────────────────────────────────────
+      - name: Set commit status
+        if: always() && github.event_name == 'pull_request' && steps.scenarios.outputs.has_scenarios == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const state = '${{ steps.tests.outcome }}' === 'success' ? 'success' : 'failure';
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: context.payload.pull_request.head.sha,
+              state: state,
+              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+              description: state === 'success' ? 'Parity holds' : 'Parity mismatch',
+              context: 'parity'
+            });
+        continue-on-error: true
+
+      # ── Cleanup ───────────────────────────────────────────────────────
+      - name: Cleanup
+        if: always()
+        run: |
+          lsof -ti :8000 | xargs -r kill 2>/dev/null || true
+          uv run poe stop-deps 2>/dev/null || true
+          git worktree remove --force $BASELINE_TREE 2>/dev/null || true
