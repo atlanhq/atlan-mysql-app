@@ -680,135 +680,136 @@ class MySQLApp(SqlApp):
             "customAttributes": {},
         }
 
-    async def _materialize_credential_mirror_into_control_config(
-        self, input: MySQLExtractionInput
-    ) -> None:
-        """REQ-925: thread ``extra.clonedInformationSchema`` from credentials
-        into ``input.control_config`` so workflow-runtime extract activities
-        receive the mirror.
+    def _materialize_mirror_into_input(self, creds: dict[str, Any], input: Any) -> None:
+        """REQ-925: inject ``extra.clonedInformationSchema`` from a resolved
+        credentials dict into ``input.control_config`` so ``_prepare_sql``
+        sees the mirror schema.
 
-        Background: the handler endpoints (test_auth, preflight_check,
-        fetch_metadata) read ``extra.clonedInformationSchema`` directly from
-        ``input.credentials`` — those are resolved by the marketplace
-        before the endpoint is invoked. But the ``@task`` extract activities
-        only receive ``MySQLExtractionTaskInput``, which carries
-        ``control_config_strategy`` / ``control_config`` across the worker
-        boundary — not the credential record. So the activities default to
-        the native ``information_schema`` even when the customer has set
-        the mirror on the Credentials page.
+        Called from :meth:`_init_sql_client` — that override runs inside
+        each extract activity (not in the workflow), so it's safe to do
+        credential resolution and ``input`` mutation here without tripping
+        Temporal's workflow-determinism guards.
 
-        Closes the gap by resolving the credential here in ``run()`` (which
-        executes on the workflow worker, not the activity worker, so it has
-        access to ``credential_ref`` and the secret store), reading the
-        ``extra.clonedInformationSchema`` value, and writing it into
-        ``input.control_config`` so the existing ``build_task_input``
-        snapshot path propagates it to every task input.
+        Precedence: an operator-set ``control_config.clonedInformationSchema``
+        (from Advanced Config JSON) wins over the credential value. We try
+        three credential shapes because the resolver-side raw dict can
+        deliver the extras either nested or flat:
 
-        Precedence:
-          * If ``input.control_config.clonedInformationSchema`` is already
-            set (operator used the legacy Advanced Config JSON path),
-            don't overwrite — explicit user override wins.
-          * Otherwise pull the credential value (if any) and synthesize a
-            ``custom``-strategy control_config.
-
-        Fail-soft: if credential resolution fails (no secret store
-        configured, network error, missing ref), log a warning and proceed
-        with no mirror. The handler-side log line
-        (``fetch_metadata: ... credentials received, keys=...``) makes any
-        misconfiguration easy to diagnose post-hoc.
+          1. ``creds["extra"]["clonedInformationSchema"]`` (nested)
+          2. ``creds["extra.clonedInformationSchema"]`` (flat dotted)
+          3. ``creds["clonedInformationSchema"]`` (top-level fallback)
         """
-        existing = extract_control_config(input) or {}
+        try:
+            existing = extract_control_config(input) or {}
+        except Exception:
+            existing = {}
         if existing.get("clonedInformationSchema"):
-            _logger.info(
-                "REQ-925: control_config already has clonedInformationSchema; "
-                "leaving operator override intact"
-            )
-            return  # Operator-supplied JSON wins
+            return  # operator-supplied JSON wins
 
-        try:
-            ref: CredentialRef | None = CredentialRef.resolve(input)
-        except Exception as e:
-            _logger.warning(
-                "REQ-925: CredentialRef.resolve failed: %s; falling back to attr",
-                e,
-            )
-            ref = getattr(input, "credential_ref", None)
-        if ref is None:
-            _logger.info(
-                "REQ-925: no credential_ref resolvable from workflow input; "
-                "skipping mirror materialization (extraction_method=%s, "
-                "credential_guid=%s)",
-                getattr(input, "extraction_method", "?"),
-                "set" if getattr(input, "credential_guid", None) else "unset",
-            )
-            return
-
-        try:
-            infra = get_infrastructure()
-            secret_store = infra.secret_store if infra else None
-            if secret_store is None:
-                _logger.info(
-                    "REQ-925: no secret_store available on infrastructure; "
-                    "skipping mirror materialization"
-                )
-                return
-            resolver = CredentialResolver(secret_store)
-            creds = await resolver.resolve_raw(ref) or {}
-        except Exception as exc:  # pragma: no cover — fail-soft on infra hiccups
-            _logger.warning(
-                "REQ-925: could not resolve credential for mirror lookup: %s", exc
-            )
-            return
-
-        # Log what shape arrived — the credential record's structure
-        # (flat ``extra.X`` keys vs nested ``extra: {X: ...}`` dict) is
-        # platform-dependent; we try both below.
-        top_keys = sorted(creds.keys()) if isinstance(creds, dict) else []
-        nested_extra = creds.get("extra") if isinstance(creds, dict) else None
-        extra_keys = (
-            sorted(nested_extra.keys()) if isinstance(nested_extra, dict) else None
-        )
-        _logger.info(
-            "REQ-925: resolved creds top_keys=%s nested_extra_keys=%s",
-            top_keys,
-            extra_keys,
-        )
-
-        # Try both shapes — nested ``extra: {clonedInformationSchema: ...}``
-        # (what the handler's ``_creds_to_dict`` produces from
-        # ``HandlerCredential`` entries with ``key='extra.X'``) and flat
-        # ``extra.clonedInformationSchema`` (raw record from
-        # ``resolver.resolve_raw`` may preserve the dotted key).
         mirror: Any = None
-        if isinstance(nested_extra, dict):
-            mirror = nested_extra.get("clonedInformationSchema")
-        if mirror is None and isinstance(creds, dict):
-            mirror = creds.get("extra.clonedInformationSchema")
-        if mirror is None and isinstance(creds, dict):
-            mirror = creds.get("clonedInformationSchema")
+        if isinstance(creds, dict):
+            nested = creds.get("extra")
+            if isinstance(nested, dict):
+                mirror = nested.get("clonedInformationSchema")
+            if mirror is None:
+                mirror = creds.get("extra.clonedInformationSchema")
+            if mirror is None:
+                mirror = creds.get("clonedInformationSchema")
 
         if not isinstance(mirror, str) or not mirror.strip():
-            _logger.info(
-                "REQ-925: no clonedInformationSchema in resolved creds; "
-                "extract activities will use native information_schema"
-            )
             return
         mirror = mirror.strip()
         _logger.info(
-            "REQ-925: materializing clonedInformationSchema=%s into control_config "
-            "for workflow-runtime extract activities",
+            "REQ-925: materializing clonedInformationSchema=%s into "
+            "control_config from credential extras",
             mirror,
         )
 
-        # Synthesize the same shape the legacy Advanced Config JSON would
-        # have produced. ``build_task_input`` copies these two fields onto
-        # ``MySQLExtractionTaskInput`` and ``_prepare_sql`` resolves them
-        # via ``extract_control_config`` — no further changes needed.
-        input.control_config_strategy = "custom"
-        if isinstance(input.control_config, dict):
-            input.control_config["clonedInformationSchema"] = mirror
-        else:
-            input.control_config = {"clonedInformationSchema": mirror}
+        # Mutate input in place. We're inside the activity here — ``input``
+        # is the task-input snapshot Temporal handed us; mutations stay
+        # local to this activity's execution.
+        try:
+            input.control_config_strategy = "custom"
+            if isinstance(input.control_config, dict):
+                input.control_config["clonedInformationSchema"] = mirror
+            else:
+                input.control_config = {"clonedInformationSchema": mirror}
+        except Exception as exc:  # pragma: no cover — fail-soft on frozen models
+            _logger.warning("REQ-925: failed to mutate task input with mirror: %s", exc)
+
+    async def _init_sql_client(self, input: Any) -> Any:  # type: ignore[override]
+        """Override SDK's ``_init_sql_client`` so we can plumb
+        ``extra.clonedInformationSchema`` from the resolved credential
+        into ``input.control_config`` before any extract SQL is prepared.
+
+        The SDK's base method (``application_sdk/templates/sql_app.py:898``)
+        resolves the credential via ``CredentialResolver.resolve_raw`` and
+        calls ``client.load(credentials=creds)``. We do the same here, but
+        intercept the ``creds`` dict to extract the mirror schema name and
+        materialize it into ``input.control_config`` — which downstream
+        ``_prepare_sql`` calls then pick up via ``extract_control_config``.
+
+        This runs inside each extract @task activity (per-activity
+        credential resolution is the SDK's existing pattern, so it's
+        already activity-context-safe — no Temporal determinism violation).
+        Previously we attempted this in ``MySQLApp.run()`` (workflow
+        context), which failed because ``CredentialResolver`` uses
+        ``threading.local`` internally; the activity context has no such
+        restriction.
+        """
+        if self.sql_client_class is None:
+            from application_sdk.templates.sql_app_errors import (  # noqa: PLC0415
+                SqlClientClassNotSetError,
+            )
+
+            raise SqlClientClassNotSetError()
+
+        client = self.sql_client_class()
+        creds: dict[str, Any] = {}
+
+        ref: CredentialRef | None = getattr(input, "credential_ref", None)
+        if ref is None and getattr(input, "credential_guid", None):
+            from application_sdk.credentials import (  # noqa: PLC0415
+                legacy_credential_ref,
+            )
+
+            ref = legacy_credential_ref(input.credential_guid)
+
+        if ref is not None:
+            try:
+                infra = get_infrastructure()
+                secret_store = infra.secret_store if infra else None
+                if secret_store is not None:
+                    resolver = CredentialResolver(secret_store)
+                    creds = await resolver.resolve_raw(ref) or {}
+            except Exception as exc:
+                _logger.warning(
+                    "REQ-925: credential resolve_raw failed in _init_sql_client: %s",
+                    exc,
+                )
+
+        # REQ-925: inject the mirror schema name into input.control_config
+        # so the upcoming _prepare_sql call(s) in this activity see it.
+        self._materialize_mirror_into_input(creds, input)
+
+        await client.load(credentials=creds)
+        return client
+
+    async def _materialize_credential_mirror_into_control_config(
+        self, input: MySQLExtractionInput
+    ) -> None:
+        """Legacy workflow-side helper — kept as a no-op for backwards
+        compat with any orchestration that still calls it. The real
+        materialization now happens in :meth:`_init_sql_client` (activity
+        context). Calling this from a workflow method is safe (no I/O).
+        """
+        # REQ-925 history: this used to do credential resolution inline in
+        # the workflow, but Temporal's workflow-determinism guard blocks
+        # ``CredentialResolver.resolve_raw`` (it uses ``threading.local``).
+        # Logic was moved to ``_init_sql_client`` which runs in activity
+        # context. This stub is kept to avoid breaking any orchestrator
+        # that imports/calls the symbol.
+        return
 
     async def run(  # type: ignore[override]
         self, input: MySQLExtractionInput

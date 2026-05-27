@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.8.9 (May 27, 2026)
+
+### Bug Fixes
+
+- **Move mirror materialization from `MySQLApp.run()` (workflow context) to `_init_sql_client()` (activity context) — closes the Temporal-determinism block (REQ-925).** The 0.8.8 diagnostic logs revealed the root cause of the failed runtime-extract fix on `markeznp29`: `MySQLApp.run()` executes in Temporal **workflow context**, which forbids non-deterministic operations like credential resolution (the resolver uses `threading.local` internally). The worker pod's logs showed `REQ-925: could not resolve credential for mirror lookup: Cannot access threading.local.__call__ from inside a workflow.` — our fail-soft path triggered, mutation never happened, extracts fell back to native `information_schema.*`. Refactored: the mirror-from-credentials logic now lives in a synchronous `_materialize_mirror_into_input(creds, input)` helper, called from a new `_init_sql_client(input)` override. The SDK's base `_init_sql_client` is called from within each extract @task activity (not from the workflow method) so it has full I/O capability — credential resolution, secret-store access, and `input` mutation are all safe there. The workflow-side `_materialize_credential_mirror_into_control_config()` is now a no-op stub kept for symbol compatibility. Tests reorganized into `TestMaterializeMirrorIntoInput` (the synchronous shape-shape-shape helper) and `TestInitSqlClientMaterializesMirror` (end-to-end activity path with mocked secret store). 205 unit tests pass (was 201 in 0.8.8). The secondary "Unknown keys in payload for ExtractionTaskInput, silently dropped by Pydantic" warning is unrelated to this fix and is being tracked separately.
+
 ## 0.8.8 (May 27, 2026)
 
 ### Bug Fixes

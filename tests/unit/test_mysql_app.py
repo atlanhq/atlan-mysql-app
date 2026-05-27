@@ -621,12 +621,17 @@ class TestMySQLExtractionOutput:
         assert "ROUTINE_SCHEMA" in MySQLApp.fetch_procedure_sql
 
 
-class TestMaterializeCredentialMirrorIntoControlConfig:
-    """REQ-925 follow-up: ``_materialize_credential_mirror_into_control_config``
-    reads ``extra.clonedInformationSchema`` from the resolved credential and
-    writes it into ``input.control_config`` so workflow-runtime extract
-    activities see the mirror without the operator setting Advanced Config
-    JSON separately.
+class TestMaterializeMirrorIntoInput:
+    """REQ-925 follow-up: ``_materialize_mirror_into_input(creds, input)``
+    is a synchronous helper called from ``_init_sql_client`` (activity
+    context). It reads ``extra.clonedInformationSchema`` from a resolved
+    credentials dict and writes it into ``input.control_config`` so the
+    upcoming ``_prepare_sql`` call(s) on the same activity see the
+    mirror schema.
+
+    The helper itself doesn't resolve credentials — that's done by its
+    caller. Tests here drive it directly with synthetic creds dicts of
+    each shape we want to handle.
     """
 
     def _make_app(self):
@@ -643,14 +648,108 @@ class TestMaterializeCredentialMirrorIntoControlConfig:
         defaults.update(kwargs)
         return MySQLExtractionInput.model_validate(defaults)
 
-    def _patch_credential_resolution(self, fake_creds):
-        """Return a context manager that stubs the SDK credential resolver to
-        return ``fake_creds`` regardless of which ref is supplied."""
+    def test_no_mirror_in_credential_no_mutation(self):
+        """When the credentials dict has no ``clonedInformationSchema`` in
+        any shape, the input is left untouched and extracts default to
+        native ``information_schema``."""
+        app = self._make_app()
+        input_ = self._input()
+        before_strategy = input_.control_config_strategy
+        before_config = input_.control_config
+
+        app._materialize_mirror_into_input({"host": "x", "port": "3306"}, input_)
+
+        assert input_.control_config_strategy == before_strategy
+        assert input_.control_config == before_config
+
+    def test_nested_extra_dict_shape(self):
+        """``creds["extra"]["clonedInformationSchema"]`` — handler-style nested."""
+        app = self._make_app()
+        input_ = self._input()
+        app._materialize_mirror_into_input(
+            {"extra": {"clonedInformationSchema": "atlan_meta"}}, input_
+        )
+        assert input_.control_config_strategy == "custom"
+        assert input_.control_config == {"clonedInformationSchema": "atlan_meta"}
+
+    def test_flat_dotted_key_shape(self):
+        """``creds["extra.clonedInformationSchema"]`` — flat dotted-key fallback."""
+        app = self._make_app()
+        input_ = self._input()
+        app._materialize_mirror_into_input(
+            {"extra.clonedInformationSchema": "atlan_meta"}, input_
+        )
+        assert input_.control_config == {"clonedInformationSchema": "atlan_meta"}
+
+    def test_top_level_fallback_shape(self):
+        """``creds["clonedInformationSchema"]`` — top-level last-resort fallback."""
+        app = self._make_app()
+        input_ = self._input()
+        app._materialize_mirror_into_input(
+            {"clonedInformationSchema": "atlan_meta"}, input_
+        )
+        assert input_.control_config == {"clonedInformationSchema": "atlan_meta"}
+
+    def test_existing_control_config_wins(self):
+        """If the operator already set ``clonedInformationSchema`` via legacy
+        Advanced Config JSON, that explicit override wins."""
+        app = self._make_app()
+        input_ = self._input(
+            control_config_strategy="custom",
+            control_config={"clonedInformationSchema": "operator_choice"},
+        )
+        app._materialize_mirror_into_input(
+            {"extra": {"clonedInformationSchema": "credential_choice"}}, input_
+        )
+        assert input_.control_config == {"clonedInformationSchema": "operator_choice"}
+
+    def test_whitespace_only_value_ignored(self):
+        """A whitespace-only mirror value must not produce an empty string
+        that downstream SQL identifier validation would reject."""
+        app = self._make_app()
+        input_ = self._input()
+        app._materialize_mirror_into_input(
+            {"extra": {"clonedInformationSchema": "   "}}, input_
+        )
+        assert input_.control_config_strategy == "default"
+
+    def test_non_dict_creds_safe(self):
+        """Defensive: a non-dict creds value (e.g. ``None`` if resolver
+        returned nothing) doesn't crash; the helper just does nothing."""
+        app = self._make_app()
+        input_ = self._input()
+        app._materialize_mirror_into_input(None, input_)  # type: ignore[arg-type]
+        app._materialize_mirror_into_input({}, input_)
+        assert input_.control_config_strategy == "default"
+
+
+class TestInitSqlClientMaterializesMirror:
+    """REQ-925 follow-up: ``_init_sql_client`` (activity-context override)
+    resolves the credential via the SDK's secret store, then calls
+    ``_materialize_mirror_into_input`` to inject the mirror schema into
+    ``input.control_config`` before any extract SQL runs.
+    """
+
+    def _make_app(self):
+        return MySQLApp.__new__(MySQLApp)
+
+    def _input(self, **kwargs):
+        from app.mysql import MySQLExtractionInput
+
+        defaults = {
+            "workflow_id": "wf-test",
+            "credential_guid": "cred-test",
+            "extraction_method": "direct",
+        }
+        defaults.update(kwargs)
+        return MySQLExtractionInput.model_validate(defaults)
+
+    def _patch_resolver(self, fake_creds):
+        """Stub the secret store + resolver to return ``fake_creds``."""
         from contextlib import ExitStack
         from unittest.mock import AsyncMock, MagicMock, patch
 
         stack = ExitStack()
-        # Avoid hitting real infrastructure
         fake_secret_store = MagicMock()
         fake_infra = MagicMock(secret_store=fake_secret_store)
         stack.enter_context(
@@ -663,106 +762,49 @@ class TestMaterializeCredentialMirrorIntoControlConfig:
         )
         return stack
 
-    def test_no_mirror_in_credential_no_mutation(self):
-        """When the credential has no ``extra.clonedInformationSchema``, the
-        input is left untouched and extract activities fall back to native
-        ``information_schema``."""
+    def test_init_sql_client_injects_mirror_from_extras(self):
+        """End-to-end on the activity path: resolved creds carry the mirror;
+        ``_init_sql_client`` writes it into ``input.control_config``."""
         import asyncio
+        from unittest.mock import AsyncMock, MagicMock, patch
 
         app = self._make_app()
-        input_ = self._input()
-        before_strategy = input_.control_config_strategy
-        before_config = input_.control_config
-
-        with self._patch_credential_resolution(
-            fake_creds={"host": "x", "port": "3306"}
-        ):
-            asyncio.get_event_loop().run_until_complete(
-                app._materialize_credential_mirror_into_control_config(input_)
-            )
-
-        assert input_.control_config_strategy == before_strategy
-        assert input_.control_config == before_config
-
-    def test_credential_mirror_synthesizes_control_config(self):
-        """When the credential carries ``extra.clonedInformationSchema``, the
-        helper writes it into ``input.control_config`` with ``custom``
-        strategy so ``build_task_input`` propagates it to every task."""
-        import asyncio
-
-        app = self._make_app()
-        input_ = self._input()
-
-        with self._patch_credential_resolution(
-            fake_creds={
-                "host": "x",
-                "port": "3306",
-                "extra": {"clonedInformationSchema": "atlan_meta"},
-            }
-        ):
-            asyncio.get_event_loop().run_until_complete(
-                app._materialize_credential_mirror_into_control_config(input_)
-            )
+        # Stub the sql_client_class so we don't try to make a real connection
+        fake_client = MagicMock()
+        fake_client.load = AsyncMock()
+        with patch.object(MySQLApp, "sql_client_class", return_value=fake_client):
+            input_ = self._input()
+            with self._patch_resolver(
+                fake_creds={
+                    "host": "x",
+                    "extra": {"clonedInformationSchema": "atlan_meta"},
+                }
+            ):
+                asyncio.get_event_loop().run_until_complete(
+                    app._init_sql_client(input_)
+                )
 
         assert input_.control_config_strategy == "custom"
         assert input_.control_config == {"clonedInformationSchema": "atlan_meta"}
+        # client.load was called with the raw creds dict (unmodified)
+        fake_client.load.assert_awaited_once()
 
-    def test_existing_control_config_wins_over_credential(self):
-        """If the operator already set ``clonedInformationSchema`` via legacy
-        Advanced Config JSON, that explicit override wins and we don't
-        overwrite it with the credential value."""
+    def test_init_sql_client_no_mirror_no_mutation(self):
+        """When the resolved credential has no mirror, the activity proceeds
+        normally and the input control_config stays at its default."""
         import asyncio
+        from unittest.mock import AsyncMock, MagicMock, patch
 
         app = self._make_app()
-        input_ = self._input(
-            control_config_strategy="custom",
-            control_config={"clonedInformationSchema": "operator_choice"},
-        )
+        fake_client = MagicMock()
+        fake_client.load = AsyncMock()
+        with patch.object(MySQLApp, "sql_client_class", return_value=fake_client):
+            input_ = self._input()
+            with self._patch_resolver(fake_creds={"host": "x", "port": "3306"}):
+                asyncio.get_event_loop().run_until_complete(
+                    app._init_sql_client(input_)
+                )
 
-        with self._patch_credential_resolution(
-            fake_creds={
-                "extra": {"clonedInformationSchema": "credential_choice"},
-            }
-        ):
-            asyncio.get_event_loop().run_until_complete(
-                app._materialize_credential_mirror_into_control_config(input_)
-            )
-
-        # Operator's explicit JSON wins
-        assert input_.control_config == {"clonedInformationSchema": "operator_choice"}
-
-    def test_no_secret_store_is_noop(self):
-        """If no infrastructure / secret store is configured (e.g. local dev),
-        the helper logs a soft warning and leaves the input untouched."""
-        import asyncio
-        from unittest.mock import patch
-
-        app = self._make_app()
-        input_ = self._input()
-
-        with patch("app.mysql.get_infrastructure", return_value=None):
-            asyncio.get_event_loop().run_until_complete(
-                app._materialize_credential_mirror_into_control_config(input_)
-            )
-
-        assert input_.control_config_strategy == "default"
-
-    def test_whitespace_only_credential_value_ignored(self):
-        """A whitespace-only value in the credential extras must not produce
-        an empty-string mirror that breaks SQL identifier validation later."""
-        import asyncio
-
-        app = self._make_app()
-        input_ = self._input()
-
-        with self._patch_credential_resolution(
-            fake_creds={"extra": {"clonedInformationSchema": "   "}}
-        ):
-            asyncio.get_event_loop().run_until_complete(
-                app._materialize_credential_mirror_into_control_config(input_)
-            )
-
-        # No mutation — empty value treated as "no mirror"
         assert input_.control_config_strategy == "default"
 
 
