@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.8.8 (May 27, 2026)
+
+### Bug Fixes
+
+- **Diagnostic logging + dual-shape credential lookup in `_materialize_credential_mirror_into_control_config`.** Validation of 0.8.7 on `markeznp29` showed all extract activities still hit native `information_schema`, with no `REQ-925:` log line visible in pod logs. The function was returning early on one of several silent paths (no `credential_ref` resolvable, no `secret_store`, or `creds["extra"]["clonedInformationSchema"]` missing because `resolver.resolve_raw()` returns a different shape than the handler's `_creds_to_dict()` produces). Adds explicit `_logger.info` on every early-return branch so the next run's pod logs make the failing path obvious. Also broadens the credential-extras lookup to try three shapes: nested `creds["extra"]["clonedInformationSchema"]` (the handler-side shape), flat `creds["extra.clonedInformationSchema"]` (a possible resolver shape with the dotted key preserved), and `creds["clonedInformationSchema"]` (top-level fallback). Whichever shape the credential resolver returns, the mirror value now gets picked up.
+
 ## 0.8.7 (May 27, 2026)
 
 ### Bug Fixes

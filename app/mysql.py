@@ -719,19 +719,38 @@ class MySQLApp(SqlApp):
         """
         existing = extract_control_config(input) or {}
         if existing.get("clonedInformationSchema"):
+            _logger.info(
+                "REQ-925: control_config already has clonedInformationSchema; "
+                "leaving operator override intact"
+            )
             return  # Operator-supplied JSON wins
 
         try:
             ref: CredentialRef | None = CredentialRef.resolve(input)
-        except Exception:
+        except Exception as e:
+            _logger.warning(
+                "REQ-925: CredentialRef.resolve failed: %s; falling back to attr",
+                e,
+            )
             ref = getattr(input, "credential_ref", None)
         if ref is None:
+            _logger.info(
+                "REQ-925: no credential_ref resolvable from workflow input; "
+                "skipping mirror materialization (extraction_method=%s, "
+                "credential_guid=%s)",
+                getattr(input, "extraction_method", "?"),
+                "set" if getattr(input, "credential_guid", None) else "unset",
+            )
             return
 
         try:
             infra = get_infrastructure()
             secret_store = infra.secret_store if infra else None
             if secret_store is None:
+                _logger.info(
+                    "REQ-925: no secret_store available on infrastructure; "
+                    "skipping mirror materialization"
+                )
                 return
             resolver = CredentialResolver(secret_store)
             creds = await resolver.resolve_raw(ref) or {}
@@ -741,10 +760,45 @@ class MySQLApp(SqlApp):
             )
             return
 
-        mirror = (creds.get("extra") or {}).get("clonedInformationSchema")
+        # Log what shape arrived — the credential record's structure
+        # (flat ``extra.X`` keys vs nested ``extra: {X: ...}`` dict) is
+        # platform-dependent; we try both below.
+        top_keys = sorted(creds.keys()) if isinstance(creds, dict) else []
+        nested_extra = creds.get("extra") if isinstance(creds, dict) else None
+        extra_keys = (
+            sorted(nested_extra.keys()) if isinstance(nested_extra, dict) else None
+        )
+        _logger.info(
+            "REQ-925: resolved creds top_keys=%s nested_extra_keys=%s",
+            top_keys,
+            extra_keys,
+        )
+
+        # Try both shapes — nested ``extra: {clonedInformationSchema: ...}``
+        # (what the handler's ``_creds_to_dict`` produces from
+        # ``HandlerCredential`` entries with ``key='extra.X'``) and flat
+        # ``extra.clonedInformationSchema`` (raw record from
+        # ``resolver.resolve_raw`` may preserve the dotted key).
+        mirror: Any = None
+        if isinstance(nested_extra, dict):
+            mirror = nested_extra.get("clonedInformationSchema")
+        if mirror is None and isinstance(creds, dict):
+            mirror = creds.get("extra.clonedInformationSchema")
+        if mirror is None and isinstance(creds, dict):
+            mirror = creds.get("clonedInformationSchema")
+
         if not isinstance(mirror, str) or not mirror.strip():
+            _logger.info(
+                "REQ-925: no clonedInformationSchema in resolved creds; "
+                "extract activities will use native information_schema"
+            )
             return
         mirror = mirror.strip()
+        _logger.info(
+            "REQ-925: materializing clonedInformationSchema=%s into control_config "
+            "for workflow-runtime extract activities",
+            mirror,
+        )
 
         # Synthesize the same shape the legacy Advanced Config JSON would
         # have produced. ``build_task_input`` copies these two fields onto
