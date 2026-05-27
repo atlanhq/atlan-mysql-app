@@ -355,7 +355,7 @@ class TestControlConfigFromRequest:
     def test_credentials_only_with_mirror(self):
         creds = [
             HandlerCredential(key="host", value="db.example.com"),
-            HandlerCredential(key="clonedInformationSchema", value="atlan_meta"),
+            HandlerCredential(key="extra.clonedInformationSchema", value="atlan_meta"),
         ]
         assert _control_config_from_request(creds, None) == {
             "clonedInformationSchema": "atlan_meta"
@@ -363,9 +363,9 @@ class TestControlConfigFromRequest:
 
     def test_credentials_with_empty_mirror_value_ignored(self):
         """Empty/whitespace credential value must not override anything."""
-        creds = [HandlerCredential(key="clonedInformationSchema", value="")]
+        creds = [HandlerCredential(key="extra.clonedInformationSchema", value="")]
         assert _control_config_from_request(creds, None) == {}
-        creds = [HandlerCredential(key="clonedInformationSchema", value="   ")]
+        creds = [HandlerCredential(key="extra.clonedInformationSchema", value="   ")]
         assert _control_config_from_request(creds, None) == {}
 
     def test_legacy_connection_config_only(self):
@@ -382,7 +382,7 @@ class TestControlConfigFromRequest:
         """If a customer sets both (e.g. mid-migration), the credential value
         is authoritative — that's the supported configuration going forward."""
         creds = [
-            HandlerCredential(key="clonedInformationSchema", value="new_meta"),
+            HandlerCredential(key="extra.clonedInformationSchema", value="new_meta"),
         ]
         conn_cfg = BaseConnectionConfig(**{
             "control-config-strategy": "custom",
@@ -394,7 +394,9 @@ class TestControlConfigFromRequest:
 
     def test_whitespace_in_credential_value_stripped(self):
         creds = [
-            HandlerCredential(key="clonedInformationSchema", value="  atlan_meta  ")
+            HandlerCredential(
+                key="extra.clonedInformationSchema", value="  atlan_meta  "
+            )
         ]
         assert _control_config_from_request(creds, None) == {
             "clonedInformationSchema": "atlan_meta"
@@ -412,7 +414,7 @@ class TestResolveHandlerSqlFromCredential:
     def test_credential_value_routes_through_mirror(self):
         creds = [
             HandlerCredential(key="host", value="db.example.com"),
-            HandlerCredential(key="clonedInformationSchema", value="atlan_meta"),
+            HandlerCredential(key="extra.clonedInformationSchema", value="atlan_meta"),
         ]
         sql = _resolve_handler_sql(self._TEMPLATE, creds, None)
         assert "atlan_meta.TABLES" in sql
@@ -435,7 +437,9 @@ class TestResolveHandlerSqlFromCredential:
         """Bad identifier on the credential side must fail loudly — preflight
         catches it before any SQL leaves the worker."""
         creds = [
-            HandlerCredential(key="clonedInformationSchema", value="bad;DROP TABLE"),
+            HandlerCredential(
+                key="extra.clonedInformationSchema", value="bad;DROP TABLE"
+            ),
         ]
         with pytest.raises(ValueError, match="clonedInformationSchema"):
             _resolve_handler_sql(self._TEMPLATE, creds, None)
@@ -469,7 +473,7 @@ class TestPreflightWithCredentialField:
             HandlerCredential(key="username", value="atlan_reader"),
             HandlerCredential(key="password", value="secret"),
             HandlerCredential(key="authType", value="basic"),
-            HandlerCredential(key="clonedInformationSchema", value="atlan_meta"),
+            HandlerCredential(key="extra.clonedInformationSchema", value="atlan_meta"),
         ]
 
         with patch("app.handlers.mysql.SQLClient", return_value=mock_client):

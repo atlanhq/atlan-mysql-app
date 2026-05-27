@@ -34,31 +34,40 @@ credentialCommonFields {
     defaultValue = "3306"
     width = 2
   }
-  // Cloned INFORMATION_SCHEMA (REQ-925).
-  //
-  // Optional. For deployments where the connector user does NOT have
-  // SELECT on the native information_schema (security-restricted MySQL /
-  // MariaDB), enter the name of a customer-managed mirror schema (e.g.
-  // ``atlan_meta``) that contains views over information_schema. When set,
-  // every metadata query — including Test Auth and Preflight — routes
-  // through the mirror; native information_schema is never touched.
-  //
-  // Placed in credentialCommonFields (not Advanced Config) because the
-  // value belongs to the *connection* identity: Test Auth and Preflight
-  // fire at the Credentials step, before any workflow-time control-config
-  // is set. Without this here, Preflight would fail for restricted users
-  // even when the mirror schema is configured later in the wizard.
-  //
-  // The Advanced Config -> Control Config JSON path is preserved as a
-  // legacy fallback. When both are set, the credential value wins.
-  new FieldSpec {
-    name = "clonedInformationSchema"
-    displayName = "Cloned INFORMATION_SCHEMA (optional)"
-    placeholder = "atlan_meta"
-    required = false
-    width = 4
-  }
 }
+
+// ---------------------------------------------------------------------------
+// REQ-925 — Cloned INFORMATION_SCHEMA mirror
+//
+// Defined as a per-auth-option ``extraFields`` entry (not in
+// ``credentialCommonFields``) to match the proven pattern used by sibling
+// connectors that need non-auth design-time fields:
+//
+//   - ``atlan-databricks-app`` declares ``__http_path`` in
+//     ``credentialAuthOptions[basic].extraFields`` and reads it via
+//     ``creds.get("extra", {}).get("__http_path")``.
+//   - ``atlan-bigquery-app`` declares ``project_id`` similarly under
+//     ``credentialAuthOptions[gcp-wif]`` and reads it via
+//     ``credentials_json.get("extra", {}).get("project_id")``.
+//
+// The marketplace credential-persistence layer reliably stores fields
+// declared this way under the credential's ``extra.<name>`` namespace and
+// delivers them to the handler endpoints (test_auth / preflight_check /
+// fetch_metadata) before workflow runtime — exactly what we need for the
+// mirror-schema flow.
+//
+// An earlier iteration placed the field in ``credentialCommonFields``
+// (commit ``b2bfd77``). The form rendered the field and ``fe_inputs`` did
+// carry the value, but pod logs confirmed the credential record persisted
+// only the 6 well-known keys — the field was silently dropped before it
+// reached the handler. Switching to per-auth-option ``extraFields`` puts
+// the value through the same persistence path Databricks and BigQuery
+// rely on. (Verified via Explore-sub-agent survey 2026-05-27.)
+//
+// The field is duplicated across all three auth options because it's a
+// connection-identity attribute (mirror schema name), not an auth-method
+// concern — every auth flow needs the same handling.
+// ---------------------------------------------------------------------------
 
 credentialAuthOptions {
   ["basic"] = new AuthOption {
@@ -66,6 +75,10 @@ credentialAuthOptions {
     fields {
       new FieldSpec { name = "username"; displayName = "Username"; placeholder = "Username"; width = 4 }
       new FieldSpec { name = "password"; sensitive = true; displayName = "Password"; placeholder = "Password"; width = 4 }
+    }
+    extraFields {
+      // REQ-925: see header comment above credentialAuthOptions.
+      new FieldSpec { name = "clonedInformationSchema"; displayName = "Cloned INFORMATION_SCHEMA (optional)"; placeholder = "atlan_meta"; width = 4 }
     }
   }
   ["iam_user"] = new AuthOption {
@@ -78,6 +91,8 @@ credentialAuthOptions {
     extraFields {
       // MySQL DB user goes into extra.username (legacy structure — read by client.get_iam_user_token)
       new FieldSpec { name = "username"; displayName = "Database User"; placeholder = "MySQL username for IAM token auth"; width = 4 }
+      // REQ-925: see header comment above credentialAuthOptions.
+      new FieldSpec { name = "clonedInformationSchema"; displayName = "Cloned INFORMATION_SCHEMA (optional)"; placeholder = "atlan_meta"; width = 4 }
     }
   }
   ["iam_role"] = new AuthOption {
@@ -89,6 +104,8 @@ credentialAuthOptions {
     extraFields {
       // IAM Role ARN goes into extra.aws_role_arn (legacy structure)
       new FieldSpec { name = "aws_role_arn"; displayName = "IAM Role ARN"; placeholder = "arn:aws:iam::123456789012:role/MyRole"; width = 8 }
+      // REQ-925: see header comment above credentialAuthOptions.
+      new FieldSpec { name = "clonedInformationSchema"; displayName = "Cloned INFORMATION_SCHEMA (optional)"; placeholder = "atlan_meta"; width = 4 }
     }
   }
 }
@@ -165,6 +182,11 @@ local agentConfig: Listing = new {
           ["properties"] = new Mapping {
             ["username"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "Store Credential Path" } }
             ["password"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["widget"] = ""; ["placeholder"] = "Store Credential Path" } }
+            ["extra"] = new Mapping {
+              ["properties"] = new Mapping {
+                ["clonedInformationSchema"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "atlan_meta (literal value, not a vault path)" } }
+              }
+            }
           }
         }
         ["iam_user"] = new Mapping {
@@ -174,6 +196,7 @@ local agentConfig: Listing = new {
             ["extra"] = new Mapping {
               ["properties"] = new Mapping {
                 ["username"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "MySQL DB User (Store Path)" } }
+                ["clonedInformationSchema"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "atlan_meta (literal value, not a vault path)" } }
               }
             }
           }
@@ -184,6 +207,7 @@ local agentConfig: Listing = new {
             ["extra"] = new Mapping {
               ["properties"] = new Mapping {
                 ["aws_role_arn"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "IAM Role ARN (Store Path)" } }
+                ["clonedInformationSchema"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "atlan_meta (literal value, not a vault path)" } }
               }
             }
           }

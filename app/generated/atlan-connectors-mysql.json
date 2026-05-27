@@ -56,16 +56,6 @@
           "grid": 2
         }
       },
-      "clonedInformationSchema": {
-        "type": "string",
-        "ui": {
-          "widget": "input",
-          "label": "Cloned INFORMATION_SCHEMA (optional)",
-          "hidden": false,
-          "placeholder": "atlan_meta",
-          "grid": 4
-        }
-      },
       "auth-type": {
         "type": "string",
         "enum": [
@@ -115,6 +105,28 @@
               "hidden": false,
               "placeholder": "Password",
               "grid": 4
+            }
+          },
+          "extra": {
+            "type": "object",
+            "ui": {
+              "widget": "nested",
+              "label": "",
+              "header": "Advanced",
+              "hidden": false
+            },
+            "properties": {
+              "clonedInformationSchema": {
+                "type": "string",
+                "required": true,
+                "ui": {
+                  "widget": "input",
+                  "label": "Cloned INFORMATION_SCHEMA (optional)",
+                  "hidden": false,
+                  "placeholder": "atlan_meta",
+                  "grid": 4
+                }
+              }
             }
           }
         }
@@ -169,6 +181,17 @@
                   "placeholder": "MySQL username for IAM token auth",
                   "grid": 4
                 }
+              },
+              "clonedInformationSchema": {
+                "type": "string",
+                "required": true,
+                "ui": {
+                  "widget": "input",
+                  "label": "Cloned INFORMATION_SCHEMA (optional)",
+                  "hidden": false,
+                  "placeholder": "atlan_meta",
+                  "grid": 4
+                }
               }
             }
           }
@@ -212,6 +235,17 @@
                   "hidden": false,
                   "placeholder": "arn:aws:iam::123456789012:role/MyRole",
                   "grid": 8
+                }
+              },
+              "clonedInformationSchema": {
+                "type": "string",
+                "required": true,
+                "ui": {
+                  "widget": "input",
+                  "label": "Cloned INFORMATION_SCHEMA (optional)",
+                  "hidden": false,
+                  "placeholder": "atlan_meta",
+                  "grid": 4
                 }
               }
             }

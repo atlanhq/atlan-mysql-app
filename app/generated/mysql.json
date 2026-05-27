@@ -98,6 +98,16 @@
                           "widget": "",
                           "placeholder": "Store Credential Path"
                         }
+                      },
+                      "extra": {
+                        "properties": {
+                          "clonedInformationSchema": {
+                            "default": "",
+                            "ui": {
+                              "placeholder": "atlan_meta (literal value, not a vault path)"
+                            }
+                          }
+                        }
                       }
                     }
                   },
@@ -123,6 +133,12 @@
                             "ui": {
                               "placeholder": "MySQL DB User (Store Path)"
                             }
+                          },
+                          "clonedInformationSchema": {
+                            "default": "",
+                            "ui": {
+                              "placeholder": "atlan_meta (literal value, not a vault path)"
+                            }
                           }
                         }
                       }
@@ -142,6 +158,12 @@
                             "default": "",
                             "ui": {
                               "placeholder": "IAM Role ARN (Store Path)"
+                            }
+                          },
+                          "clonedInformationSchema": {
+                            "default": "",
+                            "ui": {
+                              "placeholder": "atlan_meta (literal value, not a vault path)"
                             }
                           }
                         }

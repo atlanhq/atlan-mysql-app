@@ -69,24 +69,35 @@ def _control_config_from_request(
 
     Precedence (REQ-925):
 
-    1. ``clonedInformationSchema`` from the **credential record** (the new
-       canonical home, on the Credentials page so Test Auth and Preflight
-       have the value before the workflow wizard reaches Advanced Config).
+    1. ``clonedInformationSchema`` from the **credential extras**
+       (``extra.clonedInformationSchema`` — declared in
+       ``credentialAuthOptions[*].extraFields`` in ``contract/app.pkl``,
+       persisted by the marketplace under the credential's ``extra``
+       namespace, available to ``test_auth`` / ``preflight_check`` /
+       ``fetch_metadata`` at design time).
     2. ``clonedInformationSchema`` from the **Control Config JSON** under
-       Advanced Config (legacy fallback for existing customers / workflows
-       that configured the mirror via the JSON blob).
+       Advanced Config (legacy workflow-runtime fallback for existing
+       workflows that configured the mirror via the JSON blob).
 
-    When both are set, credentials win — silently. We don't warn because
-    the credential-side is unambiguously authoritative; the JSON path is
-    deprecated and kept only for backward compatibility.
+    When both are set, the credential value wins — silently. We don't warn
+    because the credential side is unambiguously authoritative.
+
+    Why ``extra.<name>`` and not a top-level ``credentialCommonFields``
+    entry: the marketplace credential-persistence layer drops top-level
+    custom fields outside the well-known set (``host`` / ``port`` etc.).
+    Sibling connectors (``atlan-databricks-app``'s ``__http_path``,
+    ``atlan-bigquery-app``'s ``project_id``) thread non-auth design-time
+    fields through ``extraFields`` exactly because that's the persistence
+    path the marketplace honours. See the comment block above
+    ``credentialAuthOptions`` in ``contract/app.pkl`` for the full
+    rationale and bug history.
     """
     config = dict(extract_control_config(connection_config))
-    for cred in credentials or ():
-        if cred.key == "clonedInformationSchema":
-            value = cred.value
-            if isinstance(value, str) and value.strip():
-                config["clonedInformationSchema"] = value.strip()
-            break
+    if credentials:
+        creds_dict = _creds_to_dict(credentials)
+        value = (creds_dict.get("extra") or {}).get("clonedInformationSchema")
+        if isinstance(value, str) and value.strip():
+            config["clonedInformationSchema"] = value.strip()
     return config
 
 
