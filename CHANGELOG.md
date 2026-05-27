@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.8.6 (May 27, 2026)
+
+### Bug Fixes
+
+- **Move `clonedInformationSchema` from `credentialCommonFields` to `credentialAuthOptions[*].extraFields` so the marketplace actually persists it (REQ-925).** Commit `b2bfd77` declared the field in `credentialCommonFields`. The form rendered it and `fe_inputs` (workflow setup state) carried the user's value, but pod logs on `markeznp29` confirmed the marketplace credential-persistence layer silently dropped it — handler only saw `keys=['authType', 'connectorConfigName', 'host', 'password', 'port', 'username']` (no `clonedInformationSchema`). Every preflight/dropdown/extract therefore hit native `information_schema.*` and defeated the field-movement fix. A second-pass Explore survey of 5 sibling connectors found the proven pattern: `atlan-databricks-app` declares `__http_path` in `credentialAuthOptions[basic].extraFields` and reads via `creds.get("extra", {}).get("__http_path")`; `atlan-bigquery-app` does the same with `project_id`. Both fields are non-auth and design-time-active and persist reliably. Moved our field to `extraFields` of each auth option (basic, iam_user, iam_role) — it's a connection-identity attribute every auth flow needs. Updated `_control_config_from_request()` in `app/handlers/mysql.py` to read via `_creds_to_dict(...)["extra"]["clonedInformationSchema"]`. Test fixtures updated to `key="extra.clonedInformationSchema"`. Regenerated `app/generated/atlan-connectors-mysql.json`. The legacy Control Config JSON path (Advanced Config) remains as a workflow-runtime fallback.
+
 ## 0.8.5 (May 26, 2026)
 
 ### Chores
