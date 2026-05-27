@@ -5,6 +5,7 @@ Extends SqlApp with MySQL-specific SQL queries and asset mappers.
 
 from __future__ import annotations
 
+import logging
 import math
 import os
 import time
@@ -14,7 +15,10 @@ from typing import Any, ClassVar
 import pandas as pd
 from application_sdk.app import task
 from application_sdk.contracts.base import Output
+from application_sdk.credentials import CredentialResolver
+from application_sdk.credentials.ref import CredentialRef
 from application_sdk.execution._temporal.activity_utils import get_object_store_prefix
+from application_sdk.infrastructure.context import get_infrastructure
 from application_sdk.templates.contracts.sql_metadata import (
     ExtractionInput,
     ExtractionTaskInput,
@@ -33,6 +37,8 @@ from app.utils import (
     resolve_excluded_schemas,
     resolve_information_schema,
 )
+
+_logger = logging.getLogger(__name__)
 
 # S3 bucket for QI + lineage-app — forwarded as extract output so the manifest
 # JSONPath expressions ($.extract.outputs.storage_bucket) resolve correctly.
@@ -674,6 +680,82 @@ class MySQLApp(SqlApp):
             "customAttributes": {},
         }
 
+    async def _materialize_credential_mirror_into_control_config(
+        self, input: MySQLExtractionInput
+    ) -> None:
+        """REQ-925: thread ``extra.clonedInformationSchema`` from credentials
+        into ``input.control_config`` so workflow-runtime extract activities
+        receive the mirror.
+
+        Background: the handler endpoints (test_auth, preflight_check,
+        fetch_metadata) read ``extra.clonedInformationSchema`` directly from
+        ``input.credentials`` — those are resolved by the marketplace
+        before the endpoint is invoked. But the ``@task`` extract activities
+        only receive ``MySQLExtractionTaskInput``, which carries
+        ``control_config_strategy`` / ``control_config`` across the worker
+        boundary — not the credential record. So the activities default to
+        the native ``information_schema`` even when the customer has set
+        the mirror on the Credentials page.
+
+        Closes the gap by resolving the credential here in ``run()`` (which
+        executes on the workflow worker, not the activity worker, so it has
+        access to ``credential_ref`` and the secret store), reading the
+        ``extra.clonedInformationSchema`` value, and writing it into
+        ``input.control_config`` so the existing ``build_task_input``
+        snapshot path propagates it to every task input.
+
+        Precedence:
+          * If ``input.control_config.clonedInformationSchema`` is already
+            set (operator used the legacy Advanced Config JSON path),
+            don't overwrite — explicit user override wins.
+          * Otherwise pull the credential value (if any) and synthesize a
+            ``custom``-strategy control_config.
+
+        Fail-soft: if credential resolution fails (no secret store
+        configured, network error, missing ref), log a warning and proceed
+        with no mirror. The handler-side log line
+        (``fetch_metadata: ... credentials received, keys=...``) makes any
+        misconfiguration easy to diagnose post-hoc.
+        """
+        existing = extract_control_config(input) or {}
+        if existing.get("clonedInformationSchema"):
+            return  # Operator-supplied JSON wins
+
+        try:
+            ref: CredentialRef | None = CredentialRef.resolve(input)
+        except Exception:
+            ref = getattr(input, "credential_ref", None)
+        if ref is None:
+            return
+
+        try:
+            infra = get_infrastructure()
+            secret_store = infra.secret_store if infra else None
+            if secret_store is None:
+                return
+            resolver = CredentialResolver(secret_store)
+            creds = await resolver.resolve_raw(ref) or {}
+        except Exception as exc:  # pragma: no cover — fail-soft on infra hiccups
+            _logger.warning(
+                "REQ-925: could not resolve credential for mirror lookup: %s", exc
+            )
+            return
+
+        mirror = (creds.get("extra") or {}).get("clonedInformationSchema")
+        if not isinstance(mirror, str) or not mirror.strip():
+            return
+        mirror = mirror.strip()
+
+        # Synthesize the same shape the legacy Advanced Config JSON would
+        # have produced. ``build_task_input`` copies these two fields onto
+        # ``MySQLExtractionTaskInput`` and ``_prepare_sql`` resolves them
+        # via ``extract_control_config`` — no further changes needed.
+        input.control_config_strategy = "custom"
+        if isinstance(input.control_config, dict):
+            input.control_config["clonedInformationSchema"] = mirror
+        else:
+            input.control_config = {"clonedInformationSchema": mirror}
+
     async def run(  # type: ignore[override]
         self, input: MySQLExtractionInput
     ) -> MySQLExtractionOutput:
@@ -690,6 +772,19 @@ class MySQLApp(SqlApp):
            lineage_stage_prefix, and storage_bucket so the manifest DAG can
            chain qi → lineage-app → lineage-publish nodes (Athena pattern).
         """
+        # REQ-925 follow-up: thread the credential's
+        # ``extra.clonedInformationSchema`` into ``input.control_config`` so
+        # workflow-runtime extract activities pick up the mirror schema. The
+        # handler endpoints (test_auth / preflight / fetch_metadata) read
+        # from ``input.credentials`` directly, but the @task activities
+        # receive ``MySQLExtractionTaskInput`` which only carries
+        # ``control_config`` across the worker boundary. Mutating the
+        # workflow input here lets our ``build_task_input`` override
+        # snapshot the synthesized value via the existing
+        # ``control_config_strategy`` / ``control_config`` pathway — no
+        # changes to the task-input schema needed.
+        await self._materialize_credential_mirror_into_control_config(input)
+
         base_result = await super().run(input)
 
         if self.fetch_procedure_sql:

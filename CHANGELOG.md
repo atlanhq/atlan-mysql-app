@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 0.8.7 (May 27, 2026)
+
+### Bug Fixes
+
+- **Thread `extra.clonedInformationSchema` from the credential into workflow-runtime extract activities (REQ-925).** Commit `0c26c7e` shipped the credential-page field correctly: handler endpoints (test_auth / preflight / fetch_metadata) read it from `input.credentials` and route SQL through the mirror. **Validated on `markeznp29`** (pod log showed 7 keys including `'extra'`, preflight's `tables_check.sql` rendered `FROM atlan_meta.TABLES`). But the `@task` extract activities receive `MySQLExtractionTaskInput`, which carries `control_config_strategy` / `control_config` across the worker boundary — **not** the credential record. So `_prepare_sql` saw an empty control_config and every extract query fell back to native `information_schema.*`. End result: on `atlan_reader` (no privileges on data tables), MySQL silently returned only the mirror schema's 8 views, repeating the pre-fix asset shape (1 phantom schema + 8 phantom views) for the workflow's actual crawl. The 0.8.2 CHANGELOG had flagged this as a known follow-up — this commit closes it. Adds `MySQLApp._materialize_credential_mirror_into_control_config()`, called at the top of `run()`, which resolves the credential via SDK's `CredentialRef.resolve()` + `CredentialResolver.resolve_raw()`, reads `extra.clonedInformationSchema`, and writes it into `input.control_config` with `control_config_strategy="custom"`. The existing `build_task_input` snapshot then propagates it to every task input — no changes to the task-input schema, no changes to `_prepare_sql`. Precedence: an operator-set Advanced Config JSON wins over the credential value (explicit override stays authoritative). Fail-soft: secret-store unreachable / no credential ref / resolver error logs a warning and proceeds with default routing. 5 new unit tests in `TestMaterializeCredentialMirrorIntoControlConfig` cover: no-mirror-in-cred → no-mutation, mirror-set → control_config synthesized, existing-cc wins, no-secret-store → noop, whitespace-only value → ignored. 201 tests pass.
+
 ## 0.8.6 (May 27, 2026)
 
 ### Bug Fixes
