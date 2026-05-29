@@ -72,10 +72,10 @@ jobs:
     outputs:
       summary: ${{ steps.tests.outputs.summary }}
     env:
-      CREDENTIAL_GUID: local-mysql
-      # Keep local artefacts after on_complete() so tests/e2e/ can assert on
-      # raw/<entity>/records.json and transformed/<entity>/entities.json.
-      # SDK default is "true" (clean up); override to false for CI tests only.
+      # Expose the external Dapr sidecar ports so main.py uses run_combined_mode
+      # (external Dapr + Temporal) instead of the embedded dev runtime.
+      DAPR_HTTP_PORT: "3500"
+      DAPR_GRPC_PORT: "50001"
       APPLICATION_SDK_ENABLE_CLEANUP_INTERCEPTOR: "false"
     steps:
       - name: echo distinct-id ${{ github.event.inputs.distinct_id }}
@@ -97,6 +97,9 @@ jobs:
         uses: atlanhq/application-sdk/.github/actions/connector-integration-tests@main
         with:
           app-name: mysql
+          # Pin to the same daprd version the SDK's embedded_dapr uses so
+          # external and embedded dapr are in sync.
+          dapr-version: "1.17.7"
           # Scope to unit + testcontainers integration; tests/sdr/ and tests/e2e/
           # (full-DAG) run in their own jobs below.
           test-paths: "tests/unit/ tests/integration/"

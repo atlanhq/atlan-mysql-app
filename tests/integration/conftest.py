@@ -10,7 +10,6 @@ Usage:
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 from pathlib import Path
@@ -124,48 +123,47 @@ def _seed_database(host: str, port: int, root_password: str = "rootpass"):
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_dapr_credentials(mysql_database):
-    """Generate local Dapr secrets from env vars for workflow credential resolution.
+    """Provision MySQL credentials via the SDK's /dev/local-vault endpoint.
 
-    The credential config is written to both known objectstore roots so the
-    fixture works in two different runtime modes:
+    Using the SDK endpoint rather than writing files directly ensures the
+    correct objectstore path (which embeds ATLAN_APPLICATION_NAME) is used
+    regardless of whether the app runs in embedded-Dapr or external-Dapr mode.
+    The endpoint splits sensitive fields (username/password) into the local
+    secrets file and non-sensitive fields (host/port/authType) into the Dapr
+    objectstore at the app-name-scoped path the credential vault expects.
 
-    1. ``connector-integration-tests`` CI action: ``poe start-deps`` starts an
-       external daprd using ``components/objectstore.yaml`` (rootPath
-       ``./local/dapr/objectstore``), then ``main.py`` runs alongside it.
-    2. Local embedded-daprd mode (SDK PR #1759+): ``run_dev_combined`` spawns
-       its own daprd that defaults to ``./local/objectstore`` (no ``/dapr/``
-       segment).
-
-    Writing to both keeps the fixture portable without requiring callers to
-    know which mode the runner is using.
+    The returned GUID is stored in CREDENTIAL_GUID so the test helpers
+    (``_credential_guid()``) pick it up automatically.
     """
-    credential_guid = os.environ.get(
-        "CREDENTIAL_GUID",
-        os.environ.get("LOCAL_CREDENTIAL_GUID", "local-mysql"),
-    )
+    import requests as _req
+
+    app_url = os.environ.get("APP_BASE_URL", "http://localhost:8000")
     username = os.environ.get("MYSQL_USER", "root")
     password = os.environ.get("MYSQL_PASSWORD", "")
     host = os.environ.get("MYSQL_HOST", "localhost")
     port = os.environ.get("MYSQL_PORT", "3306")
 
-    # ``DaprCredentialVault._get_local_secret`` reads directly from this path
-    # regardless of which daprd mode is in use.
-    secrets_dir = PROJECT_ROOT / "local" / "dapr" / "secrets"
-    secrets_dir.mkdir(parents=True, exist_ok=True)
-    (secrets_dir / "secrets.json").write_text(
-        json.dumps({credential_guid: {"username": username, "password": password}})
+    resp = _req.post(
+        f"{app_url}/workflows/v1/dev/local-vault",
+        json={
+            "username": username,
+            "password": password,
+            "host": host,
+            "port": port,
+            "authType": "basic",
+            "type": "all",
+        },
+        timeout=15,
     )
+    resp.raise_for_status()
+    guid = resp.json()["data"]["credential_guid"]
 
-    config_payload = json.dumps({
-        "authType": "basic",
-        "host": host,
-        "port": port,
-        "credentialSource": "direct",
-    })
-    credentials_rel = Path("persistent-artifacts") / "apps" / "default" / "credentials" / credential_guid
-    for objectstore_root in ("local/dapr/objectstore", "local/objectstore"):
-        config_dir = PROJECT_ROOT / objectstore_root / credentials_rel
-        config_dir.mkdir(parents=True, exist_ok=True)
-        (config_dir / "config.json").write_text(config_payload)
+    prev = os.environ.get("CREDENTIAL_GUID")
+    os.environ["CREDENTIAL_GUID"] = guid
 
     yield
+
+    if prev is None:
+        os.environ.pop("CREDENTIAL_GUID", None)
+    else:
+        os.environ["CREDENTIAL_GUID"] = prev
