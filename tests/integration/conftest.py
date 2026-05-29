@@ -126,15 +126,18 @@ def _seed_database(host: str, port: int, root_password: str = "rootpass"):
 def setup_dapr_credentials(mysql_database):
     """Generate local Dapr secrets from env vars for workflow credential resolution.
 
-    The credential config lives under the same ``objectstore_root`` that
-    the SDK's ``embedded_dapr`` writes its ``bindings.localstorage``
-    component against. As of application-sdk#1759, ``run_dev_combined``
-    spawns its own embedded daprd that defaults that root to
-    ``./local/objectstore`` (no ``/dapr/`` segment) — distinct from the
-    static ``components/objectstore.yaml`` rootPath that this fixture
-    used to follow. Keep them aligned, otherwise the credential vault's
-    ``get`` invoke returns 500 on the workflow path and
-    ``test_run_workflow`` immediately fails with ``execution_duration_seconds=0``.
+    The credential config is written to both known objectstore roots so the
+    fixture works in two different runtime modes:
+
+    1. ``connector-integration-tests`` CI action: ``poe start-deps`` starts an
+       external daprd using ``components/objectstore.yaml`` (rootPath
+       ``./local/dapr/objectstore``), then ``main.py`` runs alongside it.
+    2. Local embedded-daprd mode (SDK PR #1759+): ``run_dev_combined`` spawns
+       its own daprd that defaults to ``./local/objectstore`` (no ``/dapr/``
+       segment).
+
+    Writing to both keeps the fixture portable without requiring callers to
+    know which mode the runner is using.
     """
     credential_guid = os.environ.get(
         "CREDENTIAL_GUID",
@@ -145,35 +148,24 @@ def setup_dapr_credentials(mysql_database):
     host = os.environ.get("MYSQL_HOST", "localhost")
     port = os.environ.get("MYSQL_PORT", "3306")
 
-    # Local-environment secret resolution path:
-    # ``DaprCredentialVault._get_local_secret`` reads from
-    # ``./local/dapr/secrets/secrets.json`` directly (bypassing Dapr's
-    # secretstores.local.env). This path is independent of the
-    # objectstore rootPath above.
+    # ``DaprCredentialVault._get_local_secret`` reads directly from this path
+    # regardless of which daprd mode is in use.
     secrets_dir = PROJECT_ROOT / "local" / "dapr" / "secrets"
     secrets_dir.mkdir(parents=True, exist_ok=True)
     (secrets_dir / "secrets.json").write_text(
         json.dumps({credential_guid: {"username": username, "password": password}})
     )
 
-    config_dir = (
-        PROJECT_ROOT
-        / "local"
-        / "objectstore"
-        / "persistent-artifacts"
-        / "apps"
-        / "default"
-        / "credentials"
-        / credential_guid
-    )
-    config_dir.mkdir(parents=True, exist_ok=True)
-    (config_dir / "config.json").write_text(
-        json.dumps({
-            "authType": "basic",
-            "host": host,
-            "port": port,
-            "credentialSource": "direct",
-        })
-    )
+    config_payload = json.dumps({
+        "authType": "basic",
+        "host": host,
+        "port": port,
+        "credentialSource": "direct",
+    })
+    credentials_rel = Path("persistent-artifacts") / "apps" / "default" / "credentials" / credential_guid
+    for objectstore_root in ("local/dapr/objectstore", "local/objectstore"):
+        config_dir = PROJECT_ROOT / objectstore_root / credentials_rel
+        config_dir.mkdir(parents=True, exist_ok=True)
+        (config_dir / "config.json").write_text(config_payload)
 
     yield
