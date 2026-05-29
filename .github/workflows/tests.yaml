@@ -97,9 +97,6 @@ jobs:
         uses: atlanhq/application-sdk/.github/actions/connector-integration-tests@main
         with:
           app-name: mysql
-          # Pin to the same daprd version the SDK's embedded_dapr uses so
-          # external and embedded dapr are in sync.
-          dapr-version: "1.17.7"
           # Scope to unit + testcontainers integration; tests/sdr/ and tests/e2e/
           # (full-DAG) run in their own jobs below.
           test-paths: "tests/unit/ tests/integration/"
@@ -125,9 +122,9 @@ jobs:
       # sdr-e2e pushes the PR-tagged image to GHCR.
       packages: write
     env:
-      CI_TENANT_DOMAIN: ${{ secrets.SDR_TEST_TENANT }}
-      CI_CLIENT_ID: ${{ secrets.SDR_CLIENT_ID }}
-      CI_CLIENT_SECRET: ${{ secrets.SDR_CLIENT_SECRET }}
+      SDR_TEST_TENANT: ${{ secrets.SDR_TEST_TENANT }}
+      SDR_CLIENT_ID: ${{ secrets.SDR_CLIENT_ID }}
+      SDR_CLIENT_SECRET: ${{ secrets.SDR_CLIENT_SECRET }}
     steps:
       # codex-/return-dispatch scans step *names* for "distinct-id <value>".
       - name: distinct-id ${{ github.event.inputs.distinct_id }}
