@@ -1,16 +1,16 @@
 name: Tests
 
-# Unified workflow — unit + e2e (testcontainers), SDR, and full-DAG e2e.
+# Unified workflow — unit + integration (testcontainers), SDR, and full-DAG e2e.
 #
-#   tests     — unit (tests/unit/) + testcontainers e2e (tests/e2e/) via
-#               connector-integration-tests composite action. Runs on every
+#   tests     — unit (tests/unit/) + testcontainers integration (tests/integration/)
+#               via connector-integration-tests composite action. Runs on every
 #               push to main and on every PR.
-#   sdr       — connector in docker compose + Temporal CI tenant via sdr-e2e
-#               composite action. Runs on PRs and workflow_dispatch; skipped
+#   sdr       — connector in configurator docker-compose + CI tenant Temporal via
+#               sdr-e2e composite action. Runs on PRs and workflow_dispatch; skipped
 #               on push-to-main (handled by the PR gate).
-#   e2e       — full system-apps DAG (extract→qi→publish→lineage) via the
-#               reusable e2e-full workflow. On workflow_dispatch or the
-#               'e2e-full' PR label only.
+#   e2e       — full system-apps DAG (extract→qi→publish→lineage) against a real
+#               tenant (tests/e2e/) via the reusable e2e-full workflow. On
+#               workflow_dispatch or the 'e2e' PR label only.
 #   tests-passed — aggregator gate; the single required check for branch
 #                  protection. tests must pass; sdr + e2e can be skipped.
 #
@@ -97,9 +97,9 @@ jobs:
         uses: atlanhq/application-sdk/.github/actions/connector-integration-tests@main
         with:
           app-name: mysql
-          # Scope to unit + testcontainers e2e; tests/sdr/ and tests/full_dag/
-          # run in their own jobs below.
-          test-paths: "tests/unit/ tests/e2e/"
+          # Scope to unit + testcontainers integration; tests/sdr/ and tests/e2e/
+          # (full-DAG) run in their own jobs below.
+          test-paths: "tests/unit/ tests/integration/"
           pytest-args: >-
             -n auto --dist=loadfile --tb=short
             --cov=app --cov-report=xml --cov-report=html --cov-report=term
@@ -176,15 +176,15 @@ jobs:
       group: tests-e2e-${{ github.ref }}
       cancel-in-progress: false
     # On workflow_dispatch (including cross-repo dispatch from apps-sdk),
-    # or when the 'e2e-full' label is applied to a PR. Forks and bots
+    # or when the 'e2e' label is applied to a PR. Forks and bots
     # are excluded — full-DAG runs touch real tenant assets.
     if: |
       github.event_name == 'workflow_dispatch' ||
       (
         github.event_name == 'pull_request' &&
         (
-          (github.event.action == 'labeled' && github.event.label.name == 'e2e-full') ||
-          contains(github.event.pull_request.labels.*.name, 'e2e-full')
+          (github.event.action == 'labeled' && github.event.label.name == 'e2e') ||
+          contains(github.event.pull_request.labels.*.name, 'e2e')
         ) &&
         github.event.pull_request.head.repo.fork != true &&
         github.event.pull_request.user.login != 'dependabot[bot]'
@@ -193,6 +193,8 @@ jobs:
     with:
       app-name: mysql
       app-image-name: atlan-mysql-app
+      # Override default tests/full_dag/ path — mysql uses tests/e2e/
+      test-path: tests/e2e/
       agent-name-override: ${{ inputs.agent_name_override }}
       application-sdk-ref: ${{ inputs.application_sdk_ref }}
       distinct-id: ${{ inputs.distinct_id }}
@@ -220,7 +222,7 @@ jobs:
             |---|---|---|
             | tests | ${{ needs.tests.result == 'success' && '✅ Passed' || (needs.tests.result == 'skipped' && '⊘ Skipped' || '❌ Failed') }} | `${{ needs.tests.outputs.summary || 'no summary' }}` |
             | sdr | ${{ needs.sdr.result == 'success' && '✅ Passed' || (needs.sdr.result == 'skipped' && '⊘ Skipped' || '❌ Failed') }} | (see run) |
-            | e2e | ${{ needs.e2e.result == 'success' && '✅ Passed' || (needs.e2e.result == 'skipped' && '⊘ Skipped — add `e2e-full` label to trigger' || '❌ Failed') }} | (see run) |
+            | e2e | ${{ needs.e2e.result == 'success' && '✅ Passed' || (needs.e2e.result == 'skipped' && '⊘ Skipped — add `e2e` label to trigger' || '❌ Failed') }} | (see run) |
 
             **Overall:** ${{ (needs.tests.result == 'success' && (needs.sdr.result == 'success' || needs.sdr.result == 'skipped') && (needs.e2e.result == 'success' || needs.e2e.result == 'skipped')) && '✅ All passed' || '❌ Some failed' }} — [view run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
         continue-on-error: true

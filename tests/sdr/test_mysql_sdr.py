@@ -2,10 +2,10 @@
 
 Validates the connector running inside a customer-style SDR container
 (built by atlan-configurator + docker compose) rather than the local
-Dapr + Temporal + direct-Python stack used by tests/e2e/.
+Dapr + Temporal + direct-Python stack used by tests/integration/.
 
 The API surface is identical — same endpoints, same request shapes — so
-most scenarios mirror tests/e2e/. The key differences:
+most scenarios mirror tests/integration/. The key differences:
 
 * No external MySQL: the compose overlay at
   ``.github/e2e/docker-compose.ci.yml`` brings up a ``mysql:8.0``

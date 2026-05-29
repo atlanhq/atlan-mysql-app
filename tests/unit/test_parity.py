@@ -4,7 +4,7 @@ These tests ensure the asset mappers produce entities with the same keys,
 relationship refs, and structure as the legacy connector. Values are not compared,
 only the presence and shape of fields.
 
-Reference: tests/e2e/fixtures/parity_spec.json + /tmp/legacy-mysql-transformed/
+Reference: tests/integration/fixtures/parity_spec.json + /tmp/legacy-mysql-transformed/
 """
 
 from __future__ import annotations

@@ -22,7 +22,7 @@ import pytest
 from testcontainers.mysql import MySqlContainer
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-SEED_SQL = PROJECT_ROOT / "tests" / "e2e" / "fixtures" / "seed.sql"
+SEED_SQL = PROJECT_ROOT / "tests" / "integration" / "fixtures" / "seed.sql"
 
 logger = logging.getLogger("e2e")
 
