@@ -25,15 +25,11 @@ dev = [
     "isort>=5.13.2",
     "watchdog>=6.0.0",
     "requests",
-    # scalene — Python CPU/GPU/memory profiler used by the E2E Application
-    # Test workflow (`uv run scalene --profile-all --cli ...` at
-    # .github/workflows/e2e-test.yaml:52). The dep was never declared on
-    # any branch — every push since 2026-05-14 failed at "Start the
-    # application" with `Failed to spawn: scalene — No such file or directory`.
-    #
-    # Pinned <2.0: scalene 2.x introduced a subcommand CLI
-    # (`scalene run script.py`) and the workflow still uses the legacy
-    # 1.x invocation (`scalene script.py`). 1.5.x is the compatible range.
+    # scalene — Python CPU/GPU/memory profiler for local profiling.
+    # Used in tests/integration/run_e2e_local.sh via the 1.x invocation
+    # (`scalene --profile-all --cli main.py`). Pinned <2.0 because scalene
+    # 2.x switched to a subcommand CLI (`scalene run script.py`), which is
+    # incompatible with the 1.x style used in the local run script.
     "scalene>=1.5.0,<2.0",
 ]
 test = [
@@ -66,7 +62,7 @@ stop-deps.shell = "lsof -ti:3000,3500,7233,50001 | xargs kill -9 2>/dev/null || 
 
 [tool.poe.tasks.download-components]
 interpreter = "python"
-env = { SDK_VERSION = "v0.1.1rc63" }
+env = { SDK_VERSION = "v3.14.0" }
 shell = """
 import pathlib, requests, os, shutil, tarfile, tempfile
 

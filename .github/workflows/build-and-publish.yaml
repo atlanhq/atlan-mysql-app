@@ -48,5 +48,5 @@ jobs:
       channel: ${{ inputs.channel || 'all' }}
       tenants: ${{ inputs.tenants || '' }}
       release_tag: ${{ needs.read-version.outputs.version }}
-      unit_tests_workflow_file: "tests.yml"
+      unit_tests_workflow_file: "tests.yaml"
     secrets: inherit
