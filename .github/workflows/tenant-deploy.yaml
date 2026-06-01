@@ -85,7 +85,7 @@ jobs:
     steps:
       # ── Checkout ──────────────────────────────────────────────────────────
       - name: Checkout
-        uses: actions/checkout@v4.0.0
+        uses: actions/checkout@v6
         with:
           ref: ${{ inputs.ref || github.ref }}
           token: ${{ secrets.ORG_PAT_GITHUB }}
