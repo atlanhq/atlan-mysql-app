@@ -1,5 +1,5 @@
-# e2e-full compose overlay (paired with .github/workflows/e2e-full.yaml
-# and tests/full_dag/). Sits on top of the configurator-generated base
+# e2e-full compose overlay (paired with .github/workflows/tests.yaml
+# and tests/e2e/). Sits on top of the configurator-generated base
 # + SDK CI defaults; replaces the per-PR SDR integration overlay
 # (localstorage + hermetic seed) with:
 #
