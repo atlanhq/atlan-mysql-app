@@ -4,6 +4,7 @@
 
 # MySQL Application
 
+
 [![Tests](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/tests.yml/badge.svg)](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/tests.yml)
 [![Build](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/build-image.yml/badge.svg)](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/build-image.yml)
 [![Checked with pyright](https://microsoft.github.io/pyright/img/pyright_badge.svg)](https://microsoft.github.io/pyright/)
