@@ -20,9 +20,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
 import pytest
-
 from application_sdk.contracts.types import ConnectionRef
 from application_sdk.templates.contracts.sql_metadata import ExtractionInput
+
 from app.mysql import MySQLApp, MySQLExtractionOutput
 
 if TYPE_CHECKING:
@@ -58,15 +58,13 @@ class TestMySQLExtraction:
                 MySQLApp,
                 ExtractionInput(
                     credential_guid=mysql_credentials_files,
-                    connection=ConnectionRef.model_validate(
-                        {
-                            "typeName": "Connection",
-                            "attributes": {
-                                "qualifiedName": _CONNECTION_QN,
-                                "name": _CONNECTION_NAME,
-                            },
-                        }
-                    ),
+                    connection=ConnectionRef.model_validate({
+                        "typeName": "Connection",
+                        "attributes": {
+                            "qualifiedName": _CONNECTION_QN,
+                            "name": _CONNECTION_NAME,
+                        },
+                    }),
                     include_filter="",
                 ),
                 execution_id_prefix=f"mysql-e2e-{uuid.uuid4().hex[:8]}",
@@ -128,9 +126,9 @@ class TestMySQLExtraction:
 
         for entity in ("database", "schema", "table", "column"):
             transformed_file = run_dir / "transformed" / entity / "entities.json"
-            assert transformed_file.exists(), (
-                f"Missing transformed/{entity}/entities.json"
-            )
+            assert (
+                transformed_file.exists()
+            ), f"Missing transformed/{entity}/entities.json"
 
             lines = transformed_file.read_text().strip().splitlines()
             assert len(lines) > 0, f"Empty transformed/{entity}/entities.json"
@@ -141,9 +139,9 @@ class TestMySQLExtraction:
             attrs = first["attributes"]
             assert "name" in attrs, f"{entity} missing attributes.name"
             assert "qualifiedName" in attrs, f"{entity} missing qualifiedName"
-            assert attrs.get("connectorName") == "mysql", (
-                f"{entity} connectorName != 'mysql'"
-            )
+            assert (
+                attrs.get("connectorName") == "mysql"
+            ), f"{entity} connectorName != 'mysql'"
 
     async def test_entity_type_names(
         self,
@@ -168,6 +166,6 @@ class TestMySQLExtraction:
             lines = transformed_file.read_text().strip().splitlines()
             seen = {json.loads(line)["typeName"] for line in lines}
             unexpected = seen - allowed
-            assert not unexpected, (
-                f"{entity} has unexpected typeName values: {unexpected}"
-            )
+            assert (
+                not unexpected
+            ), f"{entity} has unexpected typeName values: {unexpected}"
