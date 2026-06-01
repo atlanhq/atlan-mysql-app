@@ -2,36 +2,27 @@
 
 ## Test Structure
 
-- **Unit Tests** (`tests/unit/`): Fast, isolated tests with mocked dependencies
-- **E2E Tests** (`tests/e2e/`): Full workflow tests requiring Dapr, Temporal, and database
+| Directory | What it tests | CI job |
+|---|---|---|
+| `tests/unit/` | Fast, isolated tests with mocked dependencies | `tests` (every PR) |
+| `tests/integration/` | Full workflow via testcontainers MySQL (no external creds) | `tests` (every PR) |
+| `tests/sdr/` | Connector in configurator docker-compose + CI tenant Temporal | `sdr` (every PR) |
+| `tests/e2e/` | Full system-apps DAG against a real tenant (extract→qi→publish→lineage) | `e2e` (`e2e` label or dispatch) |
 
-## Running Tests
+## Running Tests Locally
 
-### Unit Tests
+### Unit + Integration (no external services needed beyond Docker)
 ```bash
-uv run pytest tests/unit -v
-uv run coverage run -m pytest tests/unit
-uv run coverage report
+uv run poe start-deps         # start Dapr + Temporal
+uv run python main.py &       # start the app
+uv run pytest tests/unit/ tests/integration/ -v
 ```
 
-### E2E Tests
-
-**Prerequisites:**
-1. Start Dapr and Temporal: `uv run poe start-deps`
-2. Start app: `uv run main.py`
-3. Set environment variables if needed
-
-**Run:**
+### E2E (full-DAG, requires tenant credentials)
 ```bash
-uv run pytest tests/e2e -v
+ATLAN_BASE_URL=https://<tenant-domain> \
+ATLAN_API_KEY=... \
+SDR_OAUTH_CLIENT_ID=... SDR_OAUTH_CLIENT_SECRET=... \
+GITHUB_RUN_ID=$(date +%s) \
+    uv run pytest tests/e2e/ -v
 ```
-
-## Test Files
-
-**Unit Tests:**
-- `test_clients.py` - Client authentication tests (basic + IAM)
-- `test_workflow.py` - Workflow logic tests
-- `transformers/query/` - Transformer validation tests
-
-**E2E Tests:**
-- `test_mysql_workflow/` - Basic workflow

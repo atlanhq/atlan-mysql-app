@@ -476,7 +476,7 @@ class TestMySQLAppRun:
             ),
             patch.object(MySQLApp, "_resolve_credential_ref", return_value=None),
         ):
-            return asyncio.get_event_loop().run_until_complete(app.run(input_))
+            return asyncio.run(app.run(input_))
 
     def test_lineage_prefixes_use_workflow_id_and_run_id(self):
         """view_lineage_output_prefix and lineage_stage_prefix must contain the

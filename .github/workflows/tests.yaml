@@ -1,0 +1,245 @@
+name: Tests
+
+# Unified workflow — unit + integration (testcontainers), SDR, and full-DAG e2e.
+#
+#   tests     — unit (tests/unit/) + testcontainers integration (tests/integration/)
+#               via connector-integration-tests composite action. Runs on every
+#               push to main and on every PR.
+#   sdr       — connector in configurator docker-compose + CI tenant Temporal via
+#               sdr-e2e composite action. Runs on PRs and workflow_dispatch; skipped
+#               on push-to-main (handled by the PR gate).
+#   e2e       — full system-apps DAG (extract→qi→publish→lineage) against a real
+#               tenant (tests/e2e/) via the reusable e2e-full workflow. On
+#               workflow_dispatch or the 'e2e' PR label only.
+#   tests-passed — aggregator gate; the single required check for branch
+#                  protection. tests must pass; sdr + e2e can be skipped.
+#
+# Cross-repo dispatch (from application-sdk PRs):
+#   application_sdk_ref pins the SDK in the tests and sdr jobs so the
+#   connector exercises the SDK branch under review.
+#   distinct_id is echoed in step names so codex-/return-dispatch can
+#   locate this run from the calling workflow via the GH Actions API.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - labeled
+    branches:
+      - main
+  merge_group:
+  workflow_dispatch:
+    inputs:
+      application_sdk_ref:
+        description: |
+          Branch/SHA of atlanhq/application-sdk for cross-repo dispatch.
+          Pins SDK in tests + sdr + e2e jobs. Empty = lockfile version.
+        required: false
+        default: ""
+        type: string
+      distinct_id:
+        description: |
+          Identifier for codex-/return-dispatch matching. Echoed in step
+          names so the calling workflow can locate this run via the GH API.
+        required: false
+        default: ""
+        type: string
+      agent_name_override:
+        description: |
+          Override agent-name for the e2e job (default ci-<run_id>).
+          Useful when re-running against a worker that is already up.
+        required: false
+        default: ""
+        type: string
+
+jobs:
+
+  # ── Unit + testcontainers e2e ─────────────────────────────────────────
+  tests:
+    name: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    concurrency:
+      group: tests-${{ github.ref }}
+      cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+    permissions:
+      pull-requests: write
+      contents: read
+    outputs:
+      summary: ${{ steps.tests.outputs.summary }}
+    env:
+      # Expose the external Dapr sidecar ports so main.py uses run_combined_mode
+      # (external Dapr + Temporal) instead of the embedded dev runtime.
+      DAPR_HTTP_PORT: "3500"
+      DAPR_GRPC_PORT: "50001"
+      APPLICATION_SDK_ENABLE_CLEANUP_INTERCEPTOR: "false"
+    steps:
+      - name: echo distinct-id ${{ github.event.inputs.distinct_id }}
+        if: github.event.inputs.distinct_id != ''
+        run: echo "Dispatched; SDK ref=${{ github.event.inputs.application_sdk_ref }}"
+
+      # Explicit checkout so the SDK pin step can modify uv.lock before
+      # connector-integration-tests runs setup-deps (which re-runs uv sync).
+      - uses: actions/checkout@v4
+
+      - name: Pin application-sdk to dispatched ref
+        if: github.event.inputs.application_sdk_ref != ''
+        run: |
+          sdk_ref=${{ github.event.inputs.application_sdk_ref }}
+          uv add git+https://github.com/atlanhq/application-sdk --rev "$sdk_ref"
+
+      - name: Run unit + e2e tests
+        id: tests
+        uses: atlanhq/application-sdk/.github/actions/connector-integration-tests@main
+        with:
+          app-name: mysql
+          # Scope to unit + testcontainers integration; tests/sdr/ and tests/e2e/
+          # (full-DAG) run in their own jobs below.
+          test-paths: "tests/unit/ tests/integration/"
+          pytest-args: >-
+            -n auto --dist=loadfile --tb=short
+            --cov=app --cov-report=xml --cov-report=html --cov-report=term
+            --cov-fail-under=0
+
+  # ── SDR (docker compose + CI tenant Temporal) ────────────────────────
+  sdr:
+    name: sdr
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    # Skip on push-to-main — the PR gate already covered it.
+    if: github.event_name != 'push'
+    concurrency:
+      group: tests-sdr-${{ github.ref }}-${{ github.event.inputs.application_sdk_ref || 'pinned' }}
+      cancel-in-progress: true
+    permissions:
+      pull-requests: write
+      contents: read
+      statuses: write
+      # sdr-e2e pushes the PR-tagged image to GHCR.
+      packages: write
+    env:
+      SDR_TEST_TENANT: ${{ secrets.SDR_TEST_TENANT }}
+      SDR_CLIENT_ID: ${{ secrets.SDR_CLIENT_ID }}
+      SDR_CLIENT_SECRET: ${{ secrets.SDR_CLIENT_SECRET }}
+    steps:
+      # codex-/return-dispatch scans step *names* for "distinct-id <value>".
+      - name: distinct-id ${{ github.event.inputs.distinct_id }}
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.distinct_id != ''
+        shell: bash
+        run: echo "Dispatched from apps-sdk; SDK ref=${{ github.event.inputs.application_sdk_ref }}"
+
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # Path A — connector-side PRs or dispatch without a SDK ref:
+      # use the composite action at @main against the SDK pinned in pyproject.toml.
+      - name: Run SDR tests (pinned SDK)
+        id: sdr-pinned
+        if: github.event_name == 'pull_request' || github.event.inputs.application_sdk_ref == ''
+        uses: atlanhq/application-sdk/.github/actions/sdr-e2e@main
+        with:
+          app-name: mysql
+          app-image-name: atlan-mysql-app
+          secrets-script: .github/e2e/make-secrets.py
+
+      # Path B — apps-sdk cross-repo dispatch with a specific SDK ref:
+      # check out the SDK at the dispatched ref and use the local composite
+      # action. GitHub Actions does not allow expressions in `uses:` refs,
+      # so the local-path workaround is the only option.
+      - name: Checkout application-sdk at dispatched ref
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.application_sdk_ref != ''
+        uses: actions/checkout@v4
+        with:
+          repository: atlanhq/application-sdk
+          ref: ${{ github.event.inputs.application_sdk_ref }}
+          path: .application-sdk
+          persist-credentials: false
+
+      - name: Run SDR tests (dispatched SDK ref)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.application_sdk_ref != ''
+        uses: ./.application-sdk/.github/actions/sdr-e2e
+        with:
+          app-name: mysql
+          app-image-name: atlan-mysql-app
+          secrets-script: .github/e2e/make-secrets.py
+          application-sdk-ref: ${{ github.event.inputs.application_sdk_ref }}
+
+  # ── Full-DAG e2e (system apps — extract→qi→publish→lineage) ──────────
+  e2e:
+    name: e2e
+    concurrency:
+      group: tests-e2e-${{ github.ref }}
+      cancel-in-progress: false
+    # On workflow_dispatch (including cross-repo dispatch from apps-sdk),
+    # or when the 'e2e' label is applied to a PR. Forks and bots
+    # are excluded — full-DAG runs touch real tenant assets.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event_name == 'pull_request' &&
+        (
+          (github.event.action == 'labeled' && github.event.label.name == 'e2e') ||
+          contains(github.event.pull_request.labels.*.name, 'e2e')
+        ) &&
+        github.event.pull_request.head.repo.fork != true &&
+        github.event.pull_request.user.login != 'dependabot[bot]'
+      )
+    uses: atlanhq/application-sdk/.github/workflows/e2e-full-reusable.yaml@main
+    with:
+      app-name: mysql
+      app-image-name: atlan-mysql-app
+      # Override default tests/full_dag/ path — mysql uses tests/e2e/
+      test-path: tests/e2e/
+      agent-name-override: ${{ inputs.agent_name_override }}
+      application-sdk-ref: ${{ inputs.application_sdk_ref }}
+      distinct-id: ${{ inputs.distinct_id }}
+    secrets: inherit
+
+  # ── Aggregator gate (single required check for branch protection) ─────
+  tests-passed:
+    name: tests-passed
+    needs: [tests, sdr, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Post unified test-summary comment on PR
+        if: always() && github.event_name == 'pull_request'
+        uses: mshick/add-pr-comment@b8f338c590a895d50bcbfa6c5859251edc8952fc # v2.8.2
+        with:
+          message-id: tests-summary
+          message: |
+            ## Tests Summary
+
+            | Job | Status | Result |
+            |---|---|---|
+            | tests | ${{ needs.tests.result == 'success' && '✅ Passed' || (needs.tests.result == 'skipped' && '⊘ Skipped' || '❌ Failed') }} | `${{ needs.tests.outputs.summary || 'no summary' }}` |
+            | sdr | ${{ needs.sdr.result == 'success' && '✅ Passed' || (needs.sdr.result == 'skipped' && '⊘ Skipped' || '❌ Failed') }} | (see run) |
+            | e2e | ${{ needs.e2e.result == 'success' && '✅ Passed' || (needs.e2e.result == 'skipped' && '⊘ Skipped — add `e2e` label to trigger' || '❌ Failed') }} | (see run) |
+
+            **Overall:** ${{ (needs.tests.result == 'success' && (needs.sdr.result == 'success' || needs.sdr.result == 'skipped') && (needs.e2e.result == 'success' || needs.e2e.result == 'skipped')) && '✅ All passed' || '❌ Some failed' }} — [view run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+        continue-on-error: true
+
+      - name: Verify all test jobs succeeded
+        run: |
+          if [ "${{ needs.tests.result }}" != "success" ]; then
+            echo "::error::tests job did not succeed (result=${{ needs.tests.result }})"
+            exit 1
+          fi
+          if [ "${{ needs.sdr.result }}" != "success" ] && [ "${{ needs.sdr.result }}" != "skipped" ]; then
+            echo "::error::sdr job did not succeed (result=${{ needs.sdr.result }})"
+            exit 1
+          fi
+          if [ "${{ needs.e2e.result }}" != "success" ] && [ "${{ needs.e2e.result }}" != "skipped" ]; then
+            echo "::error::e2e job did not succeed (result=${{ needs.e2e.result }})"
+            exit 1
+          fi
+          echo "All test jobs passed."

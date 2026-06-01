@@ -4,7 +4,7 @@ These tests ensure the asset mappers produce entities with the same keys,
 relationship refs, and structure as the legacy connector. Values are not compared,
 only the presence and shape of fields.
 
-Reference: tests/e2e/fixtures/parity_spec.json + /tmp/legacy-mysql-transformed/
+Reference: tests/integration/fixtures/parity_spec.json + /tmp/legacy-mysql-transformed/
 """
 
 from __future__ import annotations
@@ -40,7 +40,7 @@ def _sanitize_for_json(obj: Any) -> Any:
 
 
 PARITY_SPEC = json.loads(
-    (Path(__file__).parent.parent / "e2e" / "fixtures" / "parity_spec.json").read_text()
+    (Path(__file__).parent.parent / "integration" / "fixtures" / "parity_spec.json").read_text()
 )
 
 CONNECTION_QN = "default/mysql/1234567890"

@@ -15,7 +15,7 @@ To run locally::
     ATLAN_API_KEY=... \\
     SDR_OAUTH_CLIENT_ID=... SDR_OAUTH_CLIENT_SECRET=... \\
     GITHUB_RUN_ID=$(date +%s) \\
-        uv run pytest tests/full_dag/ -v
+        uv run pytest tests/e2e/ -v
 
 The test class skips gracefully when the harness env isn't configured,
 so it can sit alongside the per-PR SDR integration suite without
