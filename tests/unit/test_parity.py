@@ -40,7 +40,9 @@ def _sanitize_for_json(obj: Any) -> Any:
 
 
 PARITY_SPEC = json.loads(
-    (Path(__file__).parent.parent / "integration" / "fixtures" / "parity_spec.json").read_text()
+    (
+        Path(__file__).parent.parent / "integration" / "fixtures" / "parity_spec.json"
+    ).read_text()
 )
 
 CONNECTION_QN = "default/mysql/1234567890"
