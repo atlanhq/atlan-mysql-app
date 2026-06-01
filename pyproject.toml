@@ -30,7 +30,7 @@ dev = [
     # (`scalene --profile-all --cli main.py`). Pinned <2.0 because scalene
     # 2.x switched to a subcommand CLI (`scalene run script.py`), which is
     # incompatible with the 1.x style used in the local run script.
-    "scalene>=1.5.0,<2.0",
+    "scalene>=1.5.0,<3.0",
 ]
 test = [
     "pytest>=8.3.3",
