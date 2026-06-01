@@ -32,6 +32,7 @@ on:
       - labeled
     branches:
       - main
+  merge_group:
   workflow_dispatch:
     inputs:
       application_sdk_ref:
