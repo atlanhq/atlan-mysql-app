@@ -1,0 +1,100 @@
+name: Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize]
+    branches: [main]
+
+jobs:
+  unit-integration:
+    name: unit + integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    concurrency:
+      group: tests-unit-integration-${{ github.ref }}
+      cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+    permissions:
+      pull-requests: write
+      contents: read
+    outputs:
+      summary: ${{ steps.tests.outputs.summary }}
+    env:
+      E2E_MYSQL_HOST: ${{ secrets.E2E_MYSQL_HOST }}
+      E2E_MYSQL_PORT: ${{ secrets.E2E_MYSQL_PORT }}
+      E2E_MYSQL_USERNAME: ${{ secrets.E2E_MYSQL_USERNAME }}
+      E2E_MYSQL_PASSWORD: ${{ secrets.E2E_MYSQL_PASSWORD }}
+      E2E_MYSQL_DATABASE: ${{ secrets.E2E_MYSQL_DATABASE }}
+    steps:
+      - name: Run all tests in one pytest invocation
+        id: tests
+        uses: atlanhq/application-sdk/.github/actions/connector-integration-tests@main
+        with:
+          app-name: mysql
+          pytest-args: "-n auto --dist=loadfile --tb=short --cov=app --cov-report=xml --cov-report=html --cov-report=term --cov-fail-under=0"
+
+  sdr:
+    name: sdr
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    concurrency:
+      group: tests-sdr-${{ github.ref }}
+      cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+    permissions:
+      pull-requests: write
+      contents: read
+      statuses: write
+      packages: write
+    outputs:
+      summary: ${{ steps.sdr.outputs.test-summary }}
+    env:
+      CI_TENANT_DOMAIN: ${{ secrets.SDR_TEST_TENANT }}
+      CI_CLIENT_ID: ${{ secrets.SDR_CLIENT_ID }}
+      CI_CLIENT_SECRET: ${{ secrets.SDR_CLIENT_SECRET }}
+      E2E_MYSQL_HOST: ${{ secrets.E2E_MYSQL_HOST }}
+      E2E_MYSQL_PORT: ${{ secrets.E2E_MYSQL_PORT }}
+      E2E_MYSQL_USERNAME: ${{ secrets.E2E_MYSQL_USERNAME }}
+      E2E_MYSQL_PASSWORD: ${{ secrets.E2E_MYSQL_PASSWORD }}
+      E2E_MYSQL_DATABASE: ${{ secrets.E2E_MYSQL_DATABASE }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Run connector SDR tests
+        id: sdr
+        uses: atlanhq/application-sdk/.github/actions/sdr-e2e@main
+        with:
+          app-name: mysql
+          app-image-name: atlan-mysql-app
+          secrets-script: .github/e2e/make-secrets.py
+
+  tests-passed:
+    name: tests-passed
+    needs: [unit-integration, sdr]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Post unified test-summary comment on PR
+        if: always() && github.event_name == 'pull_request'
+        uses: mshick/add-pr-comment@b8f338c590a895d50bcbfa6c5859251edc8952fc # v2.8.2
+        with:
+          message-id: tests-summary
+          message: |
+            ## Tests Summary
+
+            | Job | Status | Result |
+            |---|---|---|
+            | unit + integration | ${{ needs.unit-integration.result == 'success' && '✅ Passed' || (needs.unit-integration.result == 'skipped' && '⊘ Skipped' || '❌ Failed') }} | `${{ needs.unit-integration.outputs.summary || 'no summary' }}` |
+            | sdr | ${{ needs.sdr.result == 'success' && '✅ Passed' || (needs.sdr.result == 'skipped' && '⊘ Skipped' || '❌ Failed') }} | `${{ needs.sdr.outputs.summary || 'no summary' }}` |
+
+            **Overall:** ${{ (needs.unit-integration.result == 'success' && needs.sdr.result == 'success') && '✅ All passed' || '❌ Some failed' }} — [view run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+        continue-on-error: true
+      - name: Verify all test jobs succeeded
+        run: |
+          [ "${{ needs.unit-integration.result }}" = "success" ] || { echo "::error::unit + integration failed"; exit 1; }
+          [ "${{ needs.sdr.result }}" = "success" ] || { echo "::error::sdr failed"; exit 1; }
+          echo "All test jobs passed."
