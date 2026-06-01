@@ -35,10 +35,18 @@ def _creds(
     auth_type: str = "basic",
 ) -> list[HandlerCredential]:
     return [
-        HandlerCredential(key="host", value=host or os.environ.get("MYSQL_HOST", "localhost")),
-        HandlerCredential(key="port", value=port or os.environ.get("MYSQL_PORT", "3306")),
-        HandlerCredential(key="username", value=username or os.environ.get("MYSQL_USER", "root")),
-        HandlerCredential(key="password", value=password or os.environ.get("MYSQL_PASSWORD", "")),
+        HandlerCredential(
+            key="host", value=host or os.environ.get("MYSQL_HOST", "localhost")
+        ),
+        HandlerCredential(
+            key="port", value=port or os.environ.get("MYSQL_PORT", "3306")
+        ),
+        HandlerCredential(
+            key="username", value=username or os.environ.get("MYSQL_USER", "root")
+        ),
+        HandlerCredential(
+            key="password", value=password or os.environ.get("MYSQL_PASSWORD", "")
+        ),
         HandlerCredential(key="authType", value=auth_type),
     ]
 
