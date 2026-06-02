@@ -10,9 +10,15 @@ from application_sdk.common.aws_utils import (
     generate_aws_rds_token_with_iam_role,
     generate_aws_rds_token_with_iam_user,
 )
-from application_sdk.common.error_codes import CommonError
+from application_sdk.common.aws_utils_errors import AwsAssumeRoleError
 from application_sdk.credentials.utils import parse_credentials_extra
 from application_sdk.observability.logger_adaptor import get_logger
+from app.failures import (
+    CredentialFieldMissingError,
+    EngineCreationError,
+    IamTokenGenerationError,
+    RegionExtractionError,
+)
 from sqlalchemy import event
 from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -116,35 +122,43 @@ class SQLClient(AsyncBaseSQLClient):
         region = self._extract_region_from_hostname(host)
 
         logger.info(
-            f"IAM User Auth - Access Key: {aws_access_key_id[:10] if aws_access_key_id else None}..., "
-            f"Host: {host}, Port: {port}, Region: {region}, MySQL User: {user}"
+            "IAM user auth — access_key_id=%.10s..., host=%s, port=%s, region=%s, user=%s",
+            aws_access_key_id or "None",
+            host,
+            port,
+            region,
+            user,
         )
 
         if not aws_access_key_id:
-            raise CommonError(
-                f"{CommonError.CREDENTIALS_PARSE_ERROR}: username (AWS access key ID) is required for IAM user authentication"
+            raise CredentialFieldMissingError(
+                message="username (AWS access key ID) is required for IAM user authentication",
+                field="username",
             )
         if not aws_secret_access_key:
-            raise CommonError(
-                f"{CommonError.CREDENTIALS_PARSE_ERROR}: password (AWS secret access key) is required for IAM user authentication"
+            raise CredentialFieldMissingError(
+                message="password (AWS secret access key) is required for IAM user authentication",
+                field="password",
             )
         if not user:
-            raise CommonError(
-                f"{CommonError.CREDENTIALS_PARSE_ERROR}: extra.username (MySQL database user) is required for IAM user authentication"
+            raise CredentialFieldMissingError(
+                message="extra.username (MySQL database user) is required for IAM user authentication",
+                field="extra.username",
             )
         if not host:
-            raise CommonError(
-                f"{CommonError.CREDENTIALS_PARSE_ERROR}: host is required for IAM user authentication"
+            raise CredentialFieldMissingError(
+                message="host is required for IAM user authentication",
+                field="host",
             )
         if not port:
-            raise CommonError(
-                f"{CommonError.CREDENTIALS_PARSE_ERROR}: port is required for IAM user authentication"
+            raise CredentialFieldMissingError(
+                message="port is required for IAM user authentication",
+                field="port",
             )
         if not region:
-            raise CommonError(
-                f"{CommonError.CREDENTIALS_PARSE_ERROR}: region is required for IAM user authentication. "
-                f"Region could not be extracted from hostname '{host}'. "
-                f"Please ensure the hostname follows the RDS pattern: [identifier].[region].rds.amazonaws.com"
+            raise RegionExtractionError(
+                message="Region could not be extracted from RDS hostname; expected [identifier].[region].rds.amazonaws.com",
+                field="host",
             )
 
         try:
@@ -156,17 +170,18 @@ class SQLClient(AsyncBaseSQLClient):
                 port=int(port),
                 region=region,
             )
-            if not token:
-                raise CommonError(
-                    f"{CommonError.CREDENTIALS_PARSE_ERROR}: Failed to generate IAM token - token is empty"
-                )
-            logger.info(f"IAM token generated successfully (length: {len(token)})")
-            return token
         except Exception as e:
-            logger.error(f"Failed to generate IAM user token: {str(e)}")
-            raise CommonError(
-                f"{CommonError.CREDENTIALS_PARSE_ERROR}: Failed to generate IAM token: {str(e)}"
+            raise IamTokenGenerationError(
+                failure_reason="token_generation_failed", cause=e
+            ) from e
+
+        if not token:
+            raise IamTokenGenerationError(
+                message="AWS RDS IAM token generation returned an empty token",
+                failure_reason="empty_token",
             )
+        logger.info("IAM token generated successfully (length: %d)", len(token))
+        return token
 
     def get_iam_role_token(self) -> str:
         """Get an IAM role token for AWS RDS MySQL authentication.
@@ -201,31 +216,39 @@ class SQLClient(AsyncBaseSQLClient):
         region = self._extract_region_from_hostname(host)
 
         logger.info(
-            f"IAM Role Auth - Role ARN: {aws_role_arn}, Host: {host}, Port: {port}, "
-            f"Region: {region}, MySQL User: {username}, External ID: {external_id}"
+            "IAM role auth — role_arn=%s, host=%s, port=%s, region=%s, user=%s, has_external_id=%s",
+            aws_role_arn,
+            host,
+            port,
+            region,
+            username,
+            bool(external_id),
         )
 
         if not aws_role_arn:
-            raise CommonError(
-                f"{CommonError.CREDENTIALS_PARSE_ERROR}: extra.aws_role_arn is required for IAM role authentication"
+            raise CredentialFieldMissingError(
+                message="extra.aws_role_arn is required for IAM role authentication",
+                field="extra.aws_role_arn",
             )
         if not username:
-            raise CommonError(
-                f"{CommonError.CREDENTIALS_PARSE_ERROR}: username (MySQL database user) is required for IAM role authentication"
+            raise CredentialFieldMissingError(
+                message="username (MySQL database user) is required for IAM role authentication",
+                field="username",
             )
         if not host:
-            raise CommonError(
-                f"{CommonError.CREDENTIALS_PARSE_ERROR}: host is required for IAM role authentication"
+            raise CredentialFieldMissingError(
+                message="host is required for IAM role authentication",
+                field="host",
             )
         if not port:
-            raise CommonError(
-                f"{CommonError.CREDENTIALS_PARSE_ERROR}: port is required for IAM role authentication"
+            raise CredentialFieldMissingError(
+                message="port is required for IAM role authentication",
+                field="port",
             )
         if not region:
-            raise CommonError(
-                f"{CommonError.CREDENTIALS_PARSE_ERROR}: region is required for IAM role authentication. "
-                f"Region could not be extracted from hostname '{host}'. "
-                f"Please ensure the hostname follows the RDS pattern: [identifier].[region].rds.amazonaws.com"
+            raise RegionExtractionError(
+                message="Region could not be extracted from RDS hostname; expected [identifier].[region].rds.amazonaws.com",
+                field="host",
             )
 
         # Set environment variables from frontend credentials if provided
@@ -258,11 +281,22 @@ class SQLClient(AsyncBaseSQLClient):
             )
 
             if not token:
-                raise CommonError(
-                    f"{CommonError.CREDENTIALS_PARSE_ERROR}: Failed to generate IAM token - token is empty"
+                raise IamTokenGenerationError(
+                    message="AWS RDS IAM token generation returned an empty token",
+                    failure_reason="empty_token",
                 )
-            logger.info(f"IAM token generated successfully (length: {len(token)})")
+            logger.info("IAM token generated successfully (length: %d)", len(token))
             return token
+        except AwsAssumeRoleError as e:
+            # STS rejected the assume-role call — re-raise with a message that
+            # contains "authentication failed" so the SDK's auth-cache prime
+            # classifier (_classify_prime_failure auth_msg_hints) routes this
+            # to AuthError rather than the InternalError fallback bucket.
+            raise IamTokenGenerationError(
+                message="AWS IAM role authentication failed — could not assume the configured role",
+                failure_reason="assume_role_denied",
+                cause=e,
+            ) from e
         finally:
             # Restore original environment variables if we set them
             if aws_access_key_id and aws_secret_access_key:
@@ -301,20 +335,25 @@ class SQLClient(AsyncBaseSQLClient):
             if auth_type == "iam_user":
                 username = extra.get("username")
                 if not username:
-                    raise ValueError(
-                        "extra.username (MySQL database user) is required for IAM user authentication"
+                    raise CredentialFieldMissingError(
+                        message="extra.username (MySQL database user) is required for IAM user authentication",
+                        field="extra.username",
                     )
             else:  # iam_role
                 username = credentials.get("username")
                 if not username:
-                    raise ValueError(
-                        "username (MySQL database user) is required for IAM role authentication"
+                    raise CredentialFieldMissingError(
+                        message="username (MySQL database user) is required for IAM role authentication",
+                        field="username",
                     )
 
             host = credentials.get("host")
             port = credentials.get("port")
             if not host or not port:
-                raise ValueError("host and port are required")
+                raise CredentialFieldMissingError(
+                    message="host and port are required for IAM authentication",
+                    field="host",
+                )
 
             # Build query parameters
             query_params: Dict[str, str] = {}
@@ -350,7 +389,7 @@ class SQLClient(AsyncBaseSQLClient):
             )
 
             if not self.engine:
-                raise ValueError("Failed to create async engine")
+                raise EngineCreationError()
 
             # Register event listener as additional safety to ensure token is injected
             # This ensures fresh tokens on each connection (tokens expire)
@@ -366,12 +405,27 @@ class SQLClient(AsyncBaseSQLClient):
                 # Inject token into connection parameters
                 cparams["password"] = token
                 logger.debug(
-                    f"Event listener: Refreshed IAM token (length: {len(token)}) for connection"
+                    "IAM token refreshed for connection (length: %d)", len(token)
                 )
 
             # Test connection briefly to validate credentials
-            async with self.engine.connect() as _:
-                pass  # Connection test successful
+            try:
+                async with self.engine.connect() as _:
+                    pass  # Connection test successful
+            except IamTokenGenerationError:
+                raise  # already typed from event listener; propagate as-is
+            except Exception as e:
+                # The token was generated successfully, so a connection-test
+                # failure here is almost always MySQL rejecting the IAM token
+                # (e.g. "Access denied" or "Lost connection" from auth-plugin
+                # negotiation).  Re-raise with "authentication failed" in the
+                # message so the SDK auth-cache prime classifier routes it to
+                # AuthError rather than DependencyUnavailableError.
+                raise IamTokenGenerationError(
+                    message="AWS IAM authentication failed — MySQL rejected the connection after token injection",
+                    failure_reason="connection_rejected",
+                    cause=e,
+                ) from e
 
             # Don't store persistent connection (base class sets this to None)
             # self.connection is managed by the base class

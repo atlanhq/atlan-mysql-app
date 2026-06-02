@@ -176,6 +176,7 @@ def _docker_available() -> bool:
         docker.from_env().ping()
         return True
     except Exception:
+        logger.debug("Docker daemon not reachable", exc_info=True)
         return False
 
 
