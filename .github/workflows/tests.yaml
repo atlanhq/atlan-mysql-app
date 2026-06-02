@@ -53,6 +53,11 @@ on:
         required: false
         default: ""
         type: string
+      run_e2e:
+        description: "Set to 'true' to trigger the e2e job (cross-repo dispatch from application-sdk). Defaults to off."
+        required: false
+        default: ""
+        type: string
 
 jobs:
 
@@ -107,7 +112,7 @@ jobs:
     # or when the 'e2e' label is applied to a PR. Forks and bots
     # are excluded — full-DAG runs touch real tenant assets.
     if: |
-      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'workflow_dispatch' && inputs.run_e2e == 'true') ||
       (
         github.event_name == 'pull_request' &&
         (
