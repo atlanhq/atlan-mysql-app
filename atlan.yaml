@@ -9,11 +9,6 @@ icon_url: https://www.mysql.com/common/logos/mysql-logo.svg
 visibility: public
 build_tag: v1
 self_deployed_runtime: true
-entrypoints:
-- name: mysql
-  display_name: MySQL Assets
-  icon_url: https://www.mysql.com/common/logos/mysql-logo.svg
-  type: connector
 deploy:
   execution_mode: native
   splitDeploymentEnabled: true

@@ -9,6 +9,7 @@ icon = "https://www.mysql.com/common/logos/mysql-logo.svg"
 appId = "019c4c4b-8468-7e42-b0d6-eada59da2da1"
 credentialConnectorType = "jdbc"
 selfDeployedRuntime = true
+emitEntrypoints = false
 
 // The workflow reads the SDK-level credential_ref / credential_guid fields.
 // Avoid generating an unused mysql_credential alias.

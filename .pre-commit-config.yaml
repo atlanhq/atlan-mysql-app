@@ -33,7 +33,7 @@ repos:
     hooks:
       - id: check-version-changelog
         name: check version + changelog updated
-        entry: python .github/scripts/check_version_changelog.py
+        entry: python3 .github/scripts/check_version_changelog.py
         language: system
         pass_filenames: false
         always_run: true
