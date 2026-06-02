@@ -21,8 +21,8 @@
 #   make sdr-logs         Tail SDR pod logs
 #   make sdr-port-forward Forward SDR pod :8000 → localhost:$(LOCAL_PORT)
 
-.PHONY: install test test-e2e test-e2e-remote test-cov lint format pre-commit \
-        dev start-deps stop build clean \
+.PHONY: install generate check-generate test test-e2e test-e2e-remote test-cov \
+        lint format pre-commit dev start-deps stop build clean \
         sdr-render sdr-install sdr-uninstall sdr-teardown sdr-status \
         sdr-logs sdr-port-forward
 
@@ -38,6 +38,15 @@ APP_DEPLOYMENT         ?= mysql-server
 REMOTE_CREDENTIAL_GUID ?= local-mysql
 LOCAL_PORT             ?= 8000
 REMOTE_PORT            ?= 8000
+
+# ── Contract generation ───────────────────────────────────────────────────────
+
+generate:
+	pkl eval --project-dir contract -m . contract/app.pkl
+
+check-generate: generate
+	@git diff --exit-code app/generated/ atlan.yaml app.yaml \
+		|| (echo "ERROR: Generated files are stale. Run 'make generate' and commit." && exit 1)
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 
