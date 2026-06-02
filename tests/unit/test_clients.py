@@ -158,9 +158,9 @@ class TestMySQLClient:
             with pytest.raises(SqlClientAuthFailedError):
                 await client.load(basic_credentials)
 
-        assert (
-            call_count == 5
-        ), f"Expected exactly 5 attempts (tenacity max) before propagating, got {call_count}"
+        assert call_count == 5, (
+            f"Expected exactly 5 attempts (tenacity max) before propagating, got {call_count}"
+        )
 
     @pytest.mark.asyncio
     async def test_load_iam_user_auth_success(self, iam_user_credentials):

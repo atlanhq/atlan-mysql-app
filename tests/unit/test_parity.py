@@ -73,9 +73,9 @@ def _assert_structure(entity: dict, spec_key: str, entity_type: str):
 def _assert_ref(ref: dict, expected_type: str):
     """Validate a relationship ref has the correct shape."""
     assert ref is not None, "Relationship ref is None"
-    assert (
-        ref.get("typeName") == expected_type
-    ), f"Ref typeName={ref.get('typeName')}, expected {expected_type}"
+    assert ref.get("typeName") == expected_type, (
+        f"Ref typeName={ref.get('typeName')}, expected {expected_type}"
+    )
     assert "uniqueAttributes" in ref, "Ref missing uniqueAttributes"
     assert "qualifiedName" in ref["uniqueAttributes"], "Ref missing qualifiedName"
     assert ref["uniqueAttributes"]["qualifiedName"], "Ref qualifiedName is empty"
@@ -491,9 +491,9 @@ class TestCrossEntityConsistency:
                 CONNECTION_QN,
             ),
         ]:
-            assert (
-                entity.get("tenantId") == "default"
-            ), f"{entity['typeName']} missing tenantId"
+            assert entity.get("tenantId") == "default", (
+                f"{entity['typeName']} missing tenantId"
+            )
 
     def test_all_entities_have_custom_attributes(self, app):
         for entity in [
@@ -519,6 +519,6 @@ class TestCrossEntityConsistency:
                 CONNECTION_QN,
             ),
         ]:
-            assert (
-                "customAttributes" in entity
-            ), f"{entity['typeName']} missing customAttributes"
+            assert "customAttributes" in entity, (
+                f"{entity['typeName']} missing customAttributes"
+            )
