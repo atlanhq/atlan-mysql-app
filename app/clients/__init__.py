@@ -10,6 +10,7 @@ from application_sdk.common.aws_utils import (
     generate_aws_rds_token_with_iam_role,
     generate_aws_rds_token_with_iam_user,
 )
+from application_sdk.common.aws_utils_errors import AwsAssumeRoleError
 from application_sdk.credentials.utils import parse_credentials_extra
 from application_sdk.observability.logger_adaptor import get_logger
 from app.failures import (
@@ -286,6 +287,16 @@ class SQLClient(AsyncBaseSQLClient):
                 )
             logger.info("IAM token generated successfully (length: %d)", len(token))
             return token
+        except AwsAssumeRoleError as e:
+            # STS rejected the assume-role call — re-raise with a message that
+            # contains "authentication failed" so the SDK's auth-cache prime
+            # classifier (_classify_prime_failure auth_msg_hints) routes this
+            # to AuthError rather than the InternalError fallback bucket.
+            raise IamTokenGenerationError(
+                message="AWS IAM role authentication failed — could not assume the configured role",
+                failure_reason="assume_role_denied",
+                cause=e,
+            ) from e
         finally:
             # Restore original environment variables if we set them
             if aws_access_key_id and aws_secret_access_key:
@@ -398,8 +409,23 @@ class SQLClient(AsyncBaseSQLClient):
                 )
 
             # Test connection briefly to validate credentials
-            async with self.engine.connect() as _:
-                pass  # Connection test successful
+            try:
+                async with self.engine.connect() as _:
+                    pass  # Connection test successful
+            except IamTokenGenerationError:
+                raise  # already typed from event listener; propagate as-is
+            except Exception as e:
+                # The token was generated successfully, so a connection-test
+                # failure here is almost always MySQL rejecting the IAM token
+                # (e.g. "Access denied" or "Lost connection" from auth-plugin
+                # negotiation).  Re-raise with "authentication failed" in the
+                # message so the SDK auth-cache prime classifier routes it to
+                # AuthError rather than DependencyUnavailableError.
+                raise IamTokenGenerationError(
+                    message="AWS IAM authentication failed — MySQL rejected the connection after token injection",
+                    failure_reason="connection_rejected",
+                    cause=e,
+                ) from e
 
             # Don't store persistent connection (base class sets this to None)
             # self.connection is managed by the base class
