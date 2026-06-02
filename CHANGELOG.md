@@ -2,13 +2,14 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
-## 1.0.1 (June 2, 2026)
+## 1.0.2 (June 2, 2026)
 
 ### Changes
 
 - **Migrate contract to `App.pkl` template.** Drops `NativeApp.pkl`; widget types are now accessed without the `Config.` prefix. The DAG pipeline (`qi`, `publish`, `lineage-app`, `lineage-publish`) is expressed via the typed `pipeline {}` block instead of `extraNodes`. `atlan.yaml` deploy config (canary stages, dapr, env vars, `argo_package_names`) is now fully generated from Pkl — removes the hand-maintained TODO that blocked this since 1.0.0.
 - **Bump `app-contract-toolkit` 0.10.1 → 0.10.4.** PklProject.deps.json checksum re-resolved. The `publish` node gains a 24 h `startToCloseTimeoutSeconds` error-handling default from the new `PublishStep` (safer on large tenants).
 - **Add `make generate` / `make check-generate`.** Previously declared in `.PHONY` and the Makefile header but never implemented.
+- **Fix pre-commit hooks for generated files.** App.pkl emits a fixed set of imports in `_input.py` regardless of which widget types are used, leaving unused imports after generation. Added `F401` ignore for `app/generated/**` in ruff and `skip_glob` in isort so generated output is accepted without post-processing. Also fixed `check-version-changelog` hook using `python` instead of `python3`.
 
 ## 1.0.0 (May 26, 2026)
 

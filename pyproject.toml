@@ -144,6 +144,10 @@ exclude_lines = [
 ]
 fail_under = 84
 
+[tool.isort]
+profile = "black"
+skip_glob = ["*/app/generated/*"]
+
 [tool.ruff]
 target-version = "py311"
 preview = true
@@ -153,6 +157,7 @@ select = ["E4", "E7", "E9", "F", "PLC0415"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/unit/test_mysql_app.py" = ["PLC0415"]
+"app/generated/**" = ["F401"]
 
 [tool.uv.sources]
 # atlan-application-sdk = { path = "../application-sdk", editable = true }
