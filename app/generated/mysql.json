@@ -51,7 +51,6 @@
           "label": "",
           "hidden": false,
           "help": "",
-          "placeholder": "Credential Guid",
           "grid": 8,
           "credentialType": "atlan-connectors-mysql",
           "isTestAuthenticationDisabled": false
