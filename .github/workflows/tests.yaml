@@ -79,9 +79,9 @@ jobs:
         if: github.event.inputs.distinct_id != ''
         run: echo "Dispatched; SDK ref=${{ github.event.inputs.application_sdk_ref }}"
 
-      # Explicit checkout so the SDK pin step can modify uv.lock before
-      # connector-integration-tests runs setup-deps (which re-runs uv sync).
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - uses: atlanhq/application-sdk/.github/actions/setup-deps@main
 
       - name: Pin application-sdk to dispatched ref
         if: github.event.inputs.application_sdk_ref != ''
