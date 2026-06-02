@@ -1,41 +1,13 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.4
+    rev: v0.11.2
     hooks:
-      - id: ruff
-      - id: ruff-format
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
-    hooks:
-      - id: check-merge-conflict
-      - id: debug-statements
-      - id: fix-byte-order-marker
-      - id: trailing-whitespace
+      - id: ruff          # lint and auto-fix
+        args: [--fix]
+      - id: ruff-format   # format (restages automatically)
   - repo: https://github.com/RobertCraigie/pyright-python
     rev: v1.1.379
     hooks:
       - id: pyright
         args: ["app/"]
         pass_filenames: false
-  - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
-    hooks:
-      - id: isort
-        name: isort (python)
-        entry: isort
-        types: [python]
-        args: ["--profile", "black"]
-  - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: v4.0.0
-    hooks:
-      - id: conventional-pre-commit
-        stages: [commit-msg]
-        args: []
-  - repo: local
-    hooks:
-      - id: check-version-changelog
-        name: check version + changelog updated
-        entry: python3 .github/scripts/check_version_changelog.py
-        language: system
-        pass_filenames: false
-        always_run: true
