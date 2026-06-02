@@ -4,7 +4,7 @@ FROM registry.atlan.com/public/app-runtime-base:3
 WORKDIR /app
 
 # Copy lock files first for dependency caching
-COPY --chown=appuser:appuser pyproject.toml uv.lock ./
+COPY --chown=appuser:appuser pyproject.toml uv.lock README.md ./
 
 # Install dependencies (excluding the project itself) into a new venv
 RUN --mount=type=cache,target=/home/appuser/.cache/uv,uid=1000,gid=1000 \
