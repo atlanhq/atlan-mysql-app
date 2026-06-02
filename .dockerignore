@@ -24,9 +24,6 @@ htmlcov
 tests
 local
 
-# Dev tooling — SDR helm install lives outside the runtime image
-sdr-dev
-
 # Docs + screenshots
 docs
 *.md
