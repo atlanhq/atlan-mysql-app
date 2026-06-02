@@ -1,0 +1,80 @@
+name: Weekly Dependency Update
+
+on:
+  schedule:
+    - cron: "0 7 * * 1"  # Every Monday at 07:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-dependencies:
+    name: Upgrade dependencies and open PR if changed
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          token: ${{ secrets.ORG_PAT_GITHUB }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+
+      - name: Upgrade all dependencies
+        run: uv sync --upgrade --all-extras
+
+      - name: Check for lockfile changes
+        id: changes
+        run: |
+          if git diff --quiet uv.lock; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "changed=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run unit tests
+        if: steps.changes.outputs.changed == 'true'
+        run: uv run pytest tests/unit -q
+
+      - name: Install Temporal CLI
+        if: steps.changes.outputs.changed == 'true'
+        uses: temporalio/setup-temporal@8bde337644eaaa6644b8b527d9a8406c2207de5b
+
+      - name: Start Temporal dev server
+        if: steps.changes.outputs.changed == 'true'
+        run: |
+          temporal server start-dev --db-filename /tmp/temporal.db --headless &
+          sleep 5
+
+      - name: Run integration tests
+        if: steps.changes.outputs.changed == 'true'
+        env:
+          ATLAN_LOCAL_DEVELOPMENT: true
+          ATLAN_APPLICATION_NAME: ${{ github.event.repository.name }}
+          TEMPORAL_HOST: localhost:7233
+        run: uv run pytest tests/integration/ -q
+
+      - name: Stop Temporal
+        if: always() && steps.changes.outputs.changed == 'true'
+        run: pkill -f "temporal server" || true
+
+      - name: Open pull request
+        if: success() && steps.changes.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.ORG_PAT_GITHUB }}
+        run: |
+          DATE=$(date +%Y-%m-%d)
+          BRANCH="chore/dep-updates-${DATE}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add uv.lock
+          git commit -m "chore(deps): weekly dependency update ${DATE}"
+          git push origin "$BRANCH"
+          gh pr create \
+            --title "chore(deps): weekly dependency update ${DATE}" \
+            --body "Automated weekly \`uv sync --upgrade\`. Unit and integration tests passed." \
+            --label "dependencies"
