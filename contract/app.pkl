@@ -17,6 +17,7 @@ credentialFieldName = null
 
 metadata {
   ["argo_package_names"] = new Listing { "@atlan/mysql" }
+  ["release_model"] = "semver"
 }
 
 deploy {

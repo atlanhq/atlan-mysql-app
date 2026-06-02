@@ -42,3 +42,4 @@ deploy:
       multi_cloud: true
 argo_package_names:
 - '@atlan/mysql'
+release_model: semver
