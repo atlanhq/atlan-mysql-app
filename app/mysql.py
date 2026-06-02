@@ -14,6 +14,7 @@ from typing import Any, ClassVar
 import pandas as pd
 from application_sdk.contracts.base import Output
 from application_sdk.execution._temporal.activity_utils import get_object_store_prefix
+from application_sdk.observability.logger_adaptor import get_logger
 from application_sdk.templates.contracts.sql_metadata import (
     ExtractionInput,
     ExtractionTaskInput,
@@ -25,6 +26,8 @@ from app.constants import DATABASE_PLACEHOLDER, TENANT_ID
 from app.handlers.mysql import (  # noqa: F401 — SDK discovers {AppClass}Handler by convention
     MySQLAppHandler,
 )
+
+logger = get_logger(__name__)
 
 # S3 bucket for QI + lineage-app — forwarded as extract output so the manifest
 # JSONPath expressions ($.extract.outputs.storage_bucket) resolve correctly.
@@ -84,6 +87,7 @@ def _epoch_ms(value: Any) -> int | None:
             return None
         return int(ts.timestamp() * 1000)  # type: ignore[union-attr]
     except Exception:
+        logger.debug("Could not coerce value to epoch ms", exc_info=True)
         return None
 
 
