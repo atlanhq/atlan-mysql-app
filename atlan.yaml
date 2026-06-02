@@ -1,24 +1,34 @@
+# AUTO-GENERATED from contract/app.pkl — DO NOT EDIT MANUALLY.
+# To regenerate: pkl eval -m . contract/app.pkl
 name: mysql
-app_id: 019c4c4b-8468-7e42-b0d6-eada59da2da1  # Global Marketplace UUID
-display_name: "Mysql"
+app_id: 019c4c4b-8468-7e42-b0d6-eada59da2da1
+display_name: MySQL Assets
 type: connector
-icon_url: ""
+execution_mode: native
+icon_url: https://www.mysql.com/common/logos/mysql-logo.svg
 visibility: public
-argo_package_names:
-  - "@atlan/mysql"
 build_tag: v1
 self_deployed_runtime: true
 deploy:
-  # Progressive canary rollout for all-channel releases.
-  # Stages auto-progress based on workflow success rate on selected tenants.
-  # Pattern ported from atlan-teradata-app. See:
-  # https://atlanhq.atlassian.net/wiki/x/GIB_d
-  #
-  # NOTE: canary config is hand-maintained here rather than generated from
-  # contract/app.pkl because mysql amends NativeApp.pkl (single-entrypoint)
-  # which does not declare deploy{}. Teradata amends NativeAppBundle.pkl
-  # which does. Migrate this block to Pkl once NativeApp.pkl declares deploy{}
-  # upstream.
+  execution_mode: native
+  splitDeploymentEnabled: true
+  dapr:
+    objectstore: true
+    secretstore: true
+    statestore: false
+    eventstore: false
+    subscription: false
+    configurationstore: false
+    lock: false
+  keda:
+    enabled: true
+    minReplicaCount: 0
+    temporal:
+      targetQueueSize: 5
+  env:
+    ATLAN_HEARTBEAT_TIMEOUT_SECONDS: '7200'
+    ATLAN_START_TO_CLOSE_TIMEOUT_SECONDS: '7200'
+    ATLAN_TENANT_ID: default
   canary_enabled: true
   canary_mode: auto
   stages:
@@ -30,17 +40,6 @@ deploy:
       cap: 50
       stage_timeout: 18
       multi_cloud: true
-  execution_mode: native
-  splitDeploymentEnabled: true
-  env:
-    ATLAN_HEARTBEAT_TIMEOUT_SECONDS: "7200"
-    ATLAN_START_TO_CLOSE_TIMEOUT_SECONDS: "7200"
-    ATLAN_TENANT_ID: "default"
-  dapr:
-    objectstore: true
-    secretstore: true
-    statestore: false
-    eventstore: false
-    subscription: false
-    configurationstore: false
-    lock: false
+argo_package_names:
+- '@atlan/mysql'
+release_model: semver

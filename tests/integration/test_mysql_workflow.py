@@ -126,9 +126,9 @@ class TestMySQLExtraction:
 
         for entity in ("database", "schema", "table", "column"):
             transformed_file = run_dir / "transformed" / entity / "entities.json"
-            assert (
-                transformed_file.exists()
-            ), f"Missing transformed/{entity}/entities.json"
+            assert transformed_file.exists(), (
+                f"Missing transformed/{entity}/entities.json"
+            )
 
             lines = transformed_file.read_text().strip().splitlines()
             assert len(lines) > 0, f"Empty transformed/{entity}/entities.json"
@@ -139,9 +139,9 @@ class TestMySQLExtraction:
             attrs = first["attributes"]
             assert "name" in attrs, f"{entity} missing attributes.name"
             assert "qualifiedName" in attrs, f"{entity} missing qualifiedName"
-            assert (
-                attrs.get("connectorName") == "mysql"
-            ), f"{entity} connectorName != 'mysql'"
+            assert attrs.get("connectorName") == "mysql", (
+                f"{entity} connectorName != 'mysql'"
+            )
 
     async def test_entity_type_names(
         self,
@@ -166,6 +166,6 @@ class TestMySQLExtraction:
             lines = transformed_file.read_text().strip().splitlines()
             seen = {json.loads(line)["typeName"] for line in lines}
             unexpected = seen - allowed
-            assert (
-                not unexpected
-            ), f"{entity} has unexpected typeName values: {unexpected}"
+            assert not unexpected, (
+                f"{entity} has unexpected typeName values: {unexpected}"
+            )
