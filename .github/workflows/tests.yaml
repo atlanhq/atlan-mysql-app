@@ -109,16 +109,14 @@ jobs:
       group: tests-e2e-${{ github.ref }}
       cancel-in-progress: false
     # On workflow_dispatch (including cross-repo dispatch from apps-sdk),
-    # or when the 'e2e' label is applied to a PR. Forks and bots
-    # are excluded — full-DAG runs touch real tenant assets.
+    # or when the 'e2e' label is present on the PR (covers both adding the
+    # label and pushing to a PR that already has it). Forks and bots are
+    # excluded — full-DAG runs touch real tenant assets.
     if: |
       (github.event_name == 'workflow_dispatch' && inputs.run_e2e == 'true') ||
       (
         github.event_name == 'pull_request' &&
-        (
-          (github.event.action == 'labeled' && github.event.label.name == 'e2e') ||
-          contains(github.event.pull_request.labels.*.name, 'e2e')
-        ) &&
+        contains(github.event.pull_request.labels.*.name, 'e2e') &&
         github.event.pull_request.head.repo.fork != true &&
         github.event.pull_request.user.login != 'dependabot[bot]'
       )
