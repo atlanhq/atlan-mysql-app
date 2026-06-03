@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import os
 import shutil
 import tempfile
@@ -63,6 +62,7 @@ from application_sdk.infrastructure.context import (
     InfrastructureContext,
     set_infrastructure,
 )
+from application_sdk.observability.logger_adaptor import get_logger
 from application_sdk.observability.observability import AtlanObservability
 from application_sdk.storage import create_local_store, create_memory_store
 from application_sdk.testing.mocks import MockSecretStore, MockStateStore
@@ -87,7 +87,7 @@ _TEST_CREDENTIAL_GUID = "test-mysql-cred"
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 SEED_SQL = PROJECT_ROOT / "tests" / "integration" / "fixtures" / "seed.sql"
 
-logger = logging.getLogger("integration")
+logger = get_logger("integration")
 
 # ---------------------------------------------------------------------------
 # Dapr component YAML templates

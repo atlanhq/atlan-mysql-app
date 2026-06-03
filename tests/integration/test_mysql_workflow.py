@@ -13,7 +13,6 @@ Run tests with: uv run pytest tests/integration/ -v
 from __future__ import annotations
 
 import json
-import logging
 import os
 import uuid
 from pathlib import Path
@@ -21,6 +20,7 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 from application_sdk.contracts.types import ConnectionRef
+from application_sdk.observability.logger_adaptor import get_logger
 from application_sdk.templates.contracts.sql_metadata import ExtractionInput
 
 from app.mysql import MySQLApp, MySQLExtractionOutput
@@ -28,7 +28,7 @@ from app.mysql import MySQLApp, MySQLExtractionOutput
 if TYPE_CHECKING:
     from tests.integration.conftest import AppExecutor
 
-logger = logging.getLogger("integration.workflow")
+logger = get_logger("integration.workflow")
 
 _CONNECTION_NAME = "mysql-e2e-test"
 _CONNECTION_QN = f"default/mysql/{_CONNECTION_NAME}"
