@@ -13,13 +13,12 @@ To run locally::
 
     ATLAN_BASE_URL=https://devex.atlan.com \\
     ATLAN_API_KEY=... \\
-    SDR_OAUTH_CLIENT_ID=... SDR_OAUTH_CLIENT_SECRET=... \\
     GITHUB_RUN_ID=$(date +%s) \\
         uv run pytest tests/e2e/ -v
 
 The test class skips gracefully when the harness env isn't configured,
-so it can sit alongside the per-PR SDR integration suite without
-breaking unrelated pytest invocations.
+so it can sit alongside the per-PR integration suite without breaking
+unrelated pytest invocations.
 """
 
 from __future__ import annotations
@@ -28,57 +27,41 @@ import os
 
 import pytest
 
-# The full-DAG harness module is v3-SDK-only — ``SQLAppE2EFullTest``
-# requires the application_sdk testing package shipped in PR #1710.
-# Skip the whole module when the SDK is older or the harness env
-# isn't set; the per-PR SDR integration tests sit in tests/sdr/ and
-# are unaffected.
-pytest.importorskip(
-    "application_sdk.testing.full_dag",
-    reason="full-DAG e2e tests require application-sdk PR #1710+",
-)
-
 if not os.environ.get("ATLAN_BASE_URL") or not os.environ.get("ATLAN_API_KEY"):
     pytest.skip(
-        "Full-DAG e2e harness needs ATLAN_BASE_URL + ATLAN_API_KEY "
-        "(SDR_OAUTH_CLIENT_ID/SECRET are optional, forwarded only to "
-        "pyatlan asset queries — AE management still requires the API key)",
+        "Full-DAG e2e harness needs ATLAN_BASE_URL + ATLAN_API_KEY",
         allow_module_level=True,
     )
 
-from application_sdk.testing.full_dag import RunMode, SQLAppE2EFullTest  # noqa: E402
-from application_sdk.testing.full_dag.payload import ConnectionSpec, DatabaseSpec  # noqa: E402
-from pyatlan.model.enums import AtlanConnectorType  # noqa: E402
+try:
+    from application_sdk.testing.e2e import RunMode  # noqa: E402
+    from application_sdk.testing.e2e.payload import DatabaseSpec  # noqa: E402
+    from app.generated._e2e_base import MySQLGeneratedE2EBase  # noqa: E402
+    from app.generated._e2e_credential import MySQLCredentialBody  # noqa: E402
+except ImportError as _exc:
+    pytest.skip(
+        f"SDK does not yet export new e2e harness: {_exc}", allow_module_level=True
+    )
 
 
-class TestMySQLFullDAG(SQLAppE2EFullTest):
+class TestMySQLFullDAG(MySQLGeneratedE2EBase):
     """Submit an AE workflow targeting our CI-side worker + assert in Atlas.
 
-    Inherits ``agent_spec`` (unique-per-run AGENT mode identity),
-    ``connection_spec`` (``$admin`` role injected onto adminRoles via
-    pyatlan), and the full-DAG mechanics from
-    :class:`SQLAppE2EFullTest`. Only the connector-specific knobs and
-    the sibling-DB ``database_spec`` live here.
+    Inherits identity attrs, connection_spec (with $admin role ACL), and
+    _mustache_substitutions from MySQLGeneratedE2EBase / SQLAppE2ETest.
+    The base harness builds the connection QN as default/mysql/{epoch}
+    automatically — no override needed.
     """
 
-    connector_short_name = "mysql"
-    argo_package_name = "@atlan/mysql"
-    argo_template_name = "atlan-mysql"
     mode = RunMode.AGENT
-    app_service_url = "http://mysql.mysql-app.svc.cluster.local"
 
-    connection_name_prefix = "e2e-full-ci"
     # MySQL's SQL templates substitute include-filter into a literal
     # MySQL ``REGEXP '…'`` clause, so it expects an anchored regex
-    # string (not the v3 dict-shape JSON the harness defaults to —
-    # that crashes the server with pymysql 3688). Catalog is hardcoded
-    # to ``def`` for MySQL.
+    # string (not the v3 dict-shape JSON the harness defaults to).
     include_filter = r"^def\.e2e_main$"
     exclude_filter = ""
     # mysql v3 bundles view definitions into the main transformed
-    # output rather than a dedicated ``view_data_prefix`` subfolder;
-    # point QI at the right field so it doesn't fail jsonpath
-    # resolution.
+    # output rather than a dedicated ``view_data_prefix`` subfolder.
     qi_input_prefix_field = "transformed_data_prefix"
 
     # Poll knobs sized for devex — lineage-app + lineage-publish can
@@ -101,25 +84,7 @@ class TestMySQLFullDAG(SQLAppE2EFullTest):
         "View": 1,
         "Column": 10,
     }
-    # v_customer_order_totals drives view lineage parsing.
     expect_lineage = True
-
-    def connection_spec(self) -> ConnectionSpec:
-        # Base class sets connection_qualified_name as
-        # f"default/mysql/{connection_name_prefix}-{run_id}" where run_id is
-        # GITHUB_RUN_ID in CI (a non-epoch integer) — wrong format.
-        # Fix it here rather than __init__: pytest does not collect test classes
-        # that define __init__, so connection_spec() is the right intercept point.
-        # connection_spec() is always called before connection_qualified_name is
-        # used in assertions, so all downstream uses see the corrected value.
-        # Guard with a flag so repeated calls (base class calls us 3 times)
-        # don't regenerate a new epoch on each invocation.
-        if not getattr(self, "_qn_fixed", False):
-            self.connection_qualified_name = (
-                AtlanConnectorType.MYSQL.to_qualified_name()
-            )
-            self._qn_fixed = True
-        return super().connection_spec()
 
     def database_spec(self) -> DatabaseSpec:
         # ``host=mysql`` resolves over the compose default network to
@@ -132,4 +97,13 @@ class TestMySQLFullDAG(SQLAppE2EFullTest):
             username="e2e_user",
             password="e2e_pass",
             connector_config_name="atlan-connectors-mysql",
+        )
+
+    def _credential_body(self) -> MySQLCredentialBody:
+        db = self.database_spec()
+        return MySQLCredentialBody(
+            host=db.host,
+            port=db.port,
+            username=db.username,
+            password=db.password,
         )
