@@ -1,5 +1,3 @@
-# AUTO-GENERATED from contract/app.pkl — DO NOT EDIT MANUALLY.
-# To regenerate: pkl eval -m . contract/app.pkl
 from application_sdk.testing.e2e.sql_app import SQLAppE2ETest  # type: ignore[attr-defined]
 
 

@@ -1,5 +1,3 @@
-# AUTO-GENERATED from contract/app.pkl — DO NOT EDIT MANUALLY.
-# To regenerate: pkl eval -m . contract/app.pkl
 from pydantic import Field
 
 from application_sdk.testing.e2e.credential import CredentialBody  # type: ignore[attr-defined]
