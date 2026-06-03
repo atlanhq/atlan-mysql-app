@@ -101,6 +101,14 @@ credentialAuthOptions {
     extraFields {
       // IAM Role ARN goes into extra.aws_role_arn (legacy structure)
       new FieldSpec { name = "aws_role_arn"; displayName = "IAM Role ARN"; placeholder = "arn:aws:iam::123456789012:role/MyRole"; width = 8 }
+      new FieldSpec {
+        name = "aws_external_id"
+        displayName = "AWS External ID"
+        placeholder = "12345678-1234-1234-1234"
+        width = 4
+        required = false
+        helpText = "Optional. Only required if your IAM role trust policy enforces an sts:ExternalId condition."
+      }
     }
   }
 }
@@ -180,6 +188,7 @@ local agentConfig: Listing = new {
             ["extra"] = new Mapping {
               ["properties"] = new Mapping {
                 ["aws_role_arn"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "IAM Role ARN (Store Path)" } }
+                ["aws_external_id"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "AWS External ID (Store Path)" } }
               }
             }
           }
