@@ -48,6 +48,7 @@ if not os.environ.get("ATLAN_BASE_URL") or not os.environ.get("ATLAN_API_KEY"):
 
 from application_sdk.testing.full_dag import RunMode, SQLAppE2EFullTest  # noqa: E402
 from application_sdk.testing.full_dag.payload import DatabaseSpec  # noqa: E402
+from pyatlan.model.enums import AtlanConnectorType  # noqa: E402
 
 
 class TestMySQLFullDAG(SQLAppE2EFullTest):
@@ -59,6 +60,14 @@ class TestMySQLFullDAG(SQLAppE2EFullTest):
     :class:`SQLAppE2EFullTest`. Only the connector-specific knobs and
     the sibling-DB ``database_spec`` live here.
     """
+
+    def __init__(self) -> None:
+        super().__init__()
+        # Base class sets connection_qualified_name as
+        # f"default/mysql/{connection_name_prefix}-{run_id}" where run_id is
+        # GITHUB_RUN_ID in CI (a large non-epoch integer) — wrong format.
+        # Override with Connection.creator()-style QN: default/{connector}/{epoch}.
+        self.connection_qualified_name = AtlanConnectorType.MYSQL.to_qualified_name()
 
     connector_short_name = "mysql"
     argo_package_name = "@atlan/mysql"

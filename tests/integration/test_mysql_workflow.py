@@ -22,6 +22,7 @@ import pytest
 from application_sdk.contracts.types import ConnectionRef
 from application_sdk.observability.logger_adaptor import get_logger
 from application_sdk.templates.contracts.sql_metadata import ExtractionInput
+from pyatlan.model.enums import AtlanConnectorType
 
 from app.mysql import MySQLApp, MySQLExtractionOutput
 
@@ -31,7 +32,9 @@ if TYPE_CHECKING:
 logger = get_logger("integration.workflow")
 
 _CONNECTION_NAME = "mysql-e2e-test"
-_CONNECTION_QN = f"default/mysql/{_CONNECTION_NAME}"
+# Use the platform's canonical QN format, same as Connection.creator() produces:
+# default/{connector}/{epoch} — purely numerical last component, no prefix.
+_CONNECTION_QN = AtlanConnectorType.MYSQL.to_qualified_name()
 
 
 class TestMySQLExtraction:
