@@ -538,3 +538,105 @@ class TestMySQLClient:
 
         with pytest.raises(Exception, match="aws_role_arn.*required"):
             client.get_iam_role_token()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        "exc_message,expected_class",
+        [
+            # Network / DNS / TLS — should classify as source-unreachable,
+            # NOT as IAM auth rejection. Pre-fix this was wrong: every
+            # connect-time failure (including pure network unreachability)
+            # was wrapped as IamTokenGenerationError, mis-attributing
+            # customer network outages to credential rotation flows.
+            (
+                "(2003, \"Can't connect to MySQL server on 'db.example.com' ([Errno 111] Connection refused)\")",
+                "MysqlSourceUnreachableError",
+            ),
+            (
+                "(2005, \"Unknown MySQL server host 'db.example.com' ([Errno -2] Name or service not known)\")",
+                "MysqlSourceUnreachableError",
+            ),
+            (
+                "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed",
+                "MysqlSourceUnreachableError",
+            ),
+            # Auth-class messages — must still route to
+            # IamTokenGenerationError so existing rotate-credentials
+            # runbooks fire.
+            (
+                "(1045, \"Access denied for user 'db_user'@'10.0.0.5' (using password: YES)\")",
+                "IamTokenGenerationError",
+            ),
+            (
+                "Authentication failed: caching_sha2_password auth_plugin rejected",
+                "IamTokenGenerationError",
+            ),
+        ],
+    )
+    async def test_iam_connect_failure_discriminates_auth_vs_network(
+        self, iam_role_credentials, exc_message, expected_class
+    ):
+        """When ``engine.connect()`` fails after IAM token injection, the
+        wrap must discriminate network / TLS / DNS failures
+        (USER / DEPENDENCY_UNAVAILABLE via MysqlSourceUnreachableError)
+        from MySQL refusing the token (USER / AUTH via
+        IamTokenGenerationError). Previously every connect failure was
+        unconditionally routed to IamTokenGenerationError, which
+        mis-attributed customer-side network outages to credential
+        problems and sent on-call down the wrong remediation path.
+        """
+        from app.failures import (  # noqa: PLC0415 — test-local import for clarity
+            IamTokenGenerationError,
+            MysqlSourceUnreachableError,
+        )
+
+        expected_cls = {
+            "MysqlSourceUnreachableError": MysqlSourceUnreachableError,
+            "IamTokenGenerationError": IamTokenGenerationError,
+        }[expected_class]
+
+        with (
+            patch("boto3.Session") as mock_boto3_session,
+            patch("app.clients.create_async_engine") as mock_create_engine,
+            patch("sqlalchemy.event.listens_for"),
+            patch(
+                "application_sdk.common.aws_utils.create_aws_client"
+            ) as mock_create_client,
+        ):
+            mock_sts_client = MagicMock()
+            mock_sts_client.assume_role.return_value = {
+                "Credentials": {
+                    "AccessKeyId": "k",
+                    "SecretAccessKey": "s",
+                    "SessionToken": "t",
+                }
+            }
+            mock_session_instance = MagicMock()
+            mock_session_instance.client.return_value = mock_sts_client
+            mock_boto3_session.return_value = mock_session_instance
+            mock_rds_client = MagicMock()
+            mock_rds_client.generate_db_auth_token.return_value = "tok"
+            mock_create_client.return_value = mock_rds_client
+
+            # Engine returned by create_async_engine raises the
+            # parametrised driver exception when its connect() context
+            # is entered, simulating each failure shape.
+            mock_engine = MagicMock()
+            mock_connection_context = AsyncMock()
+            mock_connection_context.__aenter__ = AsyncMock(
+                side_effect=RuntimeError(exc_message)
+            )
+            mock_connection_context.__aexit__ = AsyncMock(return_value=None)
+            mock_engine.connect.return_value = mock_connection_context
+            mock_engine.sync_engine = MagicMock()
+            mock_engine.dispose = AsyncMock()
+            mock_create_engine.return_value = mock_engine
+
+            client = SQLClient()
+            with pytest.raises(expected_cls) as exc_info:
+                await client.load(iam_role_credentials)
+
+            # Whichever leaf we routed to, the underlying driver
+            # exception must be preserved as the cause for diagnostics.
+            assert exc_info.value.cause is not None
+            assert exc_message in str(exc_info.value.cause)

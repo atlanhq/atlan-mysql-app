@@ -17,6 +17,7 @@ from app.failures import (
     CredentialFieldMissingError,
     EngineCreationError,
     IamTokenGenerationError,
+    MysqlSourceUnreachableError,
     RegionExtractionError,
 )
 from sqlalchemy import event
@@ -415,15 +416,42 @@ class SQLClient(AsyncBaseSQLClient):
             except IamTokenGenerationError:
                 raise  # already typed from event listener; propagate as-is
             except Exception as e:
-                # The token was generated successfully, so a connection-test
-                # failure here is almost always MySQL rejecting the IAM token
-                # (e.g. "Access denied" or "Lost connection" from auth-plugin
-                # negotiation).  Re-raise with "authentication failed" in the
-                # message so the SDK auth-cache prime classifier routes it to
-                # AuthError rather than DependencyUnavailableError.
-                raise IamTokenGenerationError(
-                    message="AWS IAM authentication failed — MySQL rejected the connection after token injection",
-                    failure_reason="connection_rejected",
+                # Discriminate between MySQL refusing the IAM token
+                # (auth-class — USER/AUTH) and the worker simply not
+                # being able to reach the source (network/DNS/TLS —
+                # USER/DEPENDENCY_UNAVAILABLE). Driver-side both
+                # surface as ``OperationalError``; the distinguishing
+                # signal is the message text.
+                #
+                # The previous default ("treat everything as IAM token
+                # rejected") mis-attributed customer-side network
+                # outages as auth failures, which sent on-call down a
+                # rotate-credentials path instead of a check-network
+                # path. Default route is now ``MysqlSourceUnreachableError``;
+                # we only fall through to ``IamTokenGenerationError``
+                # when auth keywords are present in the driver message.
+                error_message = str(e)
+                msg_lower = error_message.lower()
+                auth_hints = (
+                    "access denied",
+                    "1045",
+                    "authentication failed",
+                    "authentication error",
+                    "auth_plugin",
+                    "caching_sha2_password",
+                )
+                if any(h in msg_lower for h in auth_hints):
+                    raise IamTokenGenerationError(
+                        message="AWS IAM authentication failed — MySQL rejected the connection after token injection",
+                        failure_reason="connection_rejected",
+                        cause=e,
+                    ) from e
+                raise MysqlSourceUnreachableError(
+                    message=(
+                        "MySQL source unreachable from worker at connect time "
+                        f"({type(e).__name__})"
+                    ),
+                    network_error=error_message,
                     cause=e,
                 ) from e
 

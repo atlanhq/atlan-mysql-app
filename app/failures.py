@@ -4,7 +4,9 @@ from dataclasses import dataclass
 from typing import ClassVar
 
 from application_sdk.errors import (
+    Audience,
     AuthError,
+    DependencyUnavailableError,
     InternalError,
     InvalidInputError,
     PreconditionError,
@@ -14,6 +16,32 @@ from application_sdk.errors import (
 @dataclass(kw_only=True)
 class CredentialFieldMissingError(InvalidInputError):
     code: ClassVar[str] = "INVALID_INPUT_MYSQL_CREDENTIAL_MISSING"
+
+
+@dataclass(kw_only=True)
+class MysqlSourceUnreachableError(DependencyUnavailableError):
+    """The customer's MySQL source is unreachable from the worker.
+
+    USER-audienced override of :class:`DependencyUnavailableError`: the
+    unreachable target is the customer's RDS endpoint / VPC / security
+    group / IP allowlist / DNS — Atlan oncall cannot fix it. Use for
+    network / DNS / TLS / connection-refused failures at connect time,
+    BEFORE any auth handshake completes (auth-class failures should
+    surface as :class:`IamTokenGenerationError` or the SDK's
+    :class:`AuthError`, not this).
+
+    Raise this from the SQL client's connect path when the underlying
+    driver exception (typically ``aiomysql.OperationalError``) has no
+    auth keywords in the message — the SDK's ``prime_sql_auth`` then
+    preserves the typing through to the wire envelope and on-call
+    routing correctly attributes the failure to the customer rather
+    than to Atlan.
+    """
+
+    code: ClassVar[str] = "DEPENDENCY_UNAVAILABLE_MYSQL_SOURCE"
+    audience: ClassVar[Audience] = Audience.USER
+    message: str = "MySQL source is unreachable from the worker"
+    service: str | None = "mysql_source"
 
 
 @dataclass(kw_only=True)
