@@ -47,7 +47,7 @@ if not os.environ.get("ATLAN_BASE_URL") or not os.environ.get("ATLAN_API_KEY"):
     )
 
 from application_sdk.testing.full_dag import RunMode, SQLAppE2EFullTest  # noqa: E402
-from application_sdk.testing.full_dag.payload import DatabaseSpec  # noqa: E402
+from application_sdk.testing.full_dag.payload import ConnectionSpec, DatabaseSpec  # noqa: E402
 from pyatlan.model.enums import AtlanConnectorType  # noqa: E402
 
 
@@ -60,14 +60,6 @@ class TestMySQLFullDAG(SQLAppE2EFullTest):
     :class:`SQLAppE2EFullTest`. Only the connector-specific knobs and
     the sibling-DB ``database_spec`` live here.
     """
-
-    def __init__(self) -> None:
-        super().__init__()
-        # Base class sets connection_qualified_name as
-        # f"default/mysql/{connection_name_prefix}-{run_id}" where run_id is
-        # GITHUB_RUN_ID in CI (a large non-epoch integer) — wrong format.
-        # Override with Connection.creator()-style QN: default/{connector}/{epoch}.
-        self.connection_qualified_name = AtlanConnectorType.MYSQL.to_qualified_name()
 
     connector_short_name = "mysql"
     argo_package_name = "@atlan/mysql"
@@ -111,6 +103,23 @@ class TestMySQLFullDAG(SQLAppE2EFullTest):
     }
     # v_customer_order_totals drives view lineage parsing.
     expect_lineage = True
+
+    def connection_spec(self) -> ConnectionSpec:
+        # Base class sets connection_qualified_name as
+        # f"default/mysql/{connection_name_prefix}-{run_id}" where run_id is
+        # GITHUB_RUN_ID in CI (a non-epoch integer) — wrong format.
+        # Fix it here rather than __init__: pytest does not collect test classes
+        # that define __init__, so connection_spec() is the right intercept point.
+        # connection_spec() is always called before connection_qualified_name is
+        # used in assertions, so all downstream uses see the corrected value.
+        # Guard with a flag so repeated calls (base class calls us 3 times)
+        # don't regenerate a new epoch on each invocation.
+        if not getattr(self, "_qn_fixed", False):
+            self.connection_qualified_name = (
+                AtlanConnectorType.MYSQL.to_qualified_name()
+            )
+            self._qn_fixed = True
+        return super().connection_spec()
 
     def database_spec(self) -> DatabaseSpec:
         # ``host=mysql`` resolves over the compose default network to
