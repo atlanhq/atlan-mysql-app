@@ -102,6 +102,7 @@ class TestMySQLFullDAG(MySQLGeneratedE2EBase):
     def _credential_body(self) -> MySQLCredentialBody:
         db = self.database_spec()
         return MySQLCredentialBody(
+            name=self.connection_display_name,
             host=db.host,
             port=db.port,
             username=db.username,

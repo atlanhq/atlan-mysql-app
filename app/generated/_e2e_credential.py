@@ -11,6 +11,7 @@ class MySQLCredentialBody(CredentialBody):
     ``authType`` (not the hyphenated ``auth-type`` in the connector JSON schema).
     """
 
+    name: str = Field(alias="name")
     host: str = Field(alias="host")
     port: int = Field(default=3306, alias="port")
     auth_type: str = Field(default="basic", alias="authType")
