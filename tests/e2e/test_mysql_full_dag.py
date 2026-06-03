@@ -35,7 +35,7 @@ if not os.environ.get("ATLAN_BASE_URL") or not os.environ.get("ATLAN_API_KEY"):
 
 try:
     from application_sdk.testing.e2e import RunMode  # noqa: E402
-    from application_sdk.testing.e2e.payload import DatabaseSpec  # noqa: E402
+    from application_sdk.testing.e2e.payload import DatabaseSpec, build_ae_payload  # noqa: E402
     from app.generated._e2e_base import MySQLGeneratedE2EBase  # noqa: E402
     from app.generated._e2e_credential import MySQLCredentialBody  # noqa: E402
 except ImportError as _exc:
@@ -100,11 +100,66 @@ class TestMySQLFullDAG(MySQLGeneratedE2EBase):
         )
 
     def _credential_body(self) -> MySQLCredentialBody:
-        db = self.database_spec()
+        # AGENT mode: lightweight body — no host/username/password.
+        # Those live in the Dapr secret store and are resolved at runtime
+        # via agent-json ref-keys. Sending the DIRECT-mode shape causes the
+        # orchestrator to skip credential creation and leave {{credentialGuid}}
+        # unsubstituted, which produces HTTP 500 at submit time.
         return MySQLCredentialBody(
-            name=self.connection_display_name,
-            host=db.host,
-            port=db.port,
-            username=db.username,
-            password=db.password,
+            name=f"default-{self.connector_short_name}-{self.run_id}-0",
         )
+
+    def _build_ae_payload(self, slug: str) -> dict:
+        # The new build_ae_payload emits only the {{...}} mustache params and
+        # connection.* attrs. The Argo cluster template additionally reads flat
+        # credential-guid.* and agent-json.* params that the old harness sent.
+        # Inject them here so the template sees the same shape it expects.
+        payload = build_ae_payload(
+            run_id=self.run_id,
+            mode=self.mode,
+            connector_short_name=self.connector_short_name,
+            argo_package_name=self.argo_package_name,
+            argo_template_name=self.argo_template_name,
+            app_service_url=self.app_service_url,
+            connection=self.connection_spec(),
+            mustache_subs=self._mustache_substitutions(),
+            credential_body=self._credential_body(),
+            ae_workflow_slug=slug,
+        )
+        db = self.database_spec()
+        agent = self.agent_spec()
+        extra_params = [
+            {
+                "name": "credential-guid.credential-type",
+                "value": db.connector_config_name
+                or f"atlan-connectors-{self.connector_short_name}",
+            },
+            {"name": "credential-guid.port", "value": db.port},
+            {"name": "credential-guid.auth-type", "value": db.auth_type},
+        ]
+        if agent is not None:
+            extra_params.extend([
+                {"name": "agent-json.host", "value": db.host},
+                {"name": "agent-json.port", "value": db.port},
+                {"name": "agent-json.auth-type", "value": db.auth_type},
+                {"name": "agent-json.agent-name", "value": agent.agent_name},
+                {"name": "agent-json.agent-type", "value": agent.agent_type},
+                {"name": "agent-json.key-type", "value": agent.key_type},
+                {"name": "agent-json.aws-auth-method", "value": agent.aws_auth_method},
+                {
+                    "name": "agent-json.azure-auth-method",
+                    "value": agent.azure_auth_method,
+                },
+                {
+                    "name": "agent-json.basic.username",
+                    "value": f"SDR_{self.connector_short_name.upper()}_USERNAME",
+                },
+                {
+                    "name": "agent-json.basic.password",
+                    "value": f"SDR_{self.connector_short_name.upper()}_PASSWORD",
+                },
+            ])
+        payload["spec"]["templates"][0]["dag"]["tasks"][0]["arguments"][
+            "parameters"
+        ].extend(extra_params)
+        return payload
