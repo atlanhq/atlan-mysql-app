@@ -13,6 +13,7 @@ from typing import Any, ClassVar
 
 import pandas as pd
 from application_sdk.contracts.base import Output
+from application_sdk.contracts.storage import UploadInput
 from application_sdk.execution._temporal.activity_utils import get_object_store_prefix
 from application_sdk.observability.logger_adaptor import get_logger
 from application_sdk.templates.contracts.sql_metadata import (
@@ -498,15 +499,10 @@ class MySQLApp(SqlApp):
             # runs correctly even when scheduled on a different worker pod
             # than the extract.
             #
-            # No explicit ``upload_to_atlan`` call is needed — both
-            # ``extract_procedures`` and ``transform_procedures`` emit
-            # ``FileReference`` objects with pre-set canonical
-            # ``storage_path`` keys (``<run_prefix>/raw/extras-procedure/
-            # records.json`` / ``<run_prefix>/transformed/extras-procedure/
-            # entities.json``), and the activity interceptor has already
-            # uploaded each one to that key by the time the activity
-            # returns. Publish reads from those same canonical prefixes,
-            # so the data is already in the object store waiting for it.
+            # The activity interceptor persists these FileReferences to
+            # infra.storage (objectstore) for task-to-task durability.
+            # The explicit App.upload() below handles the final hand-off
+            # of the full transformed/ directory to upstream_storage (S3).
             proc_extract_result = await self.extract_procedures(proc_input)
             proc_transform_input = self._build_transform_input(
                 proc_input, proc_extract_result.raw_file
@@ -517,6 +513,19 @@ class MySQLApp(SqlApp):
         # subclasses can derive additional prefixes without re-calling workflow.info().
         base = base_result.output_path
         connection_qn = base_result.connection_qualified_name
+
+        # Explicit upload to Atlan's upstream object store (atlan-objectstore / S3).
+        # The activity interceptor persists FileReferences to infra.storage
+        # (objectstore / deployment store) for task-to-task durability only.
+        # System apps (publish, qi, lineage-app) read from upstream_storage, so the
+        # final hand-off must be an explicit App.upload() that routes through it.
+        await self.upload(
+            UploadInput(
+                local_path=os.path.join(base, "transformed"),
+                storage_path=base_result.transformed_data_prefix,
+                raise_on_empty=True,
+            )
+        )
 
         return MySQLExtractionOutput(
             connection_qualified_name=connection_qn,

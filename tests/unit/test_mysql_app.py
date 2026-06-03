@@ -475,6 +475,7 @@ class TestMySQLAppRun:
                 new=AsyncMock(return_value=MagicMock()),
             ),
             patch.object(MySQLApp, "_resolve_credential_ref", return_value=None),
+            patch.object(MySQLApp, "upload", new=AsyncMock(return_value=MagicMock())),
         ):
             return asyncio.run(app.run(input_))
 
