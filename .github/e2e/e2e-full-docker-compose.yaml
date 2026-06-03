@@ -49,8 +49,3 @@ services:
       # which matches what the AE workflow's agent_json + Argo template
       # build for routing. Nobody else picks up from this queue.
       - ATLAN_DEPLOYMENT_NAME=e2e-full-ci-${GITHUB_RUN_ID}
-      # Needed by e2e-full-components/objectstore.yaml so the Dapr S3
-      # binding endpoint is derived from the tenant URL at run time rather
-      # than hardcoded. deployment-secret-store (secretstores.local.env)
-      # serves this as a secret via secretKeyRef.
-      - ATLAN_BLOBSTORAGE_ENDPOINT=${ATLAN_BASE_URL}/api/blobstorage
