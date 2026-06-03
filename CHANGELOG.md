@@ -2,6 +2,12 @@
 
 All notable changes to the MySQL App will be documented in this file.
 
+## 1.0.1 (June 3, 2026)
+
+### Bug Fixes
+
+- **Expose `aws_external_id` field in IAM Role auth UI** ([APP-2389](https://linear.app/atlan-epd/issue/APP-2389/atlan-mysql-app-aws-external-id-field-missing-from-iam-role-auth-ui), ZD-121504). Regression introduced in the v1.0.0 SDK migration: `contract/app.pkl` only declared `aws_role_arn` under the `iam_role` AuthOption's `extraFields`, dropping the `aws_external_id` field that the legacy `atlan-connectors-mysql` configmap (v0.90.3) had. Customers whose IAM role trust policy enforces an `sts:ExternalId` condition could not complete Test Authentication — the field was never rendered, never sent, and STS rejected every AssumeRole call. Backend support was already in place (`app/clients/__init__.py:210` reads `extra["aws_external_id"]`; SDK's `aws_utils.py` gates `ExternalId` behind a truthy check), so this is a pure contract-only fix. Field added in both `credentialAuthOptions["iam_role"].extraFields` (direct credential form) and the matching `agentConfig` mapping (Self-Deployed Runtime path). First reported on tenant `rocket-np.atlan.com` (Rocket Companies).
+
 ## 1.0.0 (May 26, 2026)
 
 GA release. Marks the connector's transition out of the `0.x` series alongside the introduction of progressive canary rollout.

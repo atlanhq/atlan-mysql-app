@@ -107,7 +107,7 @@ credentialAuthOptions {
         placeholder = "12345678-1234-1234-1234"
         width = 4
         required = false
-        help = "Optional. Only required if your IAM role trust policy enforces an sts:ExternalId condition."
+        helpText = "Optional. Only required if your IAM role trust policy enforces an sts:ExternalId condition."
       }
     }
   }
