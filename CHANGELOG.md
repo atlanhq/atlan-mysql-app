@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.1.0 (June 03, 2026)
+
+Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v1.0.0...v1.1.0
+
+### Bug Fixes
+
+- install uv via setup-deps before SDK pin step (#155) (by @cmgrote in [ec73037](https://github.com/atlanhq/atlan-mysql-app/commit/ec73037))
+- typed AppErrors, %-style logs, and lint rules (#156) (by @cmgrote in [c933054](https://github.com/atlanhq/atlan-mysql-app/commit/c933054))
+- expose aws_external_id in iam_role auth (APP-2389) (#158) (by @vaibhavatlan in [d3b0e94](https://github.com/atlanhq/atlan-mysql-app/commit/d3b0e94))
+
+
 All notable changes to the MySQL App will be documented in this file.
 
 ## 1.0.0 (May 26, 2026)
