@@ -1,20 +1,56 @@
-amends "@app-contract-toolkit/NativeApp.pkl"
+amends "@app-contract-toolkit/App.pkl"
 
-import "@app-contract-toolkit/Config.pkl"
 import "@app-contract-toolkit/Connectors.pkl"
 
 name = "mysql"
 displayName = "MySQL Assets"
 connector = Connectors.MYSQL
-workflowType = "mysql"
-flatManifestArgs = true
 icon = "https://www.mysql.com/common/logos/mysql-logo.svg"
-logo = "https://www.mysql.com/common/logos/mysql-logo.svg"
+appId = "019c4c4b-8468-7e42-b0d6-eada59da2da1"
 credentialConnectorType = "jdbc"
+selfDeployedRuntime = true
+emitEntrypoints = false
 
 // The workflow reads the SDK-level credential_ref / credential_guid fields.
 // Avoid generating an unused mysql_credential alias.
 credentialFieldName = null
+
+metadata {
+  ["argo_package_names"] = new Listing { "@atlan/mysql" }
+  ["release_model"] = "semver"
+}
+
+deploy {
+  dapr {
+    objectstore = true
+    secretstore = true
+  }
+  env {
+    ["ATLAN_HEARTBEAT_TIMEOUT_SECONDS"] = "7200"
+    ["ATLAN_START_TO_CLOSE_TIMEOUT_SECONDS"] = "7200"
+    ["ATLAN_TENANT_ID"] = "default"
+  }
+}
+
+// Progressive canary rollout for all-channel releases.
+// Stages auto-progress based on workflow success rate on selected tenants.
+// Pattern ported from atlan-teradata-app.
+deployOverrides {
+  ["canary_enabled"] = true
+  ["canary_mode"] = "auto"
+  ["stages"] = new Mapping {
+    ["stage1"] = new Mapping {
+      ["cap"] = 5
+      ["stage_timeout"] = 6
+      ["multi_cloud"] = true
+    }
+    ["stage2"] = new Mapping {
+      ["cap"] = 50
+      ["stage_timeout"] = 18
+      ["multi_cloud"] = true
+    }
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Credential config
@@ -106,6 +142,14 @@ credentialAuthOptions {
       new FieldSpec { name = "aws_role_arn"; displayName = "IAM Role ARN"; placeholder = "arn:aws:iam::123456789012:role/MyRole"; width = 8 }
       // REQ-925: see header comment above credentialAuthOptions.
       new FieldSpec { name = "clonedInformationSchema"; displayName = "Cloned INFORMATION_SCHEMA (optional)"; placeholder = "atlan_meta"; width = 4 }
+      new FieldSpec {
+        name = "aws_external_id"
+        displayName = "AWS External ID"
+        placeholder = "12345678-1234-1234-1234"
+        width = 4
+        required = false
+        helpText = "Optional. Only required if your IAM role trust policy enforces an sts:ExternalId condition."
+      }
     }
   }
 }
@@ -114,8 +158,8 @@ credentialAuthOptions {
 // Lineage pipeline — 5-node DAG: extract → qi+publish (parallel) → lineage-app → lineage-publish
 // ---------------------------------------------------------------------------
 
-extraNodes {
-  ["qi"] = new QueryIntelligenceNode {
+pipeline {
+  parseQueries = new ParseQueriesStep {
     displayName = "Parse View & Procedure Lineage"
     vendorName = "mysql"
     sqlKey = "attributes.definition"
@@ -127,37 +171,21 @@ extraNodes {
     inputPrefix = "$.extract.outputs.transformed_data_prefix"
     outputPrefix = "$.extract.outputs.view_lineage_output_prefix"
   }
-  ["publish"] = new PublishNode {
-    args {
-      ["connection_cache_enabled"] = true
-      ["connection_cache_via_app_enabled"] = true
-      ["current_state_via_app_enabled"] = true
+  publish = new PublishStep {
+    lineagePublish = new LineagePublishStep {
+      waitForAssetPublish = false
     }
   }
-  ["lineage-app"] = new LineageNode {
+  lineage = new LineageStep {
     connectorName = "mysql"
     sqlUnquotedCase = "lower"
     ignoreAllCase = false
     dependsOn = null
     dependsOnCondition = new DependencyCondition {
       andConditions {
-        new DependencyCondition {
-          nodeId = "qi"
-          tag = "success"
-        }
-        new DependencyCondition {
-          nodeId = "publish"
-          tag = "success"
-        }
+        new DependencyCondition { nodeId = "qi"; tag = "success" }
+        new DependencyCondition { nodeId = "publish"; tag = "success" }
       }
-    }
-  }
-  ["lineage-publish"] = new LineagePublishNode {
-    waitForAssetPublish = false
-    dependsOn = null
-    dependsOnCondition = new DependencyCondition {
-      nodeId = "lineage-app"
-      tag = "success"
     }
   }
 }
@@ -208,6 +236,7 @@ local agentConfig: Listing = new {
               ["properties"] = new Mapping {
                 ["aws_role_arn"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "IAM Role ARN (Store Path)" } }
                 ["clonedInformationSchema"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "atlan_meta (literal value, not a vault path)" } }
+                ["aws_external_id"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "AWS External ID (Store Path)" } }
               }
             }
           }
@@ -222,11 +251,11 @@ local agentConfig: Listing = new {
 // Workflow config
 // ---------------------------------------------------------------------------
 
-uiConfig {
+uiConfig = new UIConfig {
   tasks {
     ["Credential"] {
       inputs {
-        ["extraction-method"] = new Config.ConditionalInput {
+        ["extraction-method"] = new ConditionalInput {
           title = "Extraction method"
           helpText = "Determines the method the package will use to extract metadata. 'Direct' means the package will directly connect to MySQL. 'Self-Deployed Runtime' means the package will fetch metadata via the Atlan secure agent installed by the customer."
           placeholderText = "Direct"
@@ -236,7 +265,7 @@ uiConfig {
           default = "direct"
           required = true
           conditions {
-            new Config.Condition {
+            new Condition {
               property = "labFlag"
               value = "SECURE_AGENT_EXTRACTION"
               overrideEnum { "direct"; "agent" }
@@ -244,18 +273,17 @@ uiConfig {
             }
           }
           validationRules {
-            new Dynamic {
+            new {
               required = true
               message = "Please select a valid metadata extraction strategy"
             }
           }
         }
-        ["credential-guid"] = new Config.CredentialInput {
+        ["credential-guid"] = new CredentialInput {
           title = ""
           credType = "atlan-connectors-mysql"
-          placeholderText = "Credential Guid"
         }
-        ["agent-json"] = new Config.AgentSelector {
+        ["agent-json"] = new AgentSelector {
           title = ""
           placeholderText = "Agent JSON"
           agentConfigEntries = agentConfig
@@ -264,7 +292,7 @@ uiConfig {
     }
     ["Connection"] {
       inputs {
-        ["connection"] = new Config.ConnectionCreator {
+        ["connection"] = new ConnectionCreator {
           title = ""
           placeholderText = "Connection Name"
         }
@@ -272,7 +300,7 @@ uiConfig {
     }
     ["Metadata"] {
       inputs {
-        ["include-filter"] = new Config.ConditionalInput {
+        ["include-filter"] = new ConditionalInput {
           title = "Include Metadata"
           desc = "Only selected databases and schemas will be extracted. Exclude takes precedence over include for common schemas."
           baseWidgetType = "sqltree"
@@ -284,10 +312,10 @@ uiConfig {
           width = 4
           additionalProperties = new Dynamic { type = "array" }
           conditions {
-            new Config.Condition {
+            new Condition {
               property = "extraction-method"
               value = "agent"
-              overrideUi = new Config.Widget {
+              overrideUi = new Widget {
                 widget = "input"
                 label = "Include Filter"
                 feedback = true
@@ -298,7 +326,7 @@ uiConfig {
             }
           }
         }
-        ["exclude-filter"] = new Config.ConditionalInput {
+        ["exclude-filter"] = new ConditionalInput {
           title = "Exclude Metadata"
           desc = "Selected schemas wont be extracted."
           baseWidgetType = "sqltree"
@@ -310,10 +338,10 @@ uiConfig {
           width = 4
           additionalProperties = new Dynamic { type = "array" }
           conditions {
-            new Config.Condition {
+            new Condition {
               property = "extraction-method"
               value = "agent"
-              overrideUi = new Config.Widget {
+              overrideUi = new Widget {
                 widget = "input"
                 label = "Exclude Filter"
                 feedback = true
@@ -324,20 +352,20 @@ uiConfig {
             }
           }
         }
-        ["exclude-table-regex"] = new Config.TextInput {
+        ["exclude-table-regex"] = new TextInput {
           title = "Exclude regex for tables & views"
           helpText = "Regular expression to exclude temporary tables and views."
           placeholderText = ".*_TMP|.*_TEMP|TMP:*|TEMP:*"
           width = 8
         }
-        ["preflight-check"] = new Config.ConditionalInput {
+        ["preflight-check"] = new ConditionalInput {
           title = ""
           baseWidgetType = "sageV2"
           conditions {
-            new Config.Condition {
+            new Condition {
               property = "extraction-method"
               value = "direct"
-              overrideUi = new Config.Widget {
+              overrideUi = new Widget {
                 widget = "sageV2"
                 `hidden` = false
                 config = new Listing<Dynamic> {
@@ -345,10 +373,10 @@ uiConfig {
                 }
               }
             }
-            new Config.Condition {
+            new Condition {
               property = "extraction-method"
               value = "agent"
-              overrideUi = new Config.Widget {
+              overrideUi = new Widget {
                 widget = "sageV2"
                 `hidden` = true
               }
@@ -372,7 +400,7 @@ uiConfig {
     // -----------------------------------------------------------------------
     ["Advanced"] {
       inputs {
-        ["control-config-strategy"] = new Config.ConditionalInput {
+        ["control-config-strategy"] = new ConditionalInput {
           title = "Control Config"
           helpText = "Controls custom feature flags for the crawler. Select Custom to enable the INFORMATION_SCHEMA mirror-schema flow for restricted-access deployments."
           placeholderText = "Default"
@@ -387,25 +415,25 @@ uiConfig {
         // default-path UI doesn't expose an empty JSON box (REQ-925
         // post-deploy feedback: the input was visible even on Default,
         // which read as "fill me in" and was misleading).
-        ["control-config"] = new Config.ConditionalInput {
+        ["control-config"] = new ConditionalInput {
           title = "Custom Config"
           helpText = "Custom JSON config. To route all metadata queries through a customer-managed mirror schema, set: {\"clonedInformationSchema\": \"<your-mirror-schema-name>\"} — the connector will query <your-mirror-schema-name>.* instead of information_schema.*. Required when the connector user does not have SELECT on the native information_schema."
           placeholderText = "{\"clonedInformationSchema\": \"atlan_meta\"}"
           baseWidgetType = "input"
           width = 8
           conditions {
-            new Config.Condition {
+            new Condition {
               property = "control-config-strategy"
               value = "custom"
-              overrideUi = new Config.Widget {
+              overrideUi = new Widget {
                 widget = "input"
                 `hidden` = false
               }
             }
-            new Config.Condition {
+            new Condition {
               property = "control-config-strategy"
               value = "default"
-              overrideUi = new Config.Widget {
+              overrideUi = new Widget {
                 widget = "input"
                 `hidden` = true
               }
@@ -416,11 +444,11 @@ uiConfig {
     }
   }
   rules {
-    new Config.UIRule {
+    new UIRule {
       whenInputs { ["extraction-method"] = "direct" }
       required { "credential-guid"; "include-filter"; "exclude-filter"; "preflight-check" }
     }
-    new Config.UIRule {
+    new UIRule {
       whenInputs { ["extraction-method"] = "agent" }
       required { "agent-json"; "include-filter"; "exclude-filter" }
     }

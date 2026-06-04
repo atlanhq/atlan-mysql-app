@@ -1,13 +1,13 @@
 [project]
 name = "atlan-mysql-app"
-dynamic = ["version"]
+version = "1.1.3"
 description = "Atlan MySQL App: Built using Atlan Application SDK"
 authors = [{ name = "Atlan Apps Team", email = "connect@atlan.com" }]
 requires-python = ">=3.11"
 license = "Apache-2.0"
 readme = "README.md"
 dependencies = [
-    "atlan-application-sdk[daft,iam-auth,sql,workflows,pandas]",
+    "atlan-application-sdk[daft,iam-auth,sql,workflows,pandas]>=3.13.2,<4",
     "aiomysql>=0.3.0",
     "cryptography>=46.0.5",
     "poethepoet>=0.34.0",
@@ -25,15 +25,11 @@ dev = [
     "isort>=5.13.2",
     "watchdog>=6.0.0",
     "requests",
-    # scalene — Python CPU/GPU/memory profiler used by the E2E Application
-    # Test workflow (`uv run scalene --profile-all --cli ...` at
-    # .github/workflows/e2e-test.yaml:52). The dep was never declared on
-    # any branch — every push since 2026-05-14 failed at "Start the
-    # application" with `Failed to spawn: scalene — No such file or directory`.
-    #
-    # Pinned <2.0: scalene 2.x introduced a subcommand CLI
-    # (`scalene run script.py`) and the workflow still uses the legacy
-    # 1.x invocation (`scalene script.py`). 1.5.x is the compatible range.
+    # scalene — Python CPU/GPU/memory profiler for local profiling.
+    # Used in tests/integration/run_e2e_local.sh via the 1.x invocation
+    # (`scalene --profile-all --cli main.py`). Pinned <2.0 because scalene
+    # 2.x switched to a subcommand CLI (`scalene run script.py`), which is
+    # incompatible with the 1.x style used in the local run script.
     "scalene>=1.5.0,<2.0",
 ]
 test = [
@@ -52,18 +48,26 @@ test = [
 ]
 
 [tool.poe.tasks]
+# Regenerate contract artifacts from contract/app.pkl into app/generated/.
+# Required by the SDK Certify-app publish gate: `poe generate` must exist
+# and leave the working tree clean.
+generate = "bash -c 'cd contract && pkl eval -m generated app.pkl && cp generated/app/generated/*.json ../app/generated/ && rm -rf generated'"
+
 # Dapr and Temporal service tasks
 # Note: --dapr-http-max-request-size was removed in Dapr CLI v1.13+
 # (replaced by --max-body-size, units changed KB→MB). Omitting it
 # applies Dapr's default (4 MiB).
 start-dapr = "dapr run --enable-api-logging --log-level debug --app-id app --app-port 3000 --scheduler-host-address '' --placement-host-address '' --dapr-http-port 3500 --dapr-grpc-port 50001 --resources-path components"
-start-temporal = "temporal server start-dev --db-filename /tmp/temporal.db"
-start-deps.shell = "poe start-dapr & poe start-temporal &"
+start-temporal = "temporal server start-dev --db-filename /tmp/temporal.db --headless"
+# start-deps mirrors the openapi-app pattern: background Dapr + Temporal, then
+# block until Temporal's namespace API responds so the app starts against a
+# fully-ready workflow server.
+start-deps.shell = "poe start-dapr & temporal server start-dev --db-filename /tmp/temporal.db --headless & until temporal operator namespace describe default >/dev/null 2>&1; do sleep 1; done && echo 'Temporal is ready'"
 stop-deps.shell = "lsof -ti:3000,3500,7233,50001 | xargs kill -9 2>/dev/null || true"
 
 [tool.poe.tasks.download-components]
 interpreter = "python"
-env = { SDK_VERSION = "v0.1.1rc63" }
+env = { SDK_VERSION = "v3.14.0" }
 shell = """
 import pathlib, requests, os, shutil, tarfile, tempfile
 
@@ -88,9 +92,6 @@ for file_info in response.json():
         print(f"Downloaded: {file_info['name']}")
 """
 
-[tool.hatch.version]
-path = "version.txt"
-pattern = "(?P<version>.+)"
 
 [tool.hatch.build.targets.sdist]
 include = ["./**/*.py"]
@@ -116,6 +117,7 @@ reportMissingTypeStubs = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
@@ -130,6 +132,9 @@ log_cli_format = "%(levelname)-8s %(name)s — %(message)s"
 [tool.coverage.run]
 omit = [
     "tests/**",
+    # Auto-generated from contract/app.pkl via the PKL toolkit — no value
+    # in testing it (regenerated on every contract change).
+    "app/generated/**",
 ]
 
 [tool.coverage.report]
@@ -149,37 +154,13 @@ target-version = "py311"
 preview = true
 
 [tool.ruff.lint]
-select = ["E4", "E7", "E9", "F", "PLC0415"]
+select = ["E4", "E7", "E9", "F", "PLC0415", "G", "T201", "LOG"]
+# G002 suppressed: %-style is correct via the SDK adapter's _format_printf_args bridge
+ignore = ["G002"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/unit/test_mysql_app.py" = ["PLC0415"]
+".github/**/*.py" = ["T201"]  # CLI scripts — print() is intentional stdout
 
 [tool.uv.sources]
 # atlan-application-sdk = { path = "../application-sdk", editable = true }
-#
-# Pinned to the v3.13.2 release tag (2026-05-25). Includes:
-#
-#   * PR #1792 (BLDX-1281, merged 2026-05-19) — v3 SqlApp template's
-#     extract → transform handoff via ``FileReference`` contracts.
-#     ``ExtractionTaskOutput.raw_file`` and ``TransformOutput.transformed_file``
-#     are the contract; ``SqlApp.run()`` (and ``MySQLApp.run()`` override for
-#     procedures) threads each extract's durable ``raw_file`` into the matching
-#     transform via ``_build_transform_input``. Closes the cross-worker
-#     silent-archive bug we hit on the prior v3.10.0 pin.
-#
-#   * PR #1801 (merged 2026-05-21) — canonical storage paths on
-#     extract/transform FileReferences so publish can discover them.
-#     ``_extract_entity`` / ``_transform_entity`` pre-set ``storage_path``
-#     to ``<run_prefix>/raw/<entity>/records.json`` and
-#     ``<run_prefix>/transformed/<entity>/entities.json`` respectively;
-#     ``persist`` honours the pre-set key instead of auto-generating
-#     a ``file_refs/<uuid>`` orphan. Also removed the now-unused
-#     ``upload_to_atlan`` call from SqlApp (breaking change vs older
-#     pins — MySQLApp.run() was already updated to not call it).
-#
-# Earlier history: this entry temporarily pointed at
-# ``aryaman/canonical-storage-paths-bldx-1281@df056bcf`` while PR #1801
-# was in review. PR #1801 merged 2026-05-21, v3.13.2 was tagged
-# 2026-05-25 — bumping to the released tag now that the fix is in a
-# real release.
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", tag = "v3.13.2" }

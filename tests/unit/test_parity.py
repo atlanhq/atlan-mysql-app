@@ -4,7 +4,7 @@ These tests ensure the asset mappers produce entities with the same keys,
 relationship refs, and structure as the legacy connector. Values are not compared,
 only the presence and shape of fields.
 
-Reference: tests/e2e/fixtures/parity_spec.json + /tmp/legacy-mysql-transformed/
+Reference: tests/integration/fixtures/parity_spec.json + /tmp/legacy-mysql-transformed/
 """
 
 from __future__ import annotations
@@ -40,7 +40,9 @@ def _sanitize_for_json(obj: Any) -> Any:
 
 
 PARITY_SPEC = json.loads(
-    (Path(__file__).parent.parent / "e2e" / "fixtures" / "parity_spec.json").read_text()
+    (
+        Path(__file__).parent.parent / "integration" / "fixtures" / "parity_spec.json"
+    ).read_text()
 )
 
 CONNECTION_QN = "default/mysql/1234567890"
@@ -71,9 +73,9 @@ def _assert_structure(entity: dict, spec_key: str, entity_type: str):
 def _assert_ref(ref: dict, expected_type: str):
     """Validate a relationship ref has the correct shape."""
     assert ref is not None, "Relationship ref is None"
-    assert (
-        ref.get("typeName") == expected_type
-    ), f"Ref typeName={ref.get('typeName')}, expected {expected_type}"
+    assert ref.get("typeName") == expected_type, (
+        f"Ref typeName={ref.get('typeName')}, expected {expected_type}"
+    )
     assert "uniqueAttributes" in ref, "Ref missing uniqueAttributes"
     assert "qualifiedName" in ref["uniqueAttributes"], "Ref missing qualifiedName"
     assert ref["uniqueAttributes"]["qualifiedName"], "Ref qualifiedName is empty"
@@ -489,9 +491,9 @@ class TestCrossEntityConsistency:
                 CONNECTION_QN,
             ),
         ]:
-            assert (
-                entity.get("tenantId") == "default"
-            ), f"{entity['typeName']} missing tenantId"
+            assert entity.get("tenantId") == "default", (
+                f"{entity['typeName']} missing tenantId"
+            )
 
     def test_all_entities_have_custom_attributes(self, app):
         for entity in [
@@ -517,6 +519,6 @@ class TestCrossEntityConsistency:
                 CONNECTION_QN,
             ),
         ]:
-            assert (
-                "customAttributes" in entity
-            ), f"{entity['typeName']} missing customAttributes"
+            assert "customAttributes" in entity, (
+                f"{entity['typeName']} missing customAttributes"
+            )

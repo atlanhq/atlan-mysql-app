@@ -1,5 +1,39 @@
 # Changelog
 
+## v1.1.3 (June 04, 2026)
+
+Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v1.1.2...v1.1.3
+
+### Bug Fixes
+
+- cover IAM token validation, error translation, and env-var lifecycle (#168) (by @vaibhavatlan in [97a4297](https://github.com/atlanhq/atlan-mysql-app/commit/97a4297))
+
+
+## v1.1.2 (June 04, 2026)
+
+Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v1.1.1...v1.1.2
+
+
+## v1.1.1 (June 04, 2026)
+
+Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v1.1.0...v1.1.1
+
+### Bug Fixes
+
+- translate AwsAssumeRoleError at load() boundary so STS failures route to AuthError (#162) (by @vaibhavatlan in [b4af488](https://github.com/atlanhq/atlan-mysql-app/commit/b4af488))
+
+
+## v1.1.0 (June 03, 2026)
+
+Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v1.0.0...v1.1.0
+
+### Bug Fixes
+
+- install uv via setup-deps before SDK pin step (#155) (by @cmgrote in [ec73037](https://github.com/atlanhq/atlan-mysql-app/commit/ec73037))
+- typed AppErrors, %-style logs, and lint rules (#156) (by @cmgrote in [c933054](https://github.com/atlanhq/atlan-mysql-app/commit/c933054))
+- expose aws_external_id in iam_role auth (APP-2389) (#158) (by @vaibhavatlan in [d3b0e94](https://github.com/atlanhq/atlan-mysql-app/commit/d3b0e94))
+
+
 All notable changes to the MySQL App will be documented in this file.
 
 ## 0.8.9 (May 27, 2026)
@@ -55,6 +89,65 @@ All notable changes to the MySQL App will be documented in this file.
 ### Bug Fixes
 
 - **Auto-exclude the `clonedInformationSchema` mirror from crawled schemas (REQ-925).** When a customer configured `{"clonedInformationSchema": "atlan_meta"}`, every metadata-extraction SQL file still carried a hardcoded `WHERE … NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')`. The mirror schema itself was missing from that list, so the connector crawled `atlan_meta` and its 8 pass-through views as user assets — 1 extra schema, 8 phantom views, and ~136 phantom columns surfacing in the customer's Atlan tenant. Adds a second placeholder `{excluded_schemas}` that resolves to the same 4-schema literal by default and appends the mirror name when configured. Substitution runs alongside `{information_schema}` in both `_prepare_sql` (extraction) and `_resolve_handler_sql` (handler/preflight). Identifier validation is shared with `resolve_information_schema` — no new SQL-injection surface. Backward compatible: with no override, rendered SQL is byte-identical to today (verified by `tests/unit/test_mysql_app.py::test_prepare_sql_renders_default_excluded_schemas` + the rewritten preflight test asserting the canonical NOT IN literal still appears).
+
+## 1.0.0 (May 26, 2026)
+
+GA release. Marks the connector's transition out of the `0.x` series alongside the introduction of progressive canary rollout.
+
+### New Features
+
+- **Progressive canary rollout** (`atlan.yaml` `deploy:` block). Adds two-stage canary deployment for all-channel releases: stage 1 caps at 5% of tenants with a 6-hour auto-progression timeout, stage 2 caps at 50% with an 18-hour timeout, then goes GA. `canary_mode: auto` lets workflow success rate drive stage progression. Pattern ported from `atlan-teradata-app`. Note: hand-maintained in YAML until `NativeApp.pkl` declares `deploy{}` upstream (teradata uses `NativeAppBundle.pkl` which already declares it).
+
+### Bug Fixes
+
+- **Make `current_state_enabled = true` explicit on the publish node** ([atlanhq/atlan-azure-event-hub-app#86](https://github.com/atlanhq/atlan-azure-event-hub-app/pull/86) parity). Previously mysql relied on publish-app's env default (`true` per `atlan-publish-app/app/constants.py:78-82`) for this flag. Now set explicitly in `contract/app.pkl` `extraNodes.publish.args` alongside the other three publish flags, so the activity behavior is no longer at the mercy of publish-app default changes.
+
+### Packages
+
+- **Bump `atlan-application-sdk` 3.13.1 → 3.13.2.** Latest patch. Tightens pyproject lower bound to `>=3.13.2` and re-pins the lockfile.
+- **Bump Pkl `app-contract-toolkit` 0.9.0 → 0.10.1.** Toolkit is now released as part of `atlanhq/application-sdk` (`contract-toolkit/src/`). URI path moved from `app-contract-toolkit/app-contract-toolkit@…` to `application-sdk/contracts/app-contract-toolkit@…`. `PklProject.deps.json` checksum resolved cleanly. The 0.10.1 schema also drops `lake_provider` and `cloud_storage_bucket` from `lineage-app` args in the generated manifest — those fields are now SDK-injected at runtime, matching teradata's manifest shape at 0.10.0. `_input.py` imports refreshed by the 0.10.1 code generator.
+
+## 0.7.42 (May 24, 2026)
+
+### Bug Fixes
+
+- **Auto-retry on `caching_sha2_password` cold-cache auth failure** (BLDX-1295 follow-up). `SQLClient.load()` now retries once immediately when the first basic-auth connection attempt raises `SqlClientAuthFailedError`. MySQL 8's `caching_sha2_password` server-side cache is cold on the first connection after a pod start or long idle period; the failed attempt still populates the cache as a side-effect, so one immediate retry always succeeds. No sleep or jitter is needed — the cache is populated synchronously on the server during the first handshake. If the retry also fails, the error propagates unchanged (wrong credentials, not a cold-cache issue). This eliminates the production symptom where clicking "Test Authentication" once returned 401 and clicking again immediately returned 200.
+
+## 0.7.41 (May 24, 2026)
+
+### Dependencies
+
+- **Promote `atlan-application-sdk` from git-hash pin to PyPI `>=3.13.1,<4`** ([application-sdk#1835](https://github.com/atlanhq/application-sdk/pull/1835), BLDX-1295). The BLDX-1295 `prime_sql_auth` fix shipped in SDK v3.13.1 (released 2026-05-22). Dropping the temporary git-hash override and aligning with the standard PyPI range constraint.
+
+## 0.7.40 (May 24, 2026)
+
+### Bug Fixes
+
+- Reverted — `caching_sha2_password_get_server_public_key` is not a supported parameter in `aiomysql 0.3.2` (which uses `server_public_key` instead); passing it caused a `TypeError` that broke all connections in CI.
+
+## 0.7.39 (May 22, 2026)
+
+### Bug Fixes
+
+- **Disable shared connection cache on the lineage-publish DAG node** ([#135](https://github.com/atlanhq/atlan-mysql-app/pull/135), [APP-2292](https://linear.app/atlan-epd/issue/APP-2292)). Retroactive version bump — PR #135 merged the manifest fix (`connectionCacheEnabled` / `connectionCacheViaAppEnabled` set to `false` on the `lineage-publish` node in `contract/app.pkl` and the regenerated `app/generated/manifest.json`) but did not bump `version.txt` or add a `CHANGELOG.md` entry; this release is solely those two artefacts so the customer-tenant deploy reflects PR #135. Sibling fix: [atlan-mssql-app#145](https://github.com/atlanhq/atlan-mssql-app/pull/145). Context: the `LineagePublishNode` toolkit default for these flags is `true`, so connectors that inherited the default were rewriting the shared `connection-cache/{cqn}.sqlite` from lineage-stage data on every run — flipping the cache from `Database/Schema/Table` rows to `Process/ColumnProcess` rows and breaking downstream miner runs (a prior incident saw thousands of assets deleted on an impacted tenant). Lineage publish never needs the shared connection cache; disabling it on the lineage node is the contract-level fix.
+
+## 0.7.38 (May 22, 2026)
+
+### Bug Fixes
+
+- **Re-pin `atlan-application-sdk` → SHA `710ad447`** to pick up the post-review refactor of `prime_sql_auth` and three follow-up reviewer fixes ([application-sdk#1835](https://github.com/atlanhq/application-sdk/pull/1835), BLDX-1295). Changes in this bump:
+  1. `prime_sql_auth` reports probe failure as structured data on `PrimeAuthOutput` (`success` / `error_type` / `error_message`) instead of raising. `SqlApp.run()` inspects that and raises a typed error carrying actionable context — see (2) below for which error type. The parallel extract burst still never runs on prime failure (short-circuit guarantee from 0.7.37 preserved).
+  2. **Typed-error classification** ([application-sdk#1835/comment-3287630230](https://github.com/atlanhq/application-sdk/pull/1835#discussion_r3287630230)): `SqlApp._classify_prime_failure` discriminates on `error_type` / `error_message` and raises `AuthError` only for true credential rejections, `AppTimeoutError` for timeouts, and `DependencyUnavailableError` for network / DNS / TLS / connection-refused. Previously every probe failure was mis-labelled as auth-lockout, which would send an on-call investigating a DNS misconfiguration down the wrong rabbit hole. The DNS/network branch's `suggested_action` explicitly disclaims ACCOUNT UNLOCK work; unknown driver exceptions fall through to `InternalError(classification_pending=True)` so they're never silently mis-categorised.
+  3. **`retry_max_attempts=1` on the `@task` decorator** ([application-sdk#1835/comment-3287629972](https://github.com/atlanhq/application-sdk/pull/1835#discussion_r3287629972), CRITICAL): the `@task()` decorator default was `retry_max_attempts=3`. The body try/except only catches Python exceptions — NOT Temporal-level failures (start-to-close timeout, worker eviction, heartbeat timeout, OOM). Any of those triggers activity retry, which re-runs `_init_sql_client → load → auth handshake` and re-stacks `failed_login_attempts` on the source — exactly the lockout cycle this task was added to prevent. Explicit `retry_max_attempts=1` closes that loophole.
+  4. **Traceback preserved on failure** ([application-sdk#1835/issuecomment-4517743180](https://github.com/atlanhq/application-sdk/pull/1835#issuecomment-4517743180)): the failure-path `logger.error()` in `prime_sql_auth` passes `exc_info=True` so worker logs keep the original traceback for the long-tail (TLS negotiation, driver bugs, version skew) even though the exception is converted to structured return data.
+
+  Zero changes required in `mysql-app` code — all four changes live entirely in the SDK template this app inherits from.
+
+## 0.7.37 (May 22, 2026)
+
+### Bug Fixes
+
+- **Re-pin `atlan-application-sdk` → SHA `7862d1ad`** to pick up the new `prime_sql_auth` task in `SqlApp` ([application-sdk#1835](https://github.com/atlanhq/application-sdk/pull/1835), BLDX-1295). `SqlApp.run()` now awaits one serial probe connection (a single `SELECT 1`) before fanning out the parallel `extract_*` activities. This populates MySQL 8's `caching_sha2_password` server-side auth cache so the subsequent parallel extract connections take the fast-auth path. Without this, N parallel extract activities all hit cold-cache simultaneously, each independently tries full auth, each can fail, and those failures stack on the per-user `failed_login_attempts` counter — tripping `FAILED_LOGIN_ATTEMPTS` lockouts at the source. Symptom: scheduled crawler runs failing with `Access denied for user 'atlan'@'<pod-ip>'` repeatedly, while manual "Test Authentication" works briefly between lockout windows. Argo's serial extract pipeline never exposed this; only v3's parallel-activity model does. Zero changes required in `mysql-app` code — the fix lives entirely in the SDK template that this app inherits from.
 
 ## 0.7.33 (May 20, 2026)
 

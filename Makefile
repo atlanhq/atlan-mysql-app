@@ -11,20 +11,9 @@
 #   make lint             Run ruff linter
 #   make format           Auto-format code
 #   make pre-commit       Run all pre-commit hooks
-#
-#   ── SDR (Self-Deployed Runtime) — see sdr-dev/README.md ──
-#   make sdr-render       Render sdr-dev/values-override.yaml from .env
-#   make sdr-install      helm upgrade --install (requires kubectl context)
-#   make sdr-uninstall    helm uninstall (keeps namespace)
-#   make sdr-teardown     helm uninstall + delete namespace (full cleanup)
-#   make sdr-status       kubectl get pods + helm status
-#   make sdr-logs         Tail SDR pod logs
-#   make sdr-port-forward Forward SDR pod :8000 → localhost:$(LOCAL_PORT)
 
-.PHONY: install test test-e2e test-e2e-remote test-cov lint format pre-commit \
-        dev start-deps stop build clean \
-        sdr-render sdr-install sdr-uninstall sdr-teardown sdr-status \
-        sdr-logs sdr-port-forward
+.PHONY: install generate check-generate test test-e2e test-e2e-remote test-cov \
+        lint format pre-commit dev start-deps stop build clean
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
@@ -38,6 +27,15 @@ APP_DEPLOYMENT         ?= mysql-server
 REMOTE_CREDENTIAL_GUID ?= local-mysql
 LOCAL_PORT             ?= 8000
 REMOTE_PORT            ?= 8000
+
+# ── Contract generation ───────────────────────────────────────────────────────
+
+generate:
+	pkl eval --project-dir contract -m . contract/app.pkl
+
+check-generate: generate
+	@git diff --exit-code app/generated/ atlan.yaml app.yaml \
+		|| (echo "ERROR: Generated files are stale. Run 'make generate' and commit." && exit 1)
 
 # ── Setup ─────────────────────────────────────────────────────────────────────
 
@@ -125,81 +123,3 @@ build:
 clean:
 	rm -rf .pytest_cache htmlcov .coverage local/dapr/objectstore/artifacts
 
-# ── SDR (Self-Deployed Runtime) ───────────────────────────────────────────────
-# Helm-based install used for in-cluster dev/test against a real tenant.
-# All knobs come from .env; see sdr-dev/README.md for the variable list.
-
-SDR_DIR                       ?= sdr-dev
-SDR_NAMESPACE                 ?= mysql-app-sdr
-SDR_VALUES_RENDERED           := $(SDR_DIR)/values-override.yaml
-# Source namespace to copy the GHCR pull secret from. The chart references
-# `atlan-docker-secret` for image pulls; we copy it from an existing in-cluster
-# install (typically a deployed app namespace) so the SDR pod can pull from
-# ghcr.io/atlanhq. Override if your cluster has it under a different name.
-SDR_PULL_SECRET_NAME          ?= atlan-docker-secret
-SDR_PULL_SECRET_SRC_NAMESPACE ?= mysql-sdr-imp01
-
-# All SDR targets re-source .env in a fresh shell so the file is the single
-# source of truth — no need for `source .env` between edits, and stale env
-# vars from a prior shell can't poison the run. We unset every SDR_* var
-# before sourcing so a removed/commented line in .env is honored even when
-# the shell still carries the old export.
-#
-# SDR_RELEASE_NAME is the user-facing knob. Defaults to "mysql-app-sdr-dev".
-# Must start with "mysql-app-sdr-" — the suffix after that prefix is what the
-# Atlan side uses for the agent / queue (e.g. release "mysql-app-sdr-dev"
-# yields agent "mysql-dev" and queue "atlan-mysql-dev").
-define SDR_LOAD_ENV
-for v in $$(env | sed -n 's/^\(SDR_[A-Z_]*\)=.*/\1/p'); do unset $$v; done; \
-set -a; [ -f .env ] && . ./.env; set +a; \
-SDR_RELEASE_NAME="$${SDR_RELEASE_NAME:-mysql-app-sdr-dev}"; \
-case "$$SDR_RELEASE_NAME" in \
-  mysql-app-sdr-?*) ;; \
-  *) echo "Error: SDR_RELEASE_NAME must start with 'mysql-app-sdr-' (got: $$SDR_RELEASE_NAME)" >&2; exit 1;; \
-esac; \
-SDR_DEPLOYMENT_NAME="$${SDR_RELEASE_NAME#mysql-app-sdr-}";
-endef
-
-sdr-render:
-	@$(SDR_LOAD_ENV) $(SDR_DIR)/render.sh
-
-sdr-install: sdr-render
-	@$(SDR_LOAD_ENV) \
-	  echo "Ensuring namespace $(SDR_NAMESPACE) and pull secret $(SDR_PULL_SECRET_NAME)..."; \
-	  kubectl create namespace $(SDR_NAMESPACE) --dry-run=client -o yaml | kubectl apply -f -; \
-	  if ! kubectl get secret $(SDR_PULL_SECRET_NAME) -n $(SDR_NAMESPACE) >/dev/null 2>&1; then \
-	    echo "  copying $(SDR_PULL_SECRET_NAME) from $(SDR_PULL_SECRET_SRC_NAMESPACE)/..."; \
-	    kubectl get secret $(SDR_PULL_SECRET_NAME) -n $(SDR_PULL_SECRET_SRC_NAMESPACE) -o yaml \
-	      | sed -e "s/^  namespace: .*/  namespace: $(SDR_NAMESPACE)/" \
-	            -e '/resourceVersion:\|uid:\|creationTimestamp:\|annotations:\|kubectl\.kubernetes\.io\/last-applied-configuration:/d' \
-	      | kubectl apply -f - || { echo "    secret copy failed — check that $(SDR_PULL_SECRET_NAME) exists in $(SDR_PULL_SECRET_SRC_NAMESPACE)" >&2; exit 1; }; \
-	  fi; \
-	  echo "Installing $$SDR_RELEASE_NAME in namespace $(SDR_NAMESPACE)..."; \
-	  helm upgrade --install $$SDR_RELEASE_NAME $(SDR_DIR)/chart \
-	    --namespace $(SDR_NAMESPACE) --create-namespace \
-	    --values $(SDR_VALUES_RENDERED)
-
-sdr-uninstall:
-	@$(SDR_LOAD_ENV) \
-	  helm uninstall $$SDR_RELEASE_NAME --namespace $(SDR_NAMESPACE) || true
-
-sdr-teardown:
-	@$(SDR_LOAD_ENV) \
-	  echo "Tearing down $$SDR_RELEASE_NAME and namespace $(SDR_NAMESPACE)..."; \
-	  helm uninstall $$SDR_RELEASE_NAME --namespace $(SDR_NAMESPACE) || true; \
-	  kubectl delete namespace $(SDR_NAMESPACE) --ignore-not-found; \
-	  rm -f $(SDR_VALUES_RENDERED)
-
-sdr-status:
-	@$(SDR_LOAD_ENV) \
-	  echo "── helm status ──"; helm status $$SDR_RELEASE_NAME --namespace $(SDR_NAMESPACE) || true; \
-	  echo "── pods ──"; kubectl get pods -n $(SDR_NAMESPACE) -l app.kubernetes.io/instance=$$SDR_RELEASE_NAME
-
-sdr-logs:
-	@$(SDR_LOAD_ENV) \
-	  kubectl logs -n $(SDR_NAMESPACE) -l app.kubernetes.io/instance=$$SDR_RELEASE_NAME --tail=200 -f
-
-sdr-port-forward:
-	@$(SDR_LOAD_ENV) \
-	  echo "Forwarding $(SDR_NAMESPACE)/$$SDR_RELEASE_NAME → localhost:$(LOCAL_PORT)..."; \
-	  kubectl port-forward -n $(SDR_NAMESPACE) deployment/$$SDR_RELEASE_NAME $(LOCAL_PORT):8000

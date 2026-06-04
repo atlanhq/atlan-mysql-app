@@ -1,0 +1,172 @@
+name: Tests
+
+# Unified workflow — unit + integration (testcontainers), and full-DAG e2e.
+#
+#   tests     — unit (tests/unit/) + testcontainers integration (tests/integration/)
+#               via connector-integration-tests composite action. Runs on every
+#               push to main and on every PR.
+#   e2e       — full system-apps DAG (extract→qi→publish→lineage) against a real
+#               tenant (tests/e2e/) via the reusable e2e-full workflow. On
+#               workflow_dispatch or the 'e2e' PR label only.
+#   tests-passed — aggregator gate; the single required check for branch
+#                  protection. tests must pass; e2e can be skipped.
+#
+# Cross-repo dispatch (from application-sdk PRs):
+#   application_sdk_ref pins the SDK in the tests job so the connector
+#   exercises the SDK branch under review.
+#   distinct_id is echoed in step names so codex-/return-dispatch can
+#   locate this run from the calling workflow via the GH Actions API.
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - labeled
+    branches:
+      - main
+  merge_group:
+  workflow_dispatch:
+    inputs:
+      application_sdk_ref:
+        description: |
+          Branch/SHA of atlanhq/application-sdk for cross-repo dispatch.
+          Pins SDK in tests + e2e jobs. Empty = lockfile version.
+        required: false
+        default: ""
+        type: string
+      distinct_id:
+        description: |
+          Identifier for codex-/return-dispatch matching. Echoed in step
+          names so the calling workflow can locate this run via the GH API.
+        required: false
+        default: ""
+        type: string
+      agent_name_override:
+        description: |
+          Override agent-name for the e2e job (default ci-<run_id>).
+          Useful when re-running against a worker that is already up.
+        required: false
+        default: ""
+        type: string
+      run_e2e:
+        description: "Set to 'true' to trigger the e2e job (cross-repo dispatch from application-sdk). Defaults to off."
+        required: false
+        default: ""
+        type: string
+
+jobs:
+
+  # ── Unit + testcontainers e2e ─────────────────────────────────────────
+  tests:
+    name: tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    concurrency:
+      group: tests-${{ github.ref }}
+      cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+    permissions:
+      pull-requests: write
+      contents: read
+    outputs:
+      summary: ${{ steps.tests.outputs.summary }}
+    steps:
+      - name: echo distinct-id ${{ github.event.inputs.distinct_id }}
+        if: github.event.inputs.distinct_id != ''
+        run: echo "Dispatched; SDK ref=${{ github.event.inputs.application_sdk_ref }}"
+
+      # Explicit checkout so the SDK pin step can modify uv.lock before
+      # connector-integration-tests runs setup-deps (which re-runs uv sync).
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
+
+      - uses: atlanhq/application-sdk/.github/actions/setup-deps@main
+
+      - name: Pin application-sdk to dispatched ref
+        if: github.event.inputs.application_sdk_ref != ''
+        run: |
+          sdk_ref=${{ github.event.inputs.application_sdk_ref }}
+          uv add git+https://github.com/atlanhq/application-sdk --rev "$sdk_ref"
+
+      - name: Run unit + e2e tests
+        id: tests
+        uses: atlanhq/application-sdk/.github/actions/connector-integration-tests@main
+        with:
+          app-name: mysql
+          # Scope to unit + testcontainers integration; tests/e2e/
+          # (full-DAG) runs in its own job below.
+          test-paths: "tests/unit/ tests/integration/"
+          pytest-args: >-
+            -n auto --dist=loadfile --tb=short
+            --cov=app --cov-report=xml --cov-report=html --cov-report=term
+            --cov-fail-under=0
+
+  # ── Full-DAG e2e (system apps — extract→qi→publish→lineage) ──────────
+  e2e:
+    name: e2e
+    concurrency:
+      group: tests-e2e-${{ github.ref }}
+      cancel-in-progress: false
+    # On workflow_dispatch (including cross-repo dispatch from apps-sdk),
+    # or when the 'e2e' label is present on the PR (covers both adding the
+    # label and pushing to a PR that already has it). Forks and bots are
+    # excluded — full-DAG runs touch real tenant assets.
+    if: |
+      (github.event_name == 'workflow_dispatch' && inputs.run_e2e == 'true') ||
+      (
+        github.event_name == 'pull_request' &&
+        contains(github.event.pull_request.labels.*.name, 'e2e') &&
+        github.event.pull_request.head.repo.fork != true &&
+        github.event.pull_request.user.login != 'dependabot[bot]'
+      )
+    uses: atlanhq/application-sdk/.github/workflows/e2e-full-reusable.yaml@main
+    with:
+      app-name: mysql
+      app-image-name: atlan-mysql-app
+      # Override default tests/full_dag/ path — mysql uses tests/e2e/
+      test-path: tests/e2e/
+      agent-name-override: ${{ inputs.agent_name_override }}
+      application-sdk-ref: ${{ inputs.application_sdk_ref }}
+      distinct-id: ${{ inputs.distinct_id }}
+    secrets: inherit
+
+  # ── Aggregator gate (single required check for branch protection) ─────
+  tests-passed:
+    name: tests-passed
+    needs: [tests, e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    steps:
+      - name: Post unified test-summary comment on PR
+        if: always() && github.event_name == 'pull_request'
+        uses: mshick/add-pr-comment@8e4927817251f1ff60c001f04568532b38e0b4a0 # v3.11.0
+        with:
+          message-id: tests-summary
+          message: |
+            ## Tests Summary
+
+            | Job | Status | Result |
+            |---|---|---|
+            | tests | ${{ needs.tests.result == 'success' && '✅ Passed' || (needs.tests.result == 'skipped' && '⊘ Skipped' || '❌ Failed') }} | `${{ needs.tests.outputs.summary || 'no summary' }}` |
+            | e2e | ${{ needs.e2e.result == 'success' && '✅ Passed' || (needs.e2e.result == 'skipped' && '⊘ Skipped — add `e2e` label to trigger' || '❌ Failed') }} | (see run) |
+
+            **Overall:** ${{ (needs.tests.result == 'success' && (needs.e2e.result == 'success' || needs.e2e.result == 'skipped')) && '✅ All passed' || '❌ Some failed' }} — [view run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
+        continue-on-error: true
+
+      - name: Verify all test jobs succeeded
+        run: |
+          if [ "${{ needs.tests.result }}" != "success" ]; then
+            echo "::error::tests job did not succeed (result=${{ needs.tests.result }})"
+            exit 1
+          fi
+          if [ "${{ needs.e2e.result }}" != "success" ] && [ "${{ needs.e2e.result }}" != "skipped" ]; then
+            echo "::error::e2e job did not succeed (result=${{ needs.e2e.result }})"
+            exit 1
+          fi
+          echo "All test jobs passed."

@@ -79,12 +79,12 @@ class TestGeneratedMySQLJson:
         )
 
         by_value = {c["value"]: c["ui"]["hidden"] for c in conditions}
-        assert (
-            by_value.get("default") is True
-        ), "control-config must be hidden when strategy=default"
-        assert (
-            by_value.get("custom") is False
-        ), "control-config must be visible when strategy=custom"
+        assert by_value.get("default") is True, (
+            "control-config must be hidden when strategy=default"
+        )
+        assert by_value.get("custom") is False, (
+            "control-config must be visible when strategy=custom"
+        )
 
     def test_advanced_config_step_exists(self, config):
         """The PKL contract groups the two fields into a dedicated step."""
@@ -92,9 +92,9 @@ class TestGeneratedMySQLJson:
         step_ids = [s.get("id") for s in steps]
         # PKL emits step IDs in lowercase from task labels (Advanced → advanced)
         # so check both spellings to stay forgiving of future PKL renames.
-        assert any(
-            sid.lower() == "advanced" for sid in step_ids
-        ), f"Advanced step missing — steps: {step_ids}"
+        assert any(sid.lower() == "advanced" for sid in step_ids), (
+            f"Advanced step missing — steps: {step_ids}"
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────

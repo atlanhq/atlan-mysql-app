@@ -247,6 +247,17 @@
                   "placeholder": "atlan_meta",
                   "grid": 4
                 }
+              },
+              "aws_external_id": {
+                "type": "string",
+                "ui": {
+                  "widget": "input",
+                  "label": "AWS External ID",
+                  "hidden": false,
+                  "help": "Optional. Only required if your IAM role trust policy enforces an sts:ExternalId condition.",
+                  "placeholder": "12345678-1234-1234-1234",
+                  "grid": 4
+                }
               }
             }
           }

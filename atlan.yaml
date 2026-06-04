@@ -1,20 +1,17 @@
+# AUTO-GENERATED from contract/app.pkl — DO NOT EDIT MANUALLY.
+# To regenerate: pkl eval -m . contract/app.pkl
 name: mysql
-app_id: 019c4c4b-8468-7e42-b0d6-eada59da2da1  # Global Marketplace UUID
-display_name: "Mysql"
+app_id: 019c4c4b-8468-7e42-b0d6-eada59da2da1
+display_name: MySQL Assets
 type: connector
-icon_url: ""
+execution_mode: native
+icon_url: https://www.mysql.com/common/logos/mysql-logo.svg
 visibility: public
-argo_package_names:
-  - "@atlan/mysql"
 build_tag: v1
 self_deployed_runtime: true
 deploy:
   execution_mode: native
   splitDeploymentEnabled: true
-  env:
-    ATLAN_HEARTBEAT_TIMEOUT_SECONDS: "7200"
-    ATLAN_START_TO_CLOSE_TIMEOUT_SECONDS: "7200"
-    ATLAN_TENANT_ID: "default"
   dapr:
     objectstore: true
     secretstore: true
@@ -23,3 +20,26 @@ deploy:
     subscription: false
     configurationstore: false
     lock: false
+  keda:
+    enabled: true
+    minReplicaCount: 0
+    temporal:
+      targetQueueSize: 5
+  env:
+    ATLAN_HEARTBEAT_TIMEOUT_SECONDS: '7200'
+    ATLAN_START_TO_CLOSE_TIMEOUT_SECONDS: '7200'
+    ATLAN_TENANT_ID: default
+  canary_enabled: true
+  canary_mode: auto
+  stages:
+    stage1:
+      cap: 5
+      stage_timeout: 6
+      multi_cloud: true
+    stage2:
+      cap: 50
+      stage_timeout: 18
+      multi_cloud: true
+argo_package_names:
+- '@atlan/mysql'
+release_model: semver

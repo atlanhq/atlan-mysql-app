@@ -1,5 +1,5 @@
-# AUTO-GENERATED from app.pkl — DO NOT EDIT MANUALLY.
-# To regenerate: make generate
+# AUTO-GENERATED from contract/app.pkl — DO NOT EDIT MANUALLY.
+# To regenerate: pkl eval -m . contract/app.pkl
 from __future__ import annotations
 from typing import ClassVar
 from application_sdk.templates.contracts import ExtractionInput

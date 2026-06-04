@@ -301,9 +301,9 @@ class TestMirrorPath:
             "information_schema.PARTITIONS",
             "information_schema.VIEWS",
         ]:
-            assert (
-                forbidden not in sql
-            ), f"{sql_attr} still references {forbidden} as a query target"
+            assert forbidden not in sql, (
+                f"{sql_attr} still references {forbidden} as a query target"
+            )
 
         # Execute against the mirror schema using the atlan_reader user that
         # has NO privilege on information_schema — proving the privilege
@@ -524,9 +524,9 @@ class TestFilteredExtractionViaMirror:
                 rows = _fetchall_dicts(cur)
 
         user = self._user_schemas(rows)
-        assert {"shop", "sales", "analytics"}.issubset(
-            user
-        ), f"expected all 3 seeded schemas; got {user}"
+        assert {"shop", "sales", "analytics"}.issubset(user), (
+            f"expected all 3 seeded schemas; got {user}"
+        )
 
     # ── Include-only ─────────────────────────────────────────────────
 
@@ -585,9 +585,9 @@ class TestFilteredExtractionViaMirror:
 
         user = self._user_schemas(rows)
         assert "shop" not in user, f"shop should be excluded; got {user}"
-        assert {"sales", "analytics"}.issubset(
-            user
-        ), f"expected sales + analytics to remain; got {user}"
+        assert {"sales", "analytics"}.issubset(user), (
+            f"expected sales + analytics to remain; got {user}"
+        )
 
     # ── Include + exclude (exclude takes precedence) ──────────────────
 

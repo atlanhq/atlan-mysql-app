@@ -189,9 +189,9 @@ class TestMySQLAppClassAttrs:
             "fetch_procedure_sql",
         ]:
             prepared = app._prepare_sql(getattr(MySQLApp, attr), input_)
-            assert (
-                "{excluded_schemas}" not in prepared
-            ), f"{attr}: {{excluded_schemas}} placeholder not resolved"
+            assert "{excluded_schemas}" not in prepared, (
+                f"{attr}: {{excluded_schemas}} placeholder not resolved"
+            )
             assert (
                 "NOT IN ('mysql', 'performance_schema', 'information_schema', "
                 "'sys', 'atlan_meta')"
@@ -780,9 +780,7 @@ class TestInitSqlClientMaterializesMirror:
                     "extra": {"clonedInformationSchema": "atlan_meta"},
                 }
             ):
-                asyncio.get_event_loop().run_until_complete(
-                    app._init_sql_client(input_)
-                )
+                asyncio.run(app._init_sql_client(input_))
 
         assert input_.control_config_strategy == "custom"
         assert input_.control_config == {"clonedInformationSchema": "atlan_meta"}
@@ -801,9 +799,7 @@ class TestInitSqlClientMaterializesMirror:
         with patch.object(MySQLApp, "sql_client_class", return_value=fake_client):
             input_ = self._input()
             with self._patch_resolver(fake_creds={"host": "x", "port": "3306"}):
-                asyncio.get_event_loop().run_until_complete(
-                    app._init_sql_client(input_)
-                )
+                asyncio.run(app._init_sql_client(input_))
 
         assert input_.control_config_strategy == "default"
 
@@ -836,6 +832,7 @@ class TestMySQLAppRun:
 
         from application_sdk.templates.contracts.sql_metadata import (
             ExtractionTaskOutput,
+            PrimeAuthOutput,
         )
 
         # SDK v3.12+ (BLDX-1281): each extract_* returns
@@ -852,6 +849,17 @@ class TestMySQLAppRun:
 
         with (
             patch("temporalio.workflow.info", return_value=wf_info),
+            # SDK BLDX-1295: SqlApp.run() now awaits prime_sql_auth before
+            # the parallel extract fan-out. The real prime task opens a
+            # SQL connection — patch it out for these run() tests since
+            # they're about output-prefix derivation, not the prime
+            # itself (the prime has its own dedicated coverage in
+            # application-sdk's tests/unit/templates/test_sql_app.py).
+            patch.object(
+                MySQLApp,
+                "prime_sql_auth",
+                new=AsyncMock(return_value=PrimeAuthOutput(duration_ms=1.0)),
+            ),
             patch.object(
                 MySQLApp,
                 "extract_databases",
@@ -903,8 +911,9 @@ class TestMySQLAppRun:
             patch.object(
                 MySQLApp, "prime_sql_auth", new=AsyncMock(return_value=MagicMock())
             ),
+            patch.object(MySQLApp, "upload", new=AsyncMock(return_value=MagicMock())),
         ):
-            return asyncio.get_event_loop().run_until_complete(app.run(input_))
+            return asyncio.run(app.run(input_))
 
     def test_lineage_prefixes_use_workflow_id_and_run_id(self):
         """view_lineage_output_prefix and lineage_stage_prefix must contain the

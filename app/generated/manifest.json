@@ -51,31 +51,6 @@
         "node_id": "extract"
       }
     },
-    "publish": {
-      "activity_name": "execute_workflow",
-      "activity_display_name": "Publish to Atlas",
-      "app_name": "publish",
-      "inputs": {
-        "workflow_type": "PublishWorkflow",
-        "app_name": "publish",
-        "task_queue": "atlan-publish-{deployment_name}",
-        "args": {
-          "connection_qualified_name": "$.extract.outputs.connection_qualified_name",
-          "transformed_data_prefix": "$.extract.outputs.transformed_data_prefix",
-          "publish_state_prefix": "$.extract.outputs.publish_state_prefix",
-          "current_state_prefix": "$.extract.outputs.current_state_prefix",
-          "connection_creation_enabled": true,
-          "executor_enabled": true,
-          "connection_entity": "{{connection}}",
-          "connection_cache_enabled": true,
-          "connection_cache_via_app_enabled": true,
-          "current_state_via_app_enabled": true
-        }
-      },
-      "depends_on": {
-        "node_id": "extract"
-      }
-    },
     "lineage-app": {
       "activity_name": "execute_workflow",
       "activity_display_name": "Build Lineage Entities",
@@ -94,9 +69,7 @@
           "parsed_views_path": "$.extract.outputs.view_lineage_output_prefix",
           "lineage_output_path": "$.extract.outputs.lineage_stage_prefix",
           "cache_path": "connection-cache",
-          "file_type": "json",
-          "lake_provider": "aws",
-          "cloud_storage_bucket": "$.extract.outputs.storage_bucket"
+          "file_type": "json"
         }
       },
       "depends_on": {
@@ -110,6 +83,35 @@
             "tag": "success"
           }
         ]
+      }
+    },
+    "publish": {
+      "activity_name": "execute_workflow",
+      "activity_display_name": "Publish to Atlas",
+      "app_name": "publish",
+      "inputs": {
+        "workflow_type": "PublishWorkflow",
+        "app_name": "publish",
+        "task_queue": "atlan-publish-{deployment_name}",
+        "args": {
+          "connection_qualified_name": "$.extract.outputs.connection_qualified_name",
+          "transformed_data_prefix": "$.extract.outputs.transformed_data_prefix",
+          "publish_state_prefix": "$.extract.outputs.publish_state_prefix",
+          "current_state_prefix": "$.extract.outputs.current_state_prefix",
+          "connection_creation_enabled": true,
+          "executor_enabled": true,
+          "connection_entity": "{{connection}}",
+          "connection_cache_enabled": true,
+          "connection_cache_via_app_enabled": true,
+          "current_state_enabled": true,
+          "current_state_via_app_enabled": true
+        }
+      },
+      "depends_on": {
+        "node_id": "extract"
+      },
+      "error_handling": {
+        "start_to_close_timeout_seconds": 86400
       }
     },
     "lineage-publish": {
@@ -129,14 +131,13 @@
           "executor_enabled": true,
           "cache_namespace": "lineage",
           "connection_entity": "{{connection}}",
-          "connection_cache_enabled": true,
-          "connection_cache_via_app_enabled": true,
+          "connection_cache_enabled": false,
+          "connection_cache_via_app_enabled": false,
           "current_state_via_app_enabled": true
         }
       },
       "depends_on": {
-        "node_id": "lineage-app",
-        "tag": "success"
+        "node_id": "lineage-app"
       }
     }
   }

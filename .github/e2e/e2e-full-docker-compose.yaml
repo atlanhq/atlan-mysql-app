@@ -1,22 +1,22 @@
-# e2e-full compose overlay (paired with .github/workflows/e2e-full.yaml
-# and tests/full_dag/). Sits on top of the configurator-generated base
+# e2e-full compose overlay (paired with .github/workflows/tests.yaml
+# and tests/e2e/). Sits on top of the configurator-generated base
 # + SDK CI defaults; replaces the per-PR SDR integration overlay
 # (localstorage + hermetic seed) with:
 #
 #   1. Sibling mysql:8.0 with the SAME .github/e2e/seed.sql so the
 #      hermetic dataset is reused for deterministic asset counts.
-#   2. ATLAN_AUTH_CLIENT_ID / ATLAN_AUTH_CLIENT_SECRET propagated to
-#      the connector container so the Dapr S3 binding can SigV4-sign
-#      uploads to the tenant's /api/blobstorage proxy. Long-lived OAuth
-#      pair (provisioned once per tenant via /api/service/oauth-clients
-#      — see BLDX-1254) — no per-run STS shuffling.
-#   3. ATLAN_DEPLOYMENT_NAME=e2e-full-ci-<run_id> so the worker
+#   2. ATLAN_DEPLOYMENT_NAME=e2e-full-ci-<run_id> so the worker
 #      registers on Temporal queue atlan-mysql-e2e-full-ci-<run_id>.
 #      The test class' agent_spec() produces a matching agent_name
 #      = mysql-e2e-full-ci-<run_id>, so AE dispatches extract
 #      activities to the same queue this worker listens on. Every
 #      CI run has a clearly-labeled unique queue + workflow lineage
 #      for grep-driven traceability across systems.
+#
+# The S3/blobstorage objectstore component and ATLAN_AUTH_CLIENT_ID/
+# SECRET are handled by the configurator + SDK's docker-compose.ci.yml
+# base layer (SDR_CLIENT_ID/SECRET → ATLAN_AUTH_CLIENT_ID/SECRET) —
+# no explicit override needed here.
 
 services:
   mysql:
@@ -49,11 +49,3 @@ services:
       # which matches what the AE workflow's agent_json + Argo template
       # build for routing. Nobody else picks up from this queue.
       - ATLAN_DEPLOYMENT_NAME=e2e-full-ci-${GITHUB_RUN_ID}
-      # OAuth client pair for the Dapr S3 binding. Read by the
-      # deployment-secret-store (secretstores.local.env) Dapr component
-      # the SDR action provisions by default; e2e-full-components/
-      # objectstore.yaml references these via secretKeyRef and signs
-      # SigV4 requests to https://devex.atlan.com/api/blobstorage
-      # using the pair as accessKey/secretKey.
-      - ATLAN_AUTH_CLIENT_ID
-      - ATLAN_AUTH_CLIENT_SECRET

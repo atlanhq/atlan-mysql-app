@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from application_sdk.errors import AppError
 from application_sdk.handler import (
     AuthInput,
     AuthOutput,
@@ -23,6 +24,7 @@ from application_sdk.observability.logger_adaptor import get_logger
 
 from app.clients import SQLClient
 from app.constants import DATABASE_PLACEHOLDER
+from app.failures import MetadataFetchError, MetadataHostMissingError
 from app.utils import (
     extract_control_config,
     resolve_excluded_schemas,
@@ -146,7 +148,7 @@ class MySQLAppHandler(Handler):
                 status=AuthStatus.SUCCESS, message="Authentication successful"
             )
         except Exception as e:
-            logger.error("MySQL auth test failed: %s", e)
+            logger.exception("MySQL auth test failed")
             return AuthOutput(status=AuthStatus.FAILED, message=str(e))
         finally:
             await client.close()
@@ -176,6 +178,7 @@ class MySQLAppHandler(Handler):
             try:
                 await client.load(credentials=creds)
             except Exception as e:
+                logger.warning("Auth preflight check failed", exc_info=True)
                 checks.append(
                     PreflightCheck(
                         name="auth", passed=False, message=f"Connection failed: {e}"
@@ -190,6 +193,7 @@ class MySQLAppHandler(Handler):
                     PreflightCheck(name="auth", passed=True, message="Authenticated")
                 )
             except Exception as e:
+                logger.warning("Auth preflight check failed", exc_info=True)
                 checks.append(
                     PreflightCheck(
                         name="auth", passed=False, message=f"Auth failed: {e}"
@@ -209,6 +213,7 @@ class MySQLAppHandler(Handler):
                     )
                 )
             except Exception as e:
+                logger.warning("Connectivity preflight check failed", exc_info=True)
                 checks.append(
                     PreflightCheck(
                         name="connectivity",
@@ -255,9 +260,9 @@ class MySQLAppHandler(Handler):
             )
 
             if not creds.get("host"):
-                raise ValueError(
-                    "fetch_metadata called with no host in credentials — "
-                    "credential resolution may not have completed yet"
+                raise MetadataHostMissingError(
+                    message="fetch_metadata called with no host in credentials — "
+                    "credential resolution may not have completed yet",
                 )
 
             await client.load(credentials=creds)
@@ -284,7 +289,8 @@ class MySQLAppHandler(Handler):
 
             return SqlMetadataOutput(objects=objects)
         except Exception as e:
-            logger.error("Failed to fetch metadata: %s", e, exc_info=True)
-            raise
+            if isinstance(e, AppError):
+                raise
+            raise MetadataFetchError(cause=e) from e
         finally:
             await client.close()
