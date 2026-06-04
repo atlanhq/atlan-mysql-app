@@ -467,9 +467,7 @@ class SQLClient(AsyncBaseSQLClient):
 
             # Inject token into connection parameters
             cparams["password"] = token
-            logger.debug(
-                "IAM token refreshed for connection (length: %d)", len(token)
-            )
+            logger.debug("IAM token refreshed for connection (length: %d)", len(token))
 
         # Test connection briefly to validate credentials
         try:

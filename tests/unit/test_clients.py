@@ -324,9 +324,7 @@ class TestMySQLClient:
             message="inner-typed error",
             failure_reason="empty_token",
         )
-        with patch.object(
-            SQLClient, "get_iam_role_token", side_effect=sentinel
-        ):
+        with patch.object(SQLClient, "get_iam_role_token", side_effect=sentinel):
             client = SQLClient()
             with pytest.raises(IamTokenGenerationError) as exc_info:
                 await client.load(iam_role_credentials)
