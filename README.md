@@ -91,9 +91,11 @@ The app is available at `http://localhost:8000`.
 ### Unit Tests
 
 ```bash
-make test        # 45 tests, 84%+ coverage
+make test        # runs the full unit suite
 make test-cov    # with HTML coverage report
 ```
+
+Coverage threshold is enforced by `pytest-cov` via `[tool.coverage.report].fail_under` in `pyproject.toml` (currently `84`). Auto-generated files under `app/generated/**` are excluded via `[tool.coverage.run].omit` since they're regenerated from `contract/app.pkl` and have no value being tested. If you lower the threshold, do so deliberately — the SDK's Certify-app publish gate runs the same `pytest --cov` and a coverage failure exits the unit-tests step non-zero, which blocks marketplace publish.
 
 ### Integration Tests (E2E)
 
@@ -147,25 +149,85 @@ app/
     └── manifest.json
 
 tests/
-├── unit/                 # 45 unit tests
+├── unit/                 # unit suite (auth, mappers, handlers, parity, etc.)
 │   ├── test_mysql_app.py   # MySQLApp class attrs, mappers, hierarchy
 │   ├── test_handler.py     # Handler auth, preflight, metadata
 │   └── test_clients.py     # SQLClient init, auth types, connection strings
-└── e2e/                  # 8 integration tests
+└── e2e/                  # integration tests
     ├── conftest.py         # Testcontainers MySQL + Dapr credential setup
     ├── fixtures/seed.sql   # 5 databases, 99 tables, 1500+ columns
     └── test_mysql_e2e.py   # Handler + workflow + artifact validation
 
 ```
 
+## Contract & Codegen
+
+The app's metadata (connector form, manifest, channel/segment config, secret schemas) is **generated** from `contract/app.pkl` by the [App Contract Toolkit](https://github.com/atlanhq/application-sdk). The committed `app/generated/` directory is the output of that codegen — never edit it by hand.
+
+### When to regenerate
+
+Run `uv run poe generate` after editing `contract/app.pkl` or bumping the toolkit version in `contract/PklProject`. The task is defined in `pyproject.toml`:
+
+```toml
+[tool.poe.tasks]
+generate = "bash -c 'cd contract && pkl eval -m generated app.pkl && cp generated/app/generated/*.json ../app/generated/ && rm -rf generated'"
+```
+
+Then commit the resulting changes under `app/generated/`.
+
+### Why this matters for publish
+
+The SDK Certify-app gate (in the Build & Publish workflow) runs `poe generate` and then `git diff --exit-code` to ensure the committed output is current. If `poe generate` errors or leaves a dirty working tree, **publish is blocked**. Two failure modes to know about:
+
+- **`Unrecognized task 'generate'`** — `pyproject.toml` is missing the task. Required by every connector app shipped through the SDK Certify gate.
+- **`generated/ is stale`** — `contract/app.pkl` was changed but `app/generated/` wasn't regenerated. Run `uv run poe generate` and commit.
+
+## Release & Publish
+
+The repo uses a **label-driven** release flow wired up by three workflows:
+
+| Workflow | Trigger | Role |
+|----------|---------|------|
+| `release.yaml` | manual or scheduled | Calls SDK's `release-version-bump.yaml` — opens an auto bump PR with the `release` label |
+| `release-gate.yaml` | every PR | Blocks merge of any PR labeled `release` until a reviewer also adds the `e2e` label |
+| `tag-and-publish.yaml` | PR merged to `main` with `release` label | Creates the git tag + GitHub Release, which then fires `build-and-publish.yaml` with `publish=true` and runs the full Certify → Build → Push → Marketplace chain |
+
+### How to cut a new version
+
+1. **Bump PR is opened** by the version-bump workflow (auto-labels `release`).
+2. **Reviewer adds `e2e`** to the bump PR — this is the explicit opt-in to run the full e2e suite as the final gate. Without it, `Release Gate` fails by design.
+3. **Wait for `Tests / tests-passed` to be green** (unit + e2e). Force-pushes to the bump branch cancel in-flight runs; just rerun if needed.
+4. **Merge the PR.** GitHub fires `pull_request.closed` → `tag-and-publish.yaml` creates the tag + Release → `release.types[published]` → `build-and-publish.yaml` runs with `publish=true`.
+
+### What "publish=true" actually controls
+
+The wrapper at `.github/workflows/build-and-publish.yaml` resolves the flag:
+
+```yaml
+publish: ${{ github.event_name == 'release' || inputs.publish == true }}
+```
+
+So `publish=true` happens **automatically** on a GitHub Release event, or **manually** via `gh workflow run build-and-publish.yaml -f publish=true`. When false, Certify-app, Credential leak gate, Validate Channel + Branch, and Publish-to-Marketplace are all skipped by design — that's why a normal push-to-`main` Build & Publish run shows several jobs in a "skipped" state. They're not failing, they're gated.
+
+### Common publish failures
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `Unrecognized task 'generate'` in Certify-app | `pyproject.toml` missing the `generate` poe task | Add the task (see Contract & Codegen above) |
+| `Coverage failure: total of N is less than fail-under=M` | Coverage below threshold | Add tests, or update `[tool.coverage.run].omit` if newly-generated files are dragging it down, or adjust `fail_under` |
+| `Release PR requires the 'e2e' label` | `release-gate.yaml` blocks unlabeled release PRs | Reviewer adds the `e2e` label |
+| Certification verdict fails despite unit tests passing | One of `check_migration`, `contract_drift`, or `coverage_threshold` was warn-only but `unit` tests failed (which IS blocking) | Inspect the Certify-app step summary on the failing run |
+
 ## CI/CD
 
 | Workflow | Trigger | What it does |
 |----------|---------|-------------|
-| **Pre-commit** | All PRs | Ruff lint + format, pyright, isort |
-| **Unit Tests** | All PRs | 45 tests, coverage report on PR |
-| **Integration Tests** | Push to main, `run-e2e` label | Testcontainers MySQL + Dapr + Temporal |
-| **Build Image** | Push to main, tags | Docker build + push to GHCR |
+| **Pre-commit** | All PRs | Ruff lint + format, pyright |
+| **Tests** | All PRs, push to main | Unit + integration tests; `tests-passed` is the required check |
+| **Release Gate** | All PRs | Passes immediately for non-release PRs; blocks `release`-labeled PRs until `e2e` label is added |
+| **Build & Publish** | Push to main, `release.types[published]`, `workflow_dispatch` | Build + scan + dispatch deploy; on `release` events also Certify + Marketplace publish |
+| **Tag and Publish** | PR `closed` with `release` label | Creates git tag + GitHub Release — the trigger for the publish chain |
+| **Vulnerability Scan** | All PRs | Trivy + Snyk + Socket security checks |
 
 ## Makefile Reference
 
