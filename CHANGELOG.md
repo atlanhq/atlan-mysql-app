@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.1.3 (June 04, 2026)
+
+Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v1.1.2...v1.1.3
+
+### Bug Fixes
+
+- cover IAM token validation, error translation, and env-var lifecycle (#168) (by @vaibhavatlan in [97a4297](https://github.com/atlanhq/atlan-mysql-app/commit/97a4297))
+
+
 ## v1.1.2 (June 04, 2026)
 
 Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v1.1.1...v1.1.2
