@@ -9,9 +9,11 @@ from application_sdk.clients.sql_errors import (
     SqlClientConfigError,
     SqlCredentialsParseError,
 )
+from application_sdk.common.aws_utils_errors import AwsAssumeRoleError
 from application_sdk.common.error_codes import ClientError
 
 from app.clients import SQLClient
+from app.failures import IamTokenGenerationError
 
 
 class TestMySQLClient:
@@ -248,6 +250,87 @@ class TestMySQLClient:
             mock_create_engine.assert_called_once()
             # Verify event listener was registered
             mock_listens_for.assert_called()
+
+    @pytest.mark.asyncio
+    async def test_load_iam_role_translates_assume_role_error(
+        self, iam_role_credentials
+    ):
+        """AwsAssumeRoleError raised during initial token gen surfaces as
+        IamTokenGenerationError (AuthError) with a message that the SDK
+        auth-cache prime classifier routes to AuthError."""
+        with patch(
+            "app.clients.generate_aws_rds_token_with_iam_role",
+            side_effect=AwsAssumeRoleError(cause=Exception("STS denied")),
+        ):
+            client = SQLClient()
+            with pytest.raises(IamTokenGenerationError) as exc_info:
+                await client.load(iam_role_credentials)
+            assert "authentication failed" in str(exc_info.value).lower()
+            assert exc_info.value.failure_reason == "assume_role_denied"
+
+    @pytest.mark.asyncio
+    async def test_load_iam_role_event_listener_translates_assume_role_error(
+        self, iam_role_credentials
+    ):
+        """AwsAssumeRoleError raised from the do_connect event listener
+        (token refresh after initial load succeeded) is translated by
+        load()'s outer wrapper to IamTokenGenerationError."""
+        token_calls = {"n": 0}
+
+        def fake_token(*args, **kwargs):
+            token_calls["n"] += 1
+            if token_calls["n"] == 1:
+                return "initial_token"
+            raise AwsAssumeRoleError(cause=Exception("STS denied on refresh"))
+
+        with (
+            patch(
+                "app.clients.generate_aws_rds_token_with_iam_role",
+                side_effect=fake_token,
+            ),
+            patch("app.clients.create_async_engine") as mock_create_engine,
+            patch("sqlalchemy.event.listens_for"),
+        ):
+            mock_engine = MagicMock()
+
+            # connect() returns an async context manager whose __aenter__
+            # simulates the do_connect listener firing on the second
+            # token-gen call.
+            def _connect():
+                fake_token()  # trigger the refresh path that raises
+                ctx = AsyncMock()
+                ctx.__aenter__ = AsyncMock(return_value=AsyncMock())
+                ctx.__aexit__ = AsyncMock(return_value=None)
+                return ctx
+
+            mock_engine.connect.side_effect = _connect
+            mock_engine.sync_engine = MagicMock()
+            mock_engine.dispose = AsyncMock()
+            mock_create_engine.return_value = mock_engine
+
+            client = SQLClient()
+            with pytest.raises(IamTokenGenerationError) as exc_info:
+                await client.load(iam_role_credentials)
+            assert "authentication failed" in str(exc_info.value).lower()
+            assert exc_info.value.failure_reason == "assume_role_denied"
+
+    @pytest.mark.asyncio
+    async def test_load_iam_role_passes_through_existing_iam_token_error(
+        self, iam_role_credentials
+    ):
+        """An IamTokenGenerationError raised by inner code is re-raised
+        unchanged — no double-wrapping or message mutation."""
+        sentinel = IamTokenGenerationError(
+            message="inner-typed error",
+            failure_reason="empty_token",
+        )
+        with patch.object(
+            SQLClient, "get_iam_role_token", side_effect=sentinel
+        ):
+            client = SQLClient()
+            with pytest.raises(IamTokenGenerationError) as exc_info:
+                await client.load(iam_role_credentials)
+            assert exc_info.value is sentinel
 
     @pytest.mark.asyncio
     async def test_load_invalid_auth_type(self):
