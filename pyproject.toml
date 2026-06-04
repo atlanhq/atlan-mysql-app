@@ -132,6 +132,9 @@ log_cli_format = "%(levelname)-8s %(name)s — %(message)s"
 [tool.coverage.run]
 omit = [
     "tests/**",
+    # Auto-generated from contract/app.pkl via the PKL toolkit — no value
+    # in testing it (regenerated on every contract change).
+    "app/generated/**",
 ]
 
 [tool.coverage.report]
