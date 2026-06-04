@@ -149,6 +149,26 @@ pipeline {
   }
 }
 
+// Override the auto-generated publish node to inject the
+// `delete_percentage_circuit_breaker` arg, which PublishStep doesn't expose
+// as a typed field yet. Mirrors the values PublishStep would have emitted;
+// only the breaker arg is additive. The lineage-publish node continues to be
+// emitted from pipeline.publish.lineagePublish.
+extraNodes {
+  ["publish"] = new PublishNode {
+    connectionCacheEnabled = true
+    connectionCacheViaAppEnabled = true
+    currentStateEnabled = true
+    currentStateViaAppEnabled = true
+    errorHandling = new ErrorHandlingConfig {
+      startToCloseTimeoutSeconds = 86400
+    }
+    args {
+      ["delete_percentage_circuit_breaker"] = 90.0
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Agent selector config — drives SDR credential path collection.
 // Mirrors trino's pattern: each auth-type maps the same credential fields the

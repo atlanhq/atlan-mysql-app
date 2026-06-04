@@ -83,35 +83,6 @@
         ]
       }
     },
-    "publish": {
-      "activity_name": "execute_workflow",
-      "activity_display_name": "Publish to Atlas",
-      "app_name": "publish",
-      "inputs": {
-        "workflow_type": "PublishWorkflow",
-        "app_name": "publish",
-        "task_queue": "atlan-publish-{deployment_name}",
-        "args": {
-          "connection_qualified_name": "$.extract.outputs.connection_qualified_name",
-          "transformed_data_prefix": "$.extract.outputs.transformed_data_prefix",
-          "publish_state_prefix": "$.extract.outputs.publish_state_prefix",
-          "current_state_prefix": "$.extract.outputs.current_state_prefix",
-          "connection_creation_enabled": true,
-          "executor_enabled": true,
-          "connection_entity": "{{connection}}",
-          "connection_cache_enabled": true,
-          "connection_cache_via_app_enabled": true,
-          "current_state_enabled": true,
-          "current_state_via_app_enabled": true
-        }
-      },
-      "depends_on": {
-        "node_id": "extract"
-      },
-      "error_handling": {
-        "start_to_close_timeout_seconds": 86400
-      }
-    },
     "lineage-publish": {
       "activity_name": "execute_workflow",
       "activity_display_name": "Publish Lineage to Atlas",
@@ -136,6 +107,36 @@
       },
       "depends_on": {
         "node_id": "lineage-app"
+      }
+    },
+    "publish": {
+      "activity_name": "execute_workflow",
+      "activity_display_name": "Publish to Atlas",
+      "app_name": "publish",
+      "inputs": {
+        "workflow_type": "PublishWorkflow",
+        "app_name": "publish",
+        "task_queue": "atlan-publish-{deployment_name}",
+        "args": {
+          "connection_qualified_name": "$.extract.outputs.connection_qualified_name",
+          "transformed_data_prefix": "$.extract.outputs.transformed_data_prefix",
+          "publish_state_prefix": "$.extract.outputs.publish_state_prefix",
+          "current_state_prefix": "$.extract.outputs.current_state_prefix",
+          "connection_creation_enabled": true,
+          "executor_enabled": true,
+          "connection_entity": "{{connection}}",
+          "connection_cache_enabled": true,
+          "connection_cache_via_app_enabled": true,
+          "current_state_enabled": true,
+          "current_state_via_app_enabled": true,
+          "delete_percentage_circuit_breaker": 90.0
+        }
+      },
+      "depends_on": {
+        "node_id": "extract"
+      },
+      "error_handling": {
+        "start_to_close_timeout_seconds": 86400
       }
     }
   }
