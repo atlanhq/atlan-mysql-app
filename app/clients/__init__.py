@@ -321,114 +321,21 @@ class SQLClient(AsyncBaseSQLClient):
         auth_type = credentials.get("authType", "basic").lower()
 
         if auth_type in ("iam_user", "iam_role"):
-            # For IAM auth, use event listener pattern to inject token at connection time
-            # This is the recommended approach for SQLAlchemy async engines with IAM auth
-
-            # Get raw IAM token (not URL-encoded)
-            if auth_type == "iam_user":
-                raw_token = self.get_iam_user_token()
-            else:  # iam_role
-                raw_token = self.get_iam_role_token()
-
-            # Determine username based on auth type
-            extra = parse_credentials_extra(credentials)
-            if auth_type == "iam_user":
-                username = extra.get("username")
-                if not username:
-                    raise CredentialFieldMissingError(
-                        message="extra.username (MySQL database user) is required for IAM user authentication",
-                        field="extra.username",
-                    )
-            else:  # iam_role
-                username = credentials.get("username")
-                if not username:
-                    raise CredentialFieldMissingError(
-                        message="username (MySQL database user) is required for IAM role authentication",
-                        field="username",
-                    )
-
-            host = credentials.get("host")
-            port = credentials.get("port")
-            if not host or not port:
-                raise CredentialFieldMissingError(
-                    message="host and port are required for IAM authentication",
-                    field="host",
-                )
-
-            # Build query parameters
-            query_params: Dict[str, str] = {}
-            if self.DB_CONFIG and self.DB_CONFIG.defaults:
-                for key, value in self.DB_CONFIG.defaults.items():
-                    if value is not None:
-                        query_params[key] = str(value)
-
-            url_kwargs = {
-                "drivername": "mysql+aiomysql",
-                "host": host,
-                "port": int(port),
-            }
-            if query_params:
-                url_kwargs["query"] = query_params
-
-            engine_url = URL.create(**url_kwargs)
-
-            # Create SSL context without certificate verification for RDS IAM auth
-            ssl_context = self._create_ssl_context()
-
-            # Create async engine with all auth parameters in connect_args
-            connect_args = dict(self.DB_CONFIG.connect_args if self.DB_CONFIG else {})
-            connect_args["user"] = username
-            connect_args["password"] = raw_token
-            connect_args["auth_plugin"] = "mysql_clear_password"
-            connect_args["ssl"] = ssl_context
-
-            self.engine = create_async_engine(
-                str(engine_url),
-                connect_args=connect_args,
-                pool_pre_ping=True,
-            )
-
-            if not self.engine:
-                raise EngineCreationError()
-
-            # Register event listener as additional safety to ensure token is injected
-            # This ensures fresh tokens on each connection (tokens expire)
-            @event.listens_for(self.engine.sync_engine, "do_connect")
-            def provide_token(dialect, conn_rec, cargs, cparams):
-                """Event listener to inject/refresh IAM token before connecting."""
-                # Get fresh token (tokens expire, so regenerate for each connection)
-                if auth_type == "iam_user":
-                    token = self.get_iam_user_token()
-                else:  # iam_role
-                    token = self.get_iam_role_token()
-
-                # Inject token into connection parameters
-                cparams["password"] = token
-                logger.debug(
-                    "IAM token refreshed for connection (length: %d)", len(token)
-                )
-
-            # Test connection briefly to validate credentials
             try:
-                async with self.engine.connect() as _:
-                    pass  # Connection test successful
+                await self._load_iam(credentials, auth_type)
             except IamTokenGenerationError:
-                raise  # already typed from event listener; propagate as-is
-            except Exception as e:
-                # The token was generated successfully, so a connection-test
-                # failure here is almost always MySQL rejecting the IAM token
-                # (e.g. "Access denied" or "Lost connection" from auth-plugin
-                # negotiation).  Re-raise with "authentication failed" in the
-                # message so the SDK auth-cache prime classifier routes it to
-                # AuthError rather than DependencyUnavailableError.
+                raise
+            except AwsAssumeRoleError as e:
+                # Defense-in-depth: any AwsAssumeRoleError that escapes the
+                # inner catch in get_iam_role_token() (or the do_connect event
+                # listener) is translated here so the SDK auth-cache prime
+                # classifier (_classify_prime_failure auth_msg_hints) routes
+                # this to AuthError rather than the InternalError fallback.
                 raise IamTokenGenerationError(
-                    message="AWS IAM authentication failed — MySQL rejected the connection after token injection",
-                    failure_reason="connection_rejected",
+                    message="AWS IAM role authentication failed — could not assume the configured role",
+                    failure_reason="assume_role_denied",
                     cause=e,
                 ) from e
-
-            # Don't store persistent connection (base class sets this to None)
-            # self.connection is managed by the base class
         else:
             # For basic auth, enable SSL by default (matching legacy JDBC driver behavior)
             # Create SSL context and modify DB_CONFIG.connect_args before calling base class
@@ -469,3 +376,116 @@ class SQLClient(AsyncBaseSQLClient):
                 await super(SQLClient, self).load(credentials)
 
             await _load_with_retry()
+
+    async def _load_iam(self, credentials: Dict[str, Any], auth_type: str) -> None:
+        """Load engine for IAM (user or role) authentication.
+
+        Extracted from ``load`` so the outer caller can wrap this entire
+        path in a single ``try/except AwsAssumeRoleError`` — STS failures
+        raised from any inner call site (initial token gen, do_connect
+        event listener, connection test) are translated to
+        ``IamTokenGenerationError`` before they leave the mysql app
+        boundary.
+        """
+        # Get raw IAM token (not URL-encoded)
+        if auth_type == "iam_user":
+            raw_token = self.get_iam_user_token()
+        else:  # iam_role
+            raw_token = self.get_iam_role_token()
+
+        # Determine username based on auth type
+        extra = parse_credentials_extra(credentials)
+        if auth_type == "iam_user":
+            username = extra.get("username")
+            if not username:
+                raise CredentialFieldMissingError(
+                    message="extra.username (MySQL database user) is required for IAM user authentication",
+                    field="extra.username",
+                )
+        else:  # iam_role
+            username = credentials.get("username")
+            if not username:
+                raise CredentialFieldMissingError(
+                    message="username (MySQL database user) is required for IAM role authentication",
+                    field="username",
+                )
+
+        host = credentials.get("host")
+        port = credentials.get("port")
+        if not host or not port:
+            raise CredentialFieldMissingError(
+                message="host and port are required for IAM authentication",
+                field="host",
+            )
+
+        # Build query parameters
+        query_params: Dict[str, str] = {}
+        if self.DB_CONFIG and self.DB_CONFIG.defaults:
+            for key, value in self.DB_CONFIG.defaults.items():
+                if value is not None:
+                    query_params[key] = str(value)
+
+        url_kwargs = {
+            "drivername": "mysql+aiomysql",
+            "host": host,
+            "port": int(port),
+        }
+        if query_params:
+            url_kwargs["query"] = query_params
+
+        engine_url = URL.create(**url_kwargs)
+
+        # Create SSL context without certificate verification for RDS IAM auth
+        ssl_context = self._create_ssl_context()
+
+        # Create async engine with all auth parameters in connect_args
+        connect_args = dict(self.DB_CONFIG.connect_args if self.DB_CONFIG else {})
+        connect_args["user"] = username
+        connect_args["password"] = raw_token
+        connect_args["auth_plugin"] = "mysql_clear_password"
+        connect_args["ssl"] = ssl_context
+
+        self.engine = create_async_engine(
+            str(engine_url),
+            connect_args=connect_args,
+            pool_pre_ping=True,
+        )
+
+        if not self.engine:
+            raise EngineCreationError()
+
+        # Register event listener as additional safety to ensure token is injected
+        # This ensures fresh tokens on each connection (tokens expire)
+        @event.listens_for(self.engine.sync_engine, "do_connect")
+        def provide_token(dialect, conn_rec, cargs, cparams):
+            """Event listener to inject/refresh IAM token before connecting."""
+            # Get fresh token (tokens expire, so regenerate for each connection)
+            if auth_type == "iam_user":
+                token = self.get_iam_user_token()
+            else:  # iam_role
+                token = self.get_iam_role_token()
+
+            # Inject token into connection parameters
+            cparams["password"] = token
+            logger.debug("IAM token refreshed for connection (length: %d)", len(token))
+
+        # Test connection briefly to validate credentials
+        try:
+            async with self.engine.connect() as _:
+                pass  # Connection test successful
+        except IamTokenGenerationError:
+            raise  # already typed from event listener; propagate as-is
+        except AwsAssumeRoleError:
+            raise  # let load()'s outer wrapper translate it
+        except Exception as e:
+            # The token was generated successfully, so a connection-test
+            # failure here is almost always MySQL rejecting the IAM token
+            # (e.g. "Access denied" or "Lost connection" from auth-plugin
+            # negotiation).  Re-raise with "authentication failed" in the
+            # message so the SDK auth-cache prime classifier routes it to
+            # AuthError rather than DependencyUnavailableError.
+            raise IamTokenGenerationError(
+                message="AWS IAM authentication failed — MySQL rejected the connection after token injection",
+                failure_reason="connection_rejected",
+                cause=e,
+            ) from e
