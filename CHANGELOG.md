@@ -1,5 +1,14 @@
 # Changelog
 
+## v1.1.1 (June 04, 2026)
+
+Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v1.1.0...v1.1.1
+
+### Bug Fixes
+
+- translate AwsAssumeRoleError at load() boundary so STS failures route to AuthError (#162) (by @vaibhavatlan in [b4af488](https://github.com/atlanhq/atlan-mysql-app/commit/b4af488))
+
+
 ## v1.1.0 (June 03, 2026)
 
 Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v1.0.0...v1.1.0
