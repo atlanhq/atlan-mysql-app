@@ -4,8 +4,8 @@
 
 # MySQL Application
 
-[![Tests](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/tests.yml/badge.svg)](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/tests.yml)
-[![Build](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/build-image.yml/badge.svg)](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/build-image.yml)
+[![Tests](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/tests.yaml/badge.svg)](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/tests.yaml)
+[![Build](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/build-and-publish.yaml/badge.svg)](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/build-and-publish.yaml)
 [![Checked with pyright](https://microsoft.github.io/pyright/img/pyright_badge.svg)](https://microsoft.github.io/pyright/)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 
@@ -43,16 +43,16 @@ MySQLApp(SqlApp)                    MySQLHandler(Handler)
 
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/)
-- [Dapr CLI](https://docs.dapr.io/getting-started/install-dapr-cli/)
-- [Temporal CLI](https://docs.temporal.io/cli)
-- Docker (optional, for testcontainers)
+- Docker (optional, for testcontainers-based e2e)
+
+> No standalone Dapr or Temporal CLI install is needed for local dev — the SDK's embedded dev mode boots both in-process.
 
 ### Setup
 
 ```bash
 git clone https://github.com/atlanhq/atlan-mysql-app.git
 cd atlan-mysql-app
-make install
+uv sync --all-extras
 ```
 
 ### Local Development
@@ -66,13 +66,17 @@ export MYSQL_USER="root"
 export MYSQL_PASSWORD=""
 ```
 
-Start the app (sets up Dapr creds, starts Temporal + Dapr, runs the app):
+Start the app via the SDK's embedded dev runner — in-process Temporal + in-process backends for state, secrets, and object storage (see `app/run_dev.py`):
 
 ```bash
-source .env && make dev
+source .env && uv run python -m app.run_dev
+# or equivalently:
+source .env && uv run python main.py
 ```
 
 The app is available at `http://localhost:8000`.
+
+> Production / container deployments don't use `main.py` at all — the v3 base image launches the SDK's CLI with `ATLAN_APP_MODULE=app.mysql:MySQLApp` (see `Dockerfile` and `atlan.yaml` → `deploy.env`), which goes through `application_sdk.main:run_combined_mode` with the real Dapr-backed stores.
 
 ### API Endpoints
 
@@ -91,8 +95,8 @@ The app is available at `http://localhost:8000`.
 ### Unit Tests
 
 ```bash
-make test        # 45 tests, 84%+ coverage
-make test-cov    # with HTML coverage report
+uv run pytest tests/unit/ -v
+uv run pytest tests/unit/ --cov=app --cov-report=term-missing --cov-report=html  # with coverage
 ```
 
 ### Integration Tests (E2E)
@@ -102,13 +106,13 @@ Tests run against a real MySQL database. Two modes:
 **With Docker (testcontainers — zero config):**
 
 ```bash
-make test-e2e    # spins up MySQL container, seeds 5 DBs / 99 tables / 1500+ columns
+uv run pytest tests/e2e/ -v --timeout=600
 ```
 
 **With external MySQL:**
 
 ```bash
-source .env && make test-e2e    # uses MYSQL_HOST from .env
+source .env && uv run pytest tests/e2e/ -v --timeout=600    # uses MYSQL_HOST from .env
 ```
 
 E2E tests validate:
@@ -120,11 +124,14 @@ E2E tests validate:
 
 ### Remote E2E (vcluster)
 
-```bash
-make test-e2e-remote    # port-forwards to deployed app, runs e2e suite
-```
+Port-forward to the deployed app and run the e2e suite against it:
 
-Requires `APP_NAMESPACE`, `APP_DEPLOYMENT`, `REMOTE_CREDENTIAL_GUID` env vars.
+```bash
+kubectl port-forward -n mysql-app deployment/mysql-server 8000:8000 &
+kubectl port-forward -n temporal svc/temporal-cluster-internal-frontend-headless 7233:7236 &
+APP_BASE_URL=http://localhost:8000 CREDENTIAL_GUID=local-mysql \
+  uv run pytest tests/e2e/ -v --timeout=600
+```
 
 ## Project Structure
 
@@ -162,24 +169,31 @@ tests/
 
 | Workflow | Trigger | What it does |
 |----------|---------|-------------|
-| **Pre-commit** | All PRs | Ruff lint + format, pyright, isort |
-| **Unit Tests** | All PRs | 45 tests, coverage report on PR |
-| **Integration Tests** | Push to main, `run-e2e` label | Testcontainers MySQL + Dapr + Temporal |
-| **Build Image** | Push to main, tags | Docker build + push to GHCR |
+| **Pre-commit Checks** | All PRs | Ruff lint + format, pyright, isort |
+| **Tests** | All PRs, push to main | Unit + integration (testcontainers); `e2e` label runs the full DAG against a real tenant |
+| **Build & Publish** | Push to main, releases | Docker build + push to GHCR + marketplace publish |
+| **Vulnerability Scan** | All PRs | Dependency + image CVE scan |
+| **Dep Cooldown** | All PRs | Blocks dep bumps younger than the org threshold |
+| **Docstring Coverage** | All PRs | Enforces docstring coverage of `app/` |
+| **Conventional Commits** | All PRs | Validates PR title format |
+| **Autolabel** | All PRs | Labels PRs from conventional-commit prefix |
+| **Release Gate** | Release-bump PRs | Requires `e2e` label before merge |
+| **Release Version Bump** | Merge to main | Opens a version-bump PR |
+| **Release and Publish** | Merge of release-labeled PR | Tags + creates GitHub release |
+| **Update Security Dashboard** | After scans | Pushes results to security dashboard |
+| **Weekly Dependency Update** | Mon 07:00 UTC | Opens a dep-upgrade PR if anything changed |
 
-## Makefile Reference
+## Common Commands
 
-```
-make install          # Install deps + download Dapr components
-make dev              # Setup creds + start Temporal/Dapr + run app
-make test             # Unit tests
-make test-cov         # Unit tests with coverage report
-make test-e2e         # Integration tests (testcontainers or external MySQL)
-make test-e2e-remote  # E2E against deployed vcluster app
-make setup-local-creds # Generate Dapr secrets from env vars
-make lint             # Ruff linter
-make format           # Ruff format + fix
-make pre-commit       # Run all pre-commit hooks
-make build            # Docker build
-make clean            # Remove caches and artifacts
+```bash
+uv sync --all-extras                                # Install deps
+uv run poe download-components                      # Download Dapr components (for production parity / container builds)
+uv run python -m app.run_dev                        # Run app locally (embedded Temporal + in-process backends)
+uv run pytest tests/unit/ -v                        # Unit tests
+uv run pytest tests/e2e/ -v --timeout=600           # E2E tests
+uv run ruff check app/ tests/                       # Lint
+uv run ruff format app/ tests/                      # Format
+uv run pre-commit run --all-files                   # All pre-commit hooks
+uv run poe generate                                 # Regenerate PKL contract artifacts
+docker build -t atlan-mysql-app:latest .            # Build image
 ```
