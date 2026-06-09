@@ -6,15 +6,13 @@
 |---|---|---|
 | `tests/unit/` | Fast, isolated tests with mocked dependencies | `tests` (every PR) |
 | `tests/integration/` | Full workflow via testcontainers MySQL (no external creds) | `tests` (every PR) |
-| `tests/sdr/` | Connector in configurator docker-compose + CI tenant Temporal | `sdr` (every PR) |
 | `tests/e2e/` | Full system-apps DAG against a real tenant (extract→qi→publish→lineage) | `e2e` (`e2e` label or dispatch) |
 
 ## Running Tests Locally
 
 ### Unit + Integration (no external services needed beyond Docker)
 ```bash
-uv run poe start-deps         # start Dapr + Temporal
-uv run python main.py &       # start the app
+uv run python -m app.run_dev &    # start the app (embedded Temporal + in-process backends)
 uv run pytest tests/unit/ tests/integration/ -v
 ```
 
