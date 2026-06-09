@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="./docs/images/mysql_logo.svg" alt="MySQL Logo" width="200" height="auto">
-</p>
-
 # MySQL Application
 
 [![Tests](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/tests.yaml/badge.svg)](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/tests.yaml)
@@ -14,20 +10,22 @@ MySQL metadata extraction app built on [Atlan Application SDK v3](https://github
 ## Architecture
 
 ```
-MySQLApp(SqlApp)                    MySQLHandler(Handler)
-├── fetch_databases  @task          ├── test_auth      → AuthOutput
-├── fetch_schemas    @task          ├── preflight_check → PreflightOutput
-├── fetch_tables     @task          └── fetch_metadata  → SqlMetadataOutput
+MySQLApp(SqlApp)                    MySQLAppHandler(Handler)
+├── fetch_databases  @task          ├── test_auth        → AuthOutput
+├── fetch_schemas    @task          ├── preflight_check  → PreflightOutput
+├── fetch_tables     @task          └── fetch_metadata   → SqlMetadataOutput
 ├── fetch_columns    @task
 ├── fetch_procedures @task
 ├── transform_*      @task  (asset mappers → JSONL)
 └── upload_to_atlan  @task
 ```
 
-- **`app/mysql.py`** — `MySQLApp` extends `SqlApp` with MySQL-specific SQL queries and asset mappers
-- **`app/handlers/mysql.py`** — v3 handler for auth, preflight, and metadata endpoints
+- **`app/mysql.py`** — `MySQLApp` extends `SqlApp` with MySQL-specific SQL queries and asset mappers (`map_database`, `map_schema`, `map_table`, `map_column`, `map_procedure`)
+- **`app/handlers/mysql.py`** — `MySQLAppHandler` (v3) for auth, preflight, and metadata endpoints
 - **`app/clients/`** — `SQLClient` with basic, IAM user, and IAM role authentication
 - **`app/sql/`** — SQL templates for metadata extraction
+- **`app/run_dev.py`** — local dev entry point (embedded Dapr + Temporal via `run_dev_combined`)
+- **`app/generated/`** — PKL-generated contract artifacts (`manifest.json`, `mysql.json`, `atlan-connectors-mysql.json`, `_input.py`, `_e2e_base.py`, `_e2e_credential.py`)
 
 ### Auth Support
 
@@ -43,9 +41,9 @@ MySQLApp(SqlApp)                    MySQLHandler(Handler)
 
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/)
-- Docker (optional, for testcontainers-based e2e)
+- Docker (optional, for testcontainers-based integration tests)
 
-> No standalone Dapr or Temporal CLI install is needed for local dev — the SDK's embedded dev mode boots both in-process.
+> No standalone Dapr or Temporal CLI install is needed for local dev — the SDK's embedded dev mode boots both in-process and downloads `daprd` into `~/.cache/atlan-sdk/` on first run.
 
 ### Setup
 
@@ -87,50 +85,48 @@ The app is available at `http://localhost:8000`.
 | `/workflows/v1/check` | POST | Preflight checks (auth + table access) |
 | `/workflows/v1/metadata` | POST | Fetch schema list for UI |
 | `/workflows/v1/configmaps` | GET | List configmaps |
+| `/workflows/v1/manifest` | GET | App manifest |
+| `/workflows/v1/input-contract` | GET | JSON schema for workflow input |
 | `/workflows/v1/start` | POST | Start extraction workflow |
+| `/workflows/v1/stop/{wf_id}/{run_id}` | POST | Stop a running workflow |
+| `/workflows/v1/result/{wf_id}` | GET | Get workflow result |
 | `/workflows/v1/status/{wf_id}/{run_id}` | GET | Check workflow status |
 
 ## Testing
 
-### Unit Tests
+### Unit Tests (`tests/unit/`)
+
+96 tests covering `MySQLApp` mappers, `MySQLAppHandler`, `SQLClient` auth flows, and asset-parity contracts:
 
 ```bash
 uv run pytest tests/unit/ -v
 uv run pytest tests/unit/ --cov=app --cov-report=term-missing --cov-report=html  # with coverage
 ```
 
-### Integration Tests (E2E)
+### Integration Tests (`tests/integration/`)
 
-Tests run against a real MySQL database. Two modes:
-
-**With Docker (testcontainers — zero config):**
+Handler + workflow tests against a real MySQL via testcontainers (zero config) or an external MySQL via env vars (see `tests/integration/README.md`):
 
 ```bash
-uv run pytest tests/e2e/ -v --timeout=600
+# With Docker (testcontainers spins up MySQL + seeds 5 DBs / 99 tables / 1500+ columns)
+uv run pytest tests/integration/ -v --timeout=600
+
+# With external MySQL
+source .env && uv run pytest tests/integration/ -v --timeout=600
 ```
 
-**With external MySQL:**
+Validates handler endpoints, full workflow start → poll → COMPLETED, extracted parquet artifacts, transformed JSONL (correct `typeName`, `qualifiedName`, `connectorName`), and the extraction report.
+
+### Full-DAG E2E (`tests/e2e/`)
+
+End-to-end run of the full system-apps DAG (extract → qi → publish → lineage) against a real Atlan tenant. Gated behind the `e2e` PR label or `workflow_dispatch`:
 
 ```bash
-source .env && uv run pytest tests/e2e/ -v --timeout=600    # uses MYSQL_HOST from .env
-```
-
-E2E tests validate:
-- Health, auth, preflight, metadata, configmap endpoints
-- Full workflow: start → poll → COMPLETED
-- Extracted artifacts: raw parquet files per entity
-- Transformed artifacts: JSONL with correct `typeName`, `qualifiedName`, `connectorName`
-- Extraction report with entity counts and timings
-
-### Remote E2E (vcluster)
-
-Port-forward to the deployed app and run the e2e suite against it:
-
-```bash
-kubectl port-forward -n mysql-app deployment/mysql-server 8000:8000 &
-kubectl port-forward -n temporal svc/temporal-cluster-internal-frontend-headless 7233:7236 &
-APP_BASE_URL=http://localhost:8000 CREDENTIAL_GUID=local-mysql \
-  uv run pytest tests/e2e/ -v --timeout=600
+ATLAN_BASE_URL=https://devex.atlan.com \
+ATLAN_API_KEY=... \
+SDR_OAUTH_CLIENT_ID=... SDR_OAUTH_CLIENT_SECRET=... \
+GITHUB_RUN_ID=$(date +%s) \
+  uv run pytest tests/e2e/ -v
 ```
 
 ## Project Structure
@@ -138,38 +134,53 @@ APP_BASE_URL=http://localhost:8000 CREDENTIAL_GUID=local-mysql \
 ```
 app/
 ├── mysql.py              # MySQLApp — SqlApp subclass with SQL queries + asset mappers
-├── handlers/mysql.py     # v3 Handler — auth, preflight, metadata
+├── handlers/mysql.py     # MySQLAppHandler — auth, preflight, metadata
 ├── clients/__init__.py   # SQLClient — basic + IAM user + IAM role auth
 ├── constants.py          # DATABASE_PLACEHOLDER
+├── failures.py           # Typed failure helpers
+├── run_dev.py            # Local dev entry (embedded Dapr + Temporal)
 ├── sql/                  # SQL templates
+│   ├── client_version.sql
 │   ├── extract_database.sql
 │   ├── extract_schema.sql
 │   ├── extract_table.sql
 │   ├── extract_column.sql
 │   ├── extract_procedure.sql
+│   ├── extract_temp_table_regex_table.sql
+│   ├── extract_temp_table_regex_column.sql
 │   ├── filter_metadata.sql
-│   ├── test_authentication.sql
-│   └── tables_check.sql
-└── generated/            # PKL contract artifacts
-    └── manifest.json
+│   ├── tables_check.sql
+│   └── test_authentication.sql
+└── generated/            # PKL-generated contract artifacts (do not edit)
+    ├── manifest.json
+    ├── mysql.json
+    ├── atlan-connectors-mysql.json
+    ├── _input.py
+    ├── _e2e_base.py
+    └── _e2e_credential.py
 
 tests/
-├── unit/                 # 45 unit tests
-│   ├── test_mysql_app.py   # MySQLApp class attrs, mappers, hierarchy
-│   ├── test_handler.py     # Handler auth, preflight, metadata
-│   └── test_clients.py     # SQLClient init, auth types, connection strings
-└── e2e/                  # 8 integration tests
-    ├── conftest.py         # Testcontainers MySQL + Dapr credential setup
-    ├── fixtures/seed.sql   # 5 databases, 99 tables, 1500+ columns
-    └── test_mysql_e2e.py   # Handler + workflow + artifact validation
-
+├── unit/                       # Fast, isolated tests with mocked deps
+│   ├── test_mysql_app.py       # MySQLApp class attrs, mappers, hierarchy
+│   ├── test_handler.py         # Handler auth, preflight, metadata
+│   ├── test_clients.py         # SQLClient init, auth types, connection strings
+│   └── test_parity.py          # Asset-parity contracts (DB/schema/table/column)
+├── integration/                # Real MySQL via testcontainers or external host
+│   ├── conftest.py             # Testcontainers MySQL + credential setup
+│   ├── fixtures/seed.sql       # 5 databases, 99 tables, 1500+ columns
+│   ├── fixtures/parity_spec.json
+│   ├── test_mysql_handler.py
+│   ├── test_mysql_workflow.py
+│   └── test_credential_resolution.py
+└── e2e/                        # Full-DAG against a real tenant
+    └── test_mysql_full_dag.py
 ```
 
 ## CI/CD
 
 | Workflow | Trigger | What it does |
 |----------|---------|-------------|
-| **Pre-commit Checks** | All PRs | Ruff lint + format, pyright, isort |
+| **Pre-commit Checks** | All PRs | Ruff lint + format, pyright |
 | **Tests** | All PRs, push to main | Unit + integration (testcontainers); `e2e` label runs the full DAG against a real tenant |
 | **Build & Publish** | Push to main, releases | Docker build + push to GHCR + marketplace publish |
 | **Vulnerability Scan** | All PRs | Dependency + image CVE scan |
@@ -187,13 +198,14 @@ tests/
 
 ```bash
 uv sync --all-extras                                # Install deps
-uv run poe download-components                      # Download Dapr components (for production parity / container builds)
 uv run python -m app.run_dev                        # Run app locally (embedded Temporal + in-process backends)
 uv run pytest tests/unit/ -v                        # Unit tests
-uv run pytest tests/e2e/ -v --timeout=600           # E2E tests
+uv run pytest tests/integration/ -v --timeout=600   # Integration tests (testcontainers)
+uv run pytest tests/e2e/ -v --timeout=600           # Full-DAG E2E (requires tenant creds)
 uv run ruff check app/ tests/                       # Lint
 uv run ruff format app/ tests/                      # Format
 uv run pre-commit run --all-files                   # All pre-commit hooks
 uv run poe generate                                 # Regenerate PKL contract artifacts
+uv run poe download-components                      # Download Dapr components (production parity)
 docker build -t atlan-mysql-app:latest .            # Build image
 ```
