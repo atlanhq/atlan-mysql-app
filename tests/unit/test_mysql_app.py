@@ -12,7 +12,7 @@ class TestMySQLAppClassAttrs:
     """Verify class-level configuration."""
 
     def test_sql_client_class_set(self):
-        from app.clients import SQLClient
+        from app.client import SQLClient
 
         assert MySQLApp.sql_client_class is SQLClient
 

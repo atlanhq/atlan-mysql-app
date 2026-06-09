@@ -22,9 +22,9 @@ from application_sdk.templates.contracts.sql_metadata import (
 )
 from application_sdk.templates.sql_app import SqlApp
 
-from app.clients import SQLClient
+from app.client import SQLClient
 from app.constants import DATABASE_PLACEHOLDER, TENANT_ID
-from app.handlers.mysql import (  # noqa: F401 — SDK discovers {AppClass}Handler by convention
+from app.handler import (  # noqa: F401 — SDK discovers {AppClass}Handler by convention
     MySQLAppHandler,
 )
 

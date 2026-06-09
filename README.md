@@ -21,8 +21,8 @@ MySQLApp(SqlApp)                    MySQLAppHandler(Handler)
 ```
 
 - **`app/mysql.py`** — `MySQLApp` extends `SqlApp` with MySQL-specific SQL queries and asset mappers (`map_database`, `map_schema`, `map_table`, `map_column`, `map_procedure`)
-- **`app/handlers/mysql.py`** — `MySQLAppHandler` (v3) for auth, preflight, and metadata endpoints
-- **`app/clients/`** — `SQLClient` with basic, IAM user, and IAM role authentication
+- **`app/handler.py`** — `MySQLAppHandler` (v3) for auth, preflight, and metadata endpoints
+- **`app/client.py`** — `SQLClient` with basic, IAM user, and IAM role authentication
 - **`app/sql/`** — SQL templates for metadata extraction
 - **`app/run_dev.py`** — local dev entry point (embedded Dapr + Temporal via `run_dev_combined`)
 - **`app/generated/`** — PKL-generated contract artifacts (`manifest.json`, `mysql.json`, `atlan-connectors-mysql.json`, `_input.py`, `_e2e_base.py`, `_e2e_credential.py`)
@@ -134,8 +134,8 @@ GITHUB_RUN_ID=$(date +%s) \
 ```
 app/
 ├── mysql.py              # MySQLApp — SqlApp subclass with SQL queries + asset mappers
-├── handlers/mysql.py     # MySQLAppHandler — auth, preflight, metadata
-├── clients/__init__.py   # SQLClient — basic + IAM user + IAM role auth
+├── handler.py            # MySQLAppHandler — auth, preflight, metadata
+├── client.py             # SQLClient — basic + IAM user + IAM role auth
 ├── constants.py          # DATABASE_PLACEHOLDER
 ├── failures.py           # Typed failure helpers
 ├── run_dev.py            # Local dev entry (embedded Dapr + Temporal)
@@ -163,7 +163,7 @@ tests/
 ├── unit/                       # Fast, isolated tests with mocked deps
 │   ├── test_mysql_app.py       # MySQLApp class attrs, mappers, hierarchy
 │   ├── test_handler.py         # Handler auth, preflight, metadata
-│   ├── test_clients.py         # SQLClient init, auth types, connection strings
+│   ├── test_client.py          # SQLClient init, auth types, connection strings
 │   └── test_parity.py          # Asset-parity contracts (DB/schema/table/column)
 ├── integration/                # Real MySQL via testcontainers or external host
 │   ├── conftest.py             # Testcontainers MySQL + credential setup
