@@ -57,13 +57,13 @@ GA release. Marks the connector's transition out of the `0.x` series alongside t
 
 ### Bug Fixes
 
-- **Auto-retry on `caching_sha2_password` cold-cache auth failure** (internal-ref follow-up). `SQLClient.load()` now retries once immediately when the first basic-auth connection attempt raises `SqlClientAuthFailedError`. MySQL 8's `caching_sha2_password` server-side cache is cold on the first connection after a pod start or long idle period; the failed attempt still populates the cache as a side-effect, so one immediate retry always succeeds. No sleep or jitter is needed — the cache is populated synchronously on the server during the first handshake. If the retry also fails, the error propagates unchanged (wrong credentials, not a cold-cache issue). This eliminates the production symptom where clicking "Test Authentication" once returned 401 and clicking again immediately returned 200.
+- **Auto-retry on `caching_sha2_password` cold-cache auth failure**. `SQLClient.load()` now retries once immediately when the first basic-auth connection attempt raises `SqlClientAuthFailedError`. MySQL 8's `caching_sha2_password` server-side cache is cold on the first connection after a pod start or long idle period; the failed attempt still populates the cache as a side-effect, so one immediate retry always succeeds. No sleep or jitter is needed — the cache is populated synchronously on the server during the first handshake. If the retry also fails, the error propagates unchanged (wrong credentials, not a cold-cache issue). This eliminates the production symptom where clicking "Test Authentication" once returned 401 and clicking again immediately returned 200.
 
 ## 0.7.41 (May 24, 2026)
 
 ### Dependencies
 
-- **Promote `atlan-application-sdk` from git-hash pin to PyPI `>=3.13.1,<4`** ([application-sdk#1835](https://github.com/atlanhq/application-sdk/pull/1835)). The internal-ref `prime_sql_auth` fix shipped in SDK v3.13.1 (released 2026-05-22). Dropping the temporary git-hash override and aligning with the standard PyPI range constraint.
+- **Promote `atlan-application-sdk` from git-hash pin to PyPI `>=3.13.1,<4`** ([application-sdk#1835](https://github.com/atlanhq/application-sdk/pull/1835)). The `prime_sql_auth` fix shipped in SDK v3.13.1 (released 2026-05-22). Dropping the temporary git-hash override and aligning with the standard PyPI range constraint.
 
 ## 0.7.40 (May 24, 2026)
 
@@ -75,7 +75,7 @@ GA release. Marks the connector's transition out of the `0.x` series alongside t
 
 ### Bug Fixes
 
-- **Disable shared connection cache on the lineage-publish DAG node** ([#135](https://github.com/atlanhq/atlan-mysql-app/pull/135),). Retroactive version bump — PR #135 merged the manifest fix (`connectionCacheEnabled` / `connectionCacheViaAppEnabled` set to `false` on the `lineage-publish` node in `contract/app.pkl` and the regenerated `app/generated/manifest.json`) but did not bump `version.txt` or add a `CHANGELOG.md` entry; this release is solely those two artefacts so the customer-tenant deploy reflects PR #135. Sibling fix: [atlan-mssql-app#145](https://github.com/atlanhq/atlan-mssql-app/pull/145). Context: the `LineagePublishNode` toolkit default for these flags is `true`, so connectors that inherited the default were rewriting the shared `connection-cache/{cqn}.sqlite` from lineage-stage data on every run — flipping the cache from `Database/Schema/Table` rows to `Process/ColumnProcess` rows and breaking downstream miner runs (a prior incident saw assets affected on an impacted tenant). Lineage publish never needs the shared connection cache; disabling it on the lineage node is the contract-level fix.
+- **Disable shared connection cache on the lineage-publish DAG node** ([#135](https://github.com/atlanhq/atlan-mysql-app/pull/135)). Retroactive version bump — PR #135 merged the manifest fix (`connectionCacheEnabled` / `connectionCacheViaAppEnabled` set to `false` on the `lineage-publish` node in `contract/app.pkl` and the regenerated `app/generated/manifest.json`) but did not bump `version.txt` or add a `CHANGELOG.md` entry; this release is solely those two artefacts so the customer-tenant deploy reflects PR #135. Context: the `LineagePublishNode` toolkit default for these flags is `true`, so connectors that inherited the default were rewriting the shared `connection-cache/{cqn}.sqlite` from lineage-stage data on every run — flipping the cache from `Database/Schema/Table` rows to `Process/ColumnProcess` rows and breaking downstream miner runs. Lineage publish never needs the shared connection cache; disabling it on the lineage node is the contract-level fix.
 
 ## 0.7.38 (May 22, 2026)
 
@@ -116,13 +116,13 @@ GA release. Marks the connector's transition out of the `0.x` series alongside t
 
 ### Bug Fixes
 
-- **`tenant-deploy.yaml`: read `CREDENTIAL_GUID` + `CONNECTION_QN` from repo secrets as fallback when dispatch inputs are empty.** The "Resolve config" error message already said "set the dispatch input or the repo secret" but the workflow code only read inputs — so setting a `CREDENTIAL_GUID` secret on the repo had no effect (matching the gap in `atlan-mssql-app`'s tenant-deploy where the secret exists but is unused). Adds `SECRET_CRED_GUID` / `SECRET_CONN_QN` env, falls back to them when the inputs are empty (`${INPUT_CRED_GUID:-${SECRET_CRED_GUID:-}}`). Once the secrets are set on the repo, `gh workflow run "Deploy to Tenant"` works with zero arguments. Discovered while triggering the first MySQL tenant deploy for internal-ref.
+- **`tenant-deploy.yaml`: read `CREDENTIAL_GUID` + `CONNECTION_QN` from repo secrets as fallback when dispatch inputs are empty.** The "Resolve config" error message already said "set the dispatch input or the repo secret" but the workflow code only read inputs — so setting a `CREDENTIAL_GUID` secret on the repo had no effect (a gap the secret-fallback closes). Adds `SECRET_CRED_GUID` / `SECRET_CONN_QN` env, falls back to them when the inputs are empty (`${INPUT_CRED_GUID:-${SECRET_CRED_GUID:-}}`). Once the secrets are set on the repo, `gh workflow run "Deploy to Tenant"` works with zero arguments. Discovered while triggering the first MySQL tenant deploy.
 
 ## 0.7.34 (May 20, 2026)
 
 ### Features
 
-- **Add `Deploy to Tenant` GitHub Actions workflow** (`.github/workflows/tenant-deploy.yaml` + `.github/scripts/ae-workflow.sh`). Builds the Docker image from a branch, deploys to a specific tenant via `atlan app deploy`, creates/updates the 5-node AE workflow (`extract → qi + publish → lineage-app → lineage-publish`), submits a run, polls every stage to completion, and renders a rich step summary with per-stage durations, extract counts, publish metrics, and Temporal workflow links. Ported from `atlan-mssql-app`'s tenant-deploy pattern with mysql-specific queue names + workflow type (`mysql-metadata-extractor`).
+- **Add `Deploy to Tenant` GitHub Actions workflow** (`.github/workflows/tenant-deploy.yaml` + `.github/scripts/ae-workflow.sh`). Builds the Docker image from a branch, deploys to a specific tenant via `atlan app deploy`, creates/updates the 5-node AE workflow (`extract → qi + publish → lineage-app → lineage-publish`), submits a run, polls every stage to completion, and renders a rich step summary with per-stage durations, extract counts, publish metrics, and Temporal workflow links. Uses mysql-specific queue names + workflow type (`mysql-metadata-extractor`).
   - Manual trigger only (`workflow_dispatch`). Inputs: `tenant`, `ref`, `credential_guid`, `connection_qn`, `connection_name`, `deployment` (default `production`), `cli_version`, optional `workflow_slug` (trigger-only mode).
   - Two-scenario matrix per dispatch: `upgrade` (re-publish to existing connection, cache-driven incremental) + `fresh` (auto-generated `default/mysql/test-fresh-<run_id>` with `connection_creation_enabled: true` for a full-publish baseline).
   - Required secrets: `ATLAN_API_KEY`, `ORG_PAT_GITHUB`, `ATLAN_BASE_URL`, optional `CONNECTION_NAME`.
@@ -132,16 +132,16 @@ GA release. Marks the connector's transition out of the `0.x` series alongside t
 
 ### Breaking Changes
 
-- **Remove the explicit `upload_to_atlan` call from `MySQLApp.run()`'s procedure pipeline.** With internal-ref's canonical-storage-path fix in [application-sdk#1801](https://github.com/atlanhq/application-sdk/pull/1801), `extract_procedures` and `transform_procedures` now emit `FileReference` objects with pre-set canonical `storage_path` keys (`<run_prefix>/raw/extras-procedure/records.json` / `<run_prefix>/transformed/extras-procedure/entities.json`); the activity interceptor's persist step uploads each to that key before the activity returns. The explicit `upload_to_atlan` call was uploading the same files to the same keys — pure redundancy in single-pod runs, ineffective in cross-pod runs. The SDK has also removed `SqlApp.upload_to_atlan` entirely; this PR drops mysql-app's call to it (would otherwise be an `AttributeError`).
+- **Remove the explicit `upload_to_atlan` call from `MySQLApp.run()`'s procedure pipeline.** With the canonical-storage-path fix in [application-sdk#1801](https://github.com/atlanhq/application-sdk/pull/1801), `extract_procedures` and `transform_procedures` now emit `FileReference` objects with pre-set canonical `storage_path` keys (`<run_prefix>/raw/extras-procedure/records.json` / `<run_prefix>/transformed/extras-procedure/entities.json`); the activity interceptor's persist step uploads each to that key before the activity returns. The explicit `upload_to_atlan` call was uploading the same files to the same keys — pure redundancy in single-pod runs, ineffective in cross-pod runs. The SDK has also removed `SqlApp.upload_to_atlan` entirely; this PR drops mysql-app's call to it (would otherwise be an `AttributeError`).
 
 ### Bug Fixes
 
-- **Re-pin `atlan-application-sdk` → SHA `5979d749`** to pick up the canonical-storage-path fix + `upload_to_atlan` removal on [application-sdk#1801](https://github.com/atlanhq/application-sdk/pull/1801). Customer-tenant production incident: S3 listing showed both `<run_prefix>/file_refs/<uuid>.json` (interceptor uploads, complete) AND `<run_prefix>/transformed/<entity>/entities.json` (legacy directory walk, partial — missing entities due to cross-pod local-FS scheduling). Publish reads only `transformed/<entity>/` and was archiving assets whose canonical key was missing. The fix pre-sets `storage_path` on the FileReference at the SqlApp template's `_extract_entity` / `_transform_entity` emission sites so the interceptor lands the file at the canonical key directly, no separate upload pass needed.
+- **Re-pin `atlan-application-sdk` → SHA `5979d749`** to pick up the canonical-storage-path fix + `upload_to_atlan` removal on [application-sdk#1801](https://github.com/atlanhq/application-sdk/pull/1801). S3 listing showed both `<run_prefix>/file_refs/<uuid>.json` (interceptor uploads, complete) AND `<run_prefix>/transformed/<entity>/entities.json` (legacy directory walk, partial — missing entities due to cross-pod local-FS scheduling). Publish reads only `transformed/<entity>/` and was archiving assets whose canonical key was missing. The fix pre-sets `storage_path` on the FileReference at the SqlApp template's `_extract_entity` / `_transform_entity` emission sites so the interceptor lands the file at the canonical key directly, no separate upload pass needed.
 ## 0.7.31 (May 20, 2026)
 
 ### Bug Fixes
 
-- **Re-pin `atlan-application-sdk` → SHA `8514e7e3`** to pick up the canonical-storage-path fix on [application-sdk#1801](https://github.com/atlanhq/application-sdk/pull/1801) (follow-up to [#1792](https://github.com/atlanhq/application-sdk/pull/1792)). Customer-tenant production incident showed both `<run_prefix>/file_refs/<uuid>.json` (interceptor uploads, complete) AND `<run_prefix>/transformed/<entity>/entities.json` (legacy directory walk, partial — missing entities due to cross-pod local-FS scheduling). Publish reads only `transformed/<entity>/` and was archiving assets whose canonical key was missing. The SDK fix pre-sets `storage_path` on the FileReference emitted by `_extract_entity` / `_transform_entity` to the canonical entity-typed key, so the interceptor's persist lands the file where publish actually looks. No mysql-app code change.
+- **Re-pin `atlan-application-sdk` → SHA `8514e7e3`** to pick up the canonical-storage-path fix on [application-sdk#1801](https://github.com/atlanhq/application-sdk/pull/1801) (follow-up to [#1792](https://github.com/atlanhq/application-sdk/pull/1792)). Production runs showed both `<run_prefix>/file_refs/<uuid>.json` (interceptor uploads, complete) AND `<run_prefix>/transformed/<entity>/entities.json` (legacy directory walk, partial — missing entities due to cross-pod local-FS scheduling). Publish reads only `transformed/<entity>/` and was archiving assets whose canonical key was missing. The SDK fix pre-sets `storage_path` on the FileReference emitted by `_extract_entity` / `_transform_entity` to the canonical entity-typed key, so the interceptor's persist lands the file where publish actually looks. No mysql-app code change.
 
 ## 0.7.30 (May 19, 2026)
 
@@ -200,7 +200,7 @@ GA release. Marks the connector's transition out of the `0.x` series alongside t
 
 ### Chores
 
-- **Bump `atlan-application-sdk` git pin → fix branch `transform-file-reference`** (commit `785b9353`). TEMPORARY override pending the v3.12.0 release that will carry [#1792](https://github.com/atlanhq/application-sdk/pull/1792). Once 3.12.0 is tagged, this pin moves to `~=3.12.0` and the `[tool.uv.sources]` block is dropped entirely. `uv.lock` resynced — `atlan-application-sdk v3.10.0 → v3.12.0`.
+- **Bump `atlan-application-sdk` git pin → the SDK transform-file-reference fix branch** (commit `785b9353`). TEMPORARY override pending the v3.12.0 release that will carry [#1792](https://github.com/atlanhq/application-sdk/pull/1792). Once 3.12.0 is tagged, this pin moves to `~=3.12.0` and the `[tool.uv.sources]` block is dropped entirely. `uv.lock` resynced — `atlan-application-sdk v3.10.0 → v3.12.0`.
 - **Test-suite updates for SDK v3.12 contracts**:
   - `tests/unit/test_mysql_app.py::TestMySQLAppRun._run` — extract mocks now return real `ExtractionTaskOutput` instances (with `raw_file=None`) instead of `MagicMock`, since `run()` now Pydantic-validates the threaded ref against `FileReference` and would reject magic-mock auto-attrs.
   - `tests/unit/test_clients.py` — accept the new `SqlClientAuthFailedError` / `SqlCredentialsParseError` / `SqlClientConfigError` / `MissingSqlParamError` exception shapes the SDK now surfaces (walking the exception cause chain to assert on the failure reason).
@@ -209,7 +209,7 @@ GA release. Marks the connector's transition out of the `0.x` series alongside t
 
 ### Chores
 
-- **Bump `atlan-application-sdk` git pin → `v3.10.0`** (was SHA `b58625b4`, roughly v3.8.0). v3.10.0 is the first published release carrying the internal-ref cross-repo dispatch + full-DAG harness ([#1710](https://github.com/atlanhq/application-sdk/pull/1710)), the `.github/sdr-e2e/` config-dir convention ([#1746](https://github.com/atlanhq/application-sdk/pull/1746)), the multi-pipeline `components-dir` / `compose-overlay` overrides on the SDR composite action ([#1752](https://github.com/atlanhq/application-sdk/pull/1752)), and the `/preflight` envelope-shape refactor ([#1744](https://github.com/atlanhq/application-sdk/pull/1744)) that the connector PR + cross-repo dispatched SDR paths now agree on. `uv.lock` resynced — `atlan-application-sdk v3.8.0 → v3.10.0`.
+- **Bump `atlan-application-sdk` git pin → `v3.10.0`** (was SHA `b58625b4`, roughly v3.8.0). v3.10.0 is the first published release carrying the cross-repo dispatch + full-DAG harness ([#1710](https://github.com/atlanhq/application-sdk/pull/1710)), the `.github/sdr-e2e/` config-dir convention ([#1746](https://github.com/atlanhq/application-sdk/pull/1746)), the multi-pipeline `components-dir` / `compose-overlay` overrides on the SDR composite action ([#1752](https://github.com/atlanhq/application-sdk/pull/1752)), and the `/preflight` envelope-shape refactor ([#1744](https://github.com/atlanhq/application-sdk/pull/1744)) that the connector PR + cross-repo dispatched SDR paths now agree on. `uv.lock` resynced — `atlan-application-sdk v3.8.0 → v3.10.0`.
 
 ## 0.7.20 (May 14, 2026)
 
@@ -227,7 +227,7 @@ GA release. Marks the connector's transition out of the `0.x` series alongside t
 
 ### Bug Fixes
 
-- **Add `app.yaml` at repo root.** The SDR composite action's `#1746` refactor on `atlanhq/application-sdk` moved from inline generation of `app-resolved.yaml` (driven by action inputs `app-name` + `app-image-name`) to reading `app.yaml` from disk and envsubst-ing the image tag in. mysql-app had no `app.yaml`, so SDR runs against this repo started failing with `No app.yaml found at .github/e2e/app.yaml or repo root`. Three-line file matches the shape `atlan-mssql-app` adopted in the same series: `app_name`, `app_image: ${APP_IMAGE}`, `app_port: 8000`.
+- **Add `app.yaml` at repo root.** The SDR composite action's `#1746` refactor on `atlanhq/application-sdk` moved from inline generation of `app-resolved.yaml` (driven by action inputs `app-name` + `app-image-name`) to reading `app.yaml` from disk and envsubst-ing the image tag in. mysql-app had no `app.yaml`, so SDR runs against this repo started failing with `No app.yaml found at .github/e2e/app.yaml or repo root`. Three-line file matching the standard shape: `app_name`, `app_image: ${APP_IMAGE}`, `app_port: 8000`.
 
 ## 0.7.17 (May 14, 2026)
 
@@ -265,7 +265,7 @@ GA release. Marks the connector's transition out of the `0.x` series alongside t
 
 ### Features
 
-- **Bump e2e-full timeouts to fit slow lineage stages + colour-emoji poll log.** Run 25794699597 hit the 600s AE poll budget with `lineage-app` still `Running` — dev-tenant's tenant publish/lineage queues can stretch this stage to 30+ min. Test class poll knobs now: interval 60s (was 5/10s), AE timeout 90 min (was 10), Atlas timeout 30 min (was 15). GH job `timeout-minutes` bumped to 120 to leave headroom for build/setup. SDK pin bumped to `9dbf50c3` which also swaps the monochrome status glyphs (`✓ ⟳ · ✗`) for colour emoji (`✅ 🔄 🟡 ❌`) so DAG progression is scannable at a glance:
+- **Bump e2e-full timeouts to fit slow lineage stages + colour-emoji poll log.** Run 25794699597 hit the 600s AE poll budget with `lineage-app` still `Running` — the tenant's publish/lineage queues can stretch this stage to 30+ min. Test class poll knobs now: interval 60s (was 5/10s), AE timeout 90 min (was 10), Atlas timeout 30 min (was 15). GH job `timeout-minutes` bumped to 120 to leave headroom for build/setup. SDK pin bumped to `9dbf50c3` which also swaps the monochrome status glyphs (`✓ ⟳ · ✗`) for colour emoji (`✅ 🔄 🟡 ❌`) so DAG progression is scannable at a glance:
 
   ```
   🔄 AE run [515s] Running — ✅ extract ✅ qi ✅ publish 🔄 lin-app 🟡 lin-pub
@@ -276,7 +276,7 @@ GA release. Marks the connector's transition out of the `0.x` series alongside t
 
 ### Bug Fixes
 
-- **Restore `ATLAN_API_KEY` for AE-management calls; OAuth becomes optional.** PRs #101 and #102 switched to OAuth-only auth, but `/automation/api/v1/workflows` requires the `realm-admin` resource_access role that only the API-key's service account carries — OAuth returns a masked AE-COMMON-500-01 there (verified by direct probe: API key → 200, OAuth → 500 on the same endpoint). `ATLAN_API_KEY` is mandatory again; `SDR_OAUTH_CLIENT_ID`/`SECRET` stay as a bonus for clearer pyatlan RBAC diagnostics. Bumps SDK pin to `11bc5b46`.
+- **Restore `ATLAN_API_KEY` for AE-management calls; OAuth becomes optional.** PRs #101 and #102 switched to OAuth-only auth, but the AE workflows endpoint requires the `realm-admin` resource_access role that only the API-key's service account carries — OAuth returns a masked AE-COMMON-500-01 there (verified by direct probe: API key → 200, OAuth → 500 on the same endpoint). `ATLAN_API_KEY` is mandatory again; `SDR_OAUTH_CLIENT_ID`/`SECRET` stay as a bonus for clearer pyatlan RBAC diagnostics. Bumps SDK pin to `11bc5b46`.
 
 ## 0.7.11 (May 13, 2026)
 
@@ -295,8 +295,8 @@ GA release. Marks the connector's transition out of the `0.x` series alongside t
 
 ### Features
 
-- **Full-DAG e2e: drop `ATLAN_API_KEY`, switch entirely to OAuth.** The harness now exchanges `SDR_OAUTH_CLIENT_ID` + `SDR_OAUTH_CLIENT_SECRET` for a 15-min bearer at test-setup time and uses that for every AE / Atlas / search call. OAuth client_credentials covers every endpoint we hit (verified by probing /api/service/workflows, /api/service/package-workflows, /api/service/users/current — all 200/400 not 401). One auth pair for both the Dapr S3 binding and the harness; one set of GH secrets to manage; predictable RBAC diagnostics (`service-account-oauth-client-<id>` instead of opaque `service-account-apikey-<uuid>`).
-- **Connection probe via search instead of direct entity fetch.** The direct `/api/meta/entity/uniqueAttribute/type/Connection?...` endpoint enforces the Connection's adminUsers/adminRoles ACL — neither the API-key nor the OAuth-client service accounts are on that list by default, so the probe was 403-ing for the full 25-min budget on every otherwise-healthy run. Search has a permissive ACL (the connector namespace's read perm is enough); the harness now uses it via pyatlan's `FluentSearch`. Verified: on the latest run, search returned `count=1` for the Connection plus 20 descendants while direct fetch was 403.
+- **Full-DAG e2e: drop `ATLAN_API_KEY`, switch entirely to OAuth.** The harness now exchanges `SDR_OAUTH_CLIENT_ID` + `SDR_OAUTH_CLIENT_SECRET` for a 15-min bearer at test-setup time and uses that for every AE / Atlas / search call. OAuth client_credentials covers every endpoint we hit (verified by probing the AE workflows, package-workflows, and current-user endpoints — all 200/400 not 401). One auth pair for both the Dapr S3 binding and the harness; one set of GH secrets to manage; predictable RBAC diagnostics (`service-account-oauth-client-<id>` instead of opaque `service-account-apikey-<uuid>`).
+- **Connection probe via search instead of direct entity fetch.** The direct Connection entity-fetch endpoint enforces the Connection's adminUsers/adminRoles ACL — neither the API-key nor the OAuth-client service accounts are on that list by default, so the probe was 403-ing for the full 25-min budget on every otherwise-healthy run. Search has a permissive ACL (the connector namespace's read perm is enough); the harness now uses it via pyatlan's `FluentSearch`. Verified: on the latest run, search returned `count=1` for the Connection plus 20 descendants while direct fetch was 403.
 - **Colourful poll log.** Per-node glyphs (✓ ⟳ · ✗ ⊘ ⏱) and a top-level run glyph make the poll output scannable instead of "extract=Succeeded; qi=Succeeded; publish=Running; …" walls of text. Lineage node names trimmed to `lin-app` / `lin-pub` so the line fits comfortably. Example:
 
   ```
@@ -340,7 +340,7 @@ Bumps SDK pin to `e086acb5`.
 
 ### Bug Fixes
 
-- **Retry AE submit on HTTP 5xx.** AE's `POST /api/service/package-workflows?submit=true` occasionally returns `AE-COMMON-500-01: An unexpected error occurred` for a few seconds after `publish_version` succeeds — without any Temporal workflow being dispatched. The harness now retries the submit up to 4 times at 5s intervals (same pattern `create_version` already uses for the 404 indexing window). Bumps SDK pin to `af7a319d`.
+- **Retry AE submit on HTTP 5xx.** AE's package-workflows submit endpoint occasionally returns `AE-COMMON-500-01: An unexpected error occurred` for a few seconds after `publish_version` succeeds — without any Temporal workflow being dispatched. The harness now retries the submit up to 4 times at 5s intervals (same pattern `create_version` already uses for the 404 indexing window). Bumps SDK pin to `af7a319d`.
 
 ## 0.7.2 (May 12, 2026)
 
@@ -358,20 +358,20 @@ Bumps SDK pin to `e086acb5`.
 
 ### Features
 
-- **Full-DAG e2e workflow (`.github/workflows/e2e-full.yaml`).** Manual-trigger workflow that runs this PR's connector image end-to-end through the tenant's system-apps DAG (extract → qi → publish → lineage-app → lineage-publish) on dev-tenant and asserts the resulting Atlas footprint: Connection envelope + per-typeName asset counts (Database / Schema / Table / View / Column) + at least one lineage Process row. Test class `TestMySQLFullDAG` in `tests/full_dag/` configures the seed thresholds (Database≥1, Schema≥1, Table≥2, View≥1, Column≥10) that match `seed.sql` under the `e2e_main` include-filter.
-- **OAuth-via-blobstorage proxy for S3 access.** Replaces the original AWS STS-input plumbing on the full-DAG workflow with a long-lived OAuth client (provisioned once via `POST /api/service/oauth-clients` with `events-app-permissions-scope` + `temporal-app-permissions-scope`). The Dapr `bindings.aws.s3` component (`.github/e2e/e2e-full-components/objectstore.yaml`) SigV4-signs requests with the client_id / client_secret as accessKey / secretKey; the tenant's `/api/blobstorage` ingress validates the pair via the automation engine and forwards to the actual S3 bucket. No STS refresh cycle, no workflow_dispatch credential paste, no GH OIDC trust setup.
+- **Full-DAG e2e workflow (`.github/workflows/e2e-full.yaml`).** Manual-trigger workflow that runs this PR's connector image end-to-end through the tenant's system-apps DAG (extract → qi → publish → lineage-app → lineage-publish) on a dev tenant and asserts the resulting Atlas footprint: Connection envelope + per-typeName asset counts (Database / Schema / Table / View / Column) + at least one lineage Process row. Test class `TestMySQLFullDAG` in `tests/full_dag/` configures the seed thresholds (Database≥1, Schema≥1, Table≥2, View≥1, Column≥10) that match `seed.sql` under the `e2e_main` include-filter.
+- **OAuth-via-blobstorage proxy for S3 access.** Replaces the original AWS STS-input plumbing on the full-DAG workflow with a long-lived OAuth client (provisioned once with the events + temporal app-permission scopes). The Dapr `bindings.aws.s3` component (`.github/e2e/e2e-full-components/objectstore.yaml`) SigV4-signs requests with the client_id / client_secret as accessKey / secretKey; the tenant's object-store ingress validates the pair and forwards to the actual S3 bucket. No STS refresh cycle, no workflow_dispatch credential paste, no GH OIDC trust setup.
 - **`$admin` role resolved via pyatlan `role_cache`.** Connection ACL in the test no longer hardcodes a tenant-specific role UUID — the test class' `connection_spec()` calls `AtlanClient.role_cache.get_id_for_name("$admin")` at run time, so the same code is portable across tenants.
 
 ### Chore
 
-- **Bump SDK pin to apps-sdk `internal-ref-sdr-cross-repo-trigger` (`b650e6ec`).** Picks up the new `application_sdk.testing.full_dag` harness (`BaseFullDAGE2ETest`, `AEWorkflowClient`, asset-count / lineage probes), the SDR composite action's buildx GHA cache backend, and pyatlan-async-based parallel asset searches. Branch-pinned until [#1710](https://github.com/atlanhq/application-sdk/pull/1710) merges; tracked under "Revert temp pins post-merge".
+- **Bump SDK pin to the apps-sdk cross-repo-trigger branch (`b650e6ec`).** Picks up the new `application_sdk.testing.full_dag` harness (`BaseFullDAGE2ETest`, `AEWorkflowClient`, asset-count / lineage probes), the SDR composite action's buildx GHA cache backend, and pyatlan-async-based parallel asset searches. Branch-pinned until [#1710](https://github.com/atlanhq/application-sdk/pull/1710) merges; tracked under "Revert temp pins post-merge".
 - **Rename `tier-4-*` → `e2e-full-*` across the harness surface.** `tier-*` numbering was internal jargon that became misleading once the workflow grew to span multiple extraction modes. Affected: workflow file, compose overlay, components dir, secrets script. Test directory `tests/full_dag/` stays as-is (matches the SDK namespace `application_sdk.testing.full_dag`).
 
 ## 0.6.0 (May 11, 2026)
 
 ### Chore
 
-- **Bump SDK pin to apps-sdk `main` (`dd80501d`).** internal-ref (SqlApp template consolidation + SDR credential routing) is in mainline now, so the connector tracks `main` again instead of the feature branch.
+- **Bump SDK pin to apps-sdk `main` (`dd80501d`).** The SqlApp template consolidation + SDR credential routing is in mainline now, so the connector tracks `main` again instead of the feature branch.
 
 ### Features
 
@@ -385,13 +385,13 @@ Bumps SDK pin to `e086acb5`.
 
 ### Bug Fixes
 
-- **Bump SDK pin to latest internal-ref (`8584e0db`, application-sdk 3.7.0)**: picks up the architecture refactor that drops the parquet round-trip from `SqlApp` (separate `extract_*` and `transform_*` activities, JSONL intermediate, no pandas / no pyarrow), plus the round-2 review fixes (allow_unbounded_fields removed, orjson swap, full-jitter Temporal retry, regenerated capability manifest, post-main merge conflict resolution). Mirror change on the connector side: `MySQLApp.run()` override now calls `extract_procedures()` + `transform_procedures()` instead of the removed `fetch_procedures()` / `transform_procedures(TransformInput)` pair.
+- **Bump SDK pin to latest consolidation branch (`8584e0db`, application-sdk 3.7.0)**: picks up the architecture refactor that drops the parquet round-trip from `SqlApp` (separate `extract_*` and `transform_*` activities, JSONL intermediate, no pandas / no pyarrow), plus the round-2 review fixes (allow_unbounded_fields removed, orjson swap, full-jitter Temporal retry, regenerated capability manifest, post-main merge conflict resolution). Mirror change on the connector side: `MySQLApp.run()` override now calls `extract_procedures()` + `transform_procedures()` instead of the removed `fetch_procedures()` / `transform_procedures(TransformInput)` pair.
 
 ## 0.5.1 (May 8, 2026)
 
 ### Bug Fixes
 
-- **Bump SDK pin to latest internal-ref (`ef755e2d`)**: picks up the round-2 review fixes on [application-sdk PR #1589](https://github.com/atlanhq/application-sdk/pull/1589):
+- **Bump SDK pin to latest consolidation branch (`ef755e2d`)**: picks up the round-2 review fixes on [application-sdk PR #1589](https://github.com/atlanhq/application-sdk/pull/1589):
   - `[contracts]` Removed `allow_unbounded_fields=True` across `templates/contracts/` (22 spots). `FilterMap` and `workflow_args` now have explicit `MaxItems` bounds. Surfaces upstream-contract drift loudly instead of silently accepting extras.
   - `[orjson]` `templates/contracts/sql_metadata.py`: stdlib `json` swapped for `orjson` (already a core dep). Same semantics, faster.
   - `[retry]` `_temporal/backend.py`: Temporal connect retry now uses full-jitter exponential backoff (AWS pattern). Same 5s cap, just spreads concurrent reconnects across the window.
@@ -401,7 +401,7 @@ Bumps SDK pin to `e086acb5`.
 
 ### Features
 
-- **Bump SDK pin to latest internal-ref (`bc91f17c`)**: picks up the post-review fixes on [application-sdk PR #1589](https://github.com/atlanhq/application-sdk/pull/1589):
+- **Bump SDK pin to latest consolidation branch (`bc91f17c`)**: picks up the post-review fixes on [application-sdk PR #1589](https://github.com/atlanhq/application-sdk/pull/1589):
   - `[BUG]` `SqlApp.map_procedure()` stub added — `transform_procedures()` task no longer raises `AttributeError` when a connector hasn't overridden it; correctly raises `NotImplementedError` instead.
   - `[QUAL]` Removed duplicate `CredentialRef` import.
   - `[ARCH]` Switched a private `_temporal.activity_utils` import to the public `application_sdk.execution` re-export.
@@ -489,25 +489,25 @@ Bumps SDK pin to `e086acb5`.
 
 ### Bug Fixes
 
-- **Bump SDK to latest internal-ref (`03f01cec`)**: picks up the new single-key per-field secret resolution path on `application_sdk.credentials.agent` (honors `key-type: single-key`), the latest `origin/main` merge into internal-ref (contract toolkit move internal-ref, IPv4 SDR Temporal/auth pin, `run_dev_combined` env-var fallbacks), and the regenerated SDK capability manifest.
+- **Bump SDK to latest consolidation branch (`03f01cec`)**: picks up the new single-key per-field secret resolution path on `application_sdk.credentials.agent` (honors `key-type: single-key`), the latest `origin/main` merge into the consolidation branch (contract toolkit move, IPv4 SDR Temporal/auth pin, `run_dev_combined` env-var fallbacks), and the regenerated SDK capability manifest.
 
 ## 0.4.37 (May 7, 2026)
 
 ### Bug Fixes
 
-- **Switch SDK pin to consolidated `internal-ref` branch**: previously pinned to commit `206050c0` (the PR #1690 fix branch). Both [PR #1689](https://github.com/atlanhq/application-sdk/pull/1689) (SDR credential resolution) and [PR #1690](https://github.com/atlanhq/application-sdk/pull/1690) (direct-mode follow-up) have been folded into the parent [internal-ref PR #1589](https://github.com/atlanhq/application-sdk/pull/1589) along with a new single-key per-field secret resolution path for `key-type: single-key` agent specs. The mysql-app pin now follows the `internal-ref` branch directly so future fixes land without re-pinning.
+- **Switch SDK pin to the consolidated SDK branch**: previously pinned to commit `206050c0` (the PR #1690 fix branch). Both [PR #1689](https://github.com/atlanhq/application-sdk/pull/1689) (SDR credential resolution) and [PR #1690](https://github.com/atlanhq/application-sdk/pull/1690) (direct-mode follow-up) have been folded into the parent [PR #1589](https://github.com/atlanhq/application-sdk/pull/1589) along with a new single-key per-field secret resolution path for `key-type: single-key` agent specs. The mysql-app pin now follows that consolidation branch directly so future fixes land without re-pinning.
 
 ## 0.4.36 (May 7, 2026)
 
 ### Bug Fixes
 
-- **Bump application-sdk to pick up SDR credential resolution fix**: `SqlApp._init_sql_client` was skipping credential resolution in SDR mode (`extraction_method = "agent"`) because it only routed through the resolver when `credential_guid` was set. With SDR, only `agent_json` carries the credential payload, so the activity received `creds={}` and every `fetch_*` task failed with `ValueError: username is required`. Fixed in [application-sdk PR #1689](https://github.com/atlanhq/application-sdk/pull/1689) — `_init_sql_client` now routes both direct (credential_guid) and SDR (agent_spec) modes through `CredentialRef.resolve(input)`. SDK pin moves to `48c2a45e` on the `internal-ref` branch.
+- **Bump application-sdk to pick up SDR credential resolution fix**: `SqlApp._init_sql_client` was skipping credential resolution in SDR mode (`extraction_method = "agent"`) because it only routed through the resolver when `credential_guid` was set. With SDR, only `agent_json` carries the credential payload, so the activity received `creds={}` and every `fetch_*` task failed with `ValueError: username is required`. Fixed in [application-sdk PR #1689](https://github.com/atlanhq/application-sdk/pull/1689) — `_init_sql_client` now routes both direct (credential_guid) and SDR (agent_spec) modes through `CredentialRef.resolve(input)`. SDK pin moves to `48c2a45e` on the consolidation branch.
 
 ## 0.4.35 (May 7, 2026)
 
 ### Bug Fixes
 
-- **SDR mode: switch include/exclude/preflight filters to ConditionalInput**: in SDR (`extraction-method = "agent"`) mode the metadata step was emitting `Config.SqlTree` and `Config.SageV2` widgets unchanged, so the UI tried `POST /api/service/credentials/query?app_id=atlan-mysql` to live-browse schemas — that endpoint expects an `authType` field that the agent credential payload doesn't carry, returning `Request body has an error: doesn't match the schema: Property 'authType' is missing`. Mirrored the [atlan-trino-app](https://github.com/atlanhq/atlan-trino-app) and [atlan-cloudsql-postgres-app](https://github.com/atlanhq/atlan-cloudsql-postgres-app) pattern: `include-filter` and `exclude-filter` are now `Config.ConditionalInput` with a `sqltree` base for direct mode and a text-input override (`{"^db$": ["^schema$"]}` JSON regex) for agent mode; `preflight-check` is now `Config.ConditionalInput` that renders the SageV2 checks in direct mode and is hidden in agent mode (the agent has no live DB connection at form time). Fixes the "Please check your credentials and try again" error on the metadata step in SDR.
+- **SDR mode: switch include/exclude/preflight filters to ConditionalInput**: in SDR (`extraction-method = "agent"`) mode the metadata step was emitting `Config.SqlTree` and `Config.SageV2` widgets unchanged, so the UI tried the credentials-query endpoint to live-browse schemas — that endpoint expects an `authType` field that the agent credential payload doesn't carry, returning `Request body has an error: doesn't match the schema: Property 'authType' is missing`. Mirrored the [atlan-trino-app](https://github.com/atlanhq/atlan-trino-app) and [atlan-cloudsql-postgres-app](https://github.com/atlanhq/atlan-cloudsql-postgres-app) pattern: `include-filter` and `exclude-filter` are now `Config.ConditionalInput` with a `sqltree` base for direct mode and a text-input override (`{"^db$": ["^schema$"]}` JSON regex) for agent mode; `preflight-check` is now `Config.ConditionalInput` that renders the SageV2 checks in direct mode and is hidden in agent mode (the agent has no live DB connection at form time). Fixes the "Please check your credentials and try again" error on the metadata step in SDR.
 
 ## 0.4.34 (May 6, 2026)
 
@@ -631,7 +631,7 @@ Bumps SDK pin to `e086acb5`.
 
 ### Bug Fixes
 
-- **Fix incorrect `transformed_data_prefix` sent to publish**: `MySQLExtractionOutput.run()` was computing `base = input.output_path or ""` — AE never sets `input.output_path`, so `get_object_store_prefix("")` returned bare names like `"transformed"` instead of the full S3 key. Fixed at the `SqlApp` base level: `SqlApp.run()` now derives the path from `TEMPORARY_PATH + build_output_path()` (same logic as `_resolve_output_path()`), and `MySQLApp.run()` inherits `transformed_data_prefix` from the base result. `uv.lock` updated to `application-sdk@internal-ref`.
+- **Fix incorrect `transformed_data_prefix` sent to publish**: `MySQLExtractionOutput.run()` was computing `base = input.output_path or ""` — AE never sets `input.output_path`, so `get_object_store_prefix("")` returned bare names like `"transformed"` instead of the full S3 key. Fixed at the `SqlApp` base level: `SqlApp.run()` now derives the path from `TEMPORARY_PATH + build_output_path()` (same logic as `_resolve_output_path()`), and `MySQLApp.run()` inherits `transformed_data_prefix` from the base result. `uv.lock` updated to `application-sdk consolidation branch`.
 
 ## 0.4.13 (May 4, 2026)
 
@@ -645,19 +645,19 @@ Bumps SDK pin to `e086acb5`.
 
 ### Bug Fixes
 
-- **Fix publish receiving empty `connection_qualified_name` (root cause)**: `SqlApp.run()` returned `ExtractionOutput` without setting `connection_qualified_name`. The publish workflow reads this via `$.extract.outputs.connection_qualified_name` to derive state prefixes — with it empty, diff compare returned 0 entities and nothing was published. Fixed in `application-sdk@internal-ref` (`bdb17b78`) by extracting `input.connection.attributes.qualified_name` and setting it on the output, matching the existing pattern in `SqlMetadataExtractor.run()`. `uv.lock` updated.
+- **Fix publish receiving empty `connection_qualified_name` (root cause)**: `SqlApp.run()` returned `ExtractionOutput` without setting `connection_qualified_name`. The publish workflow reads this via `$.extract.outputs.connection_qualified_name` to derive state prefixes — with it empty, diff compare returned 0 entities and nothing was published. Fixed in `application-sdk consolidation branch` (`bdb17b78`) by extracting `input.connection.attributes.qualified_name` and setting it on the output, matching the existing pattern in `SqlMetadataExtractor.run()`. `uv.lock` updated.
 
 ## 0.4.11 (May 2, 2026)
 
 ### Bug Fixes
 
-- **Fix publish step receiving empty `connection_qualified_name`**: AE passes `{{connection}}` as a JSON string. `ExtractionInput._normalize_ae_payload` in the SDK did not parse it, so Pydantic fell back to the default empty `ConnectionRef()` — making `input.connection.attributes.qualified_name = ""`. The extract output then had `connection_qualified_name=""`, and the publish step could not link entities to the correct connection. Fixed in `application-sdk@internal-ref` by JSON-parsing the connection string before Pydantic validation. `uv.lock` updated to pick up the fix.
+- **Fix publish step receiving empty `connection_qualified_name`**: AE passes `{{connection}}` as a JSON string. `ExtractionInput._normalize_ae_payload` in the SDK did not parse it, so Pydantic fell back to the default empty `ConnectionRef()` — making `input.connection.attributes.qualified_name = ""`. The extract output then had `connection_qualified_name=""`, and the publish step could not link entities to the correct connection. Fixed in `application-sdk consolidation branch` by JSON-parsing the connection string before Pydantic validation. `uv.lock` updated to pick up the fix.
 
 ## 0.4.10 (May 2, 2026)
 
 ### Chore
 
-- Version bump to track merged changes from internal-ref (sqltree filters, dag manifest format, workflow_type fix, PKL contract).
+- Version bump to track merged v3 manifest changes (sqltree filters, dag manifest format, workflow_type fix, PKL contract).
 
 ## 0.4.9 (May 2, 2026)
 
@@ -678,7 +678,7 @@ Bumps SDK pin to `e086acb5`.
 
 ### Bug Fixes
 
-- **Fix `fetch_metadata` silently returning empty results when credentials are missing**: `fetch_metadata` now raises explicitly when `host` is absent (turns invisible credential-resolution failures into visible HTTP errors) and propagates exceptions rather than swallowing them — so the automation engine returns a non-200 and the frontend can surface the error instead of rendering a blank filter dropdown.
+- **Fix `fetch_metadata` silently returning empty results when credentials are missing**: `fetch_metadata` now raises explicitly when `host` is absent (turns invisible credential-resolution failures into visible HTTP errors) and propagates exceptions rather than swallowing them — so the backend returns a non-200 and the frontend can surface the error instead of rendering a blank filter dropdown.
 
 ## 0.4.6 (May 1, 2026)
 

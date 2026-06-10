@@ -20,7 +20,7 @@
 #
 # Usage (production tenant):
 #   bash scripts/ae-workflow.sh \
-#     --ae-url           https://my-<tenant-domain>/automation \
+#     --ae-url           https://<your-tenant>/automation \
 #     --token            "$ATLAN_API_KEY" \
 #     --name             "MYSQL Extract + Publish" \
 #     --cred-guid        <guid> \

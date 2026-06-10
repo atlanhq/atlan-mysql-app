@@ -19,4 +19,4 @@
 <!-- for any cautionary notes, use https://github.com/orgs/community/discussions/16925 -->
 
 
-<!-- for any questions, reachout to the team channel or the maintainers -->
+<!-- for any questions, reach out to the maintainers -->

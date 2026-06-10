@@ -6,12 +6,12 @@ in a CI-side docker compose worker (registered on a unique Temporal
 queue named ``atlan-mysql-e2e-full-ci-<run_id>``); the AE workflow's
 extract activity dispatches to that queue via ``agent-json.agent-name``
 routing. Worker writes raw + transformed artifacts to the shared tenant
-S3 bucket (via the /api/blobstorage OAuth proxy in CI); the in-cluster
+S3 bucket (via the object-store OAuth proxy in CI); the in-cluster
 publish app reads from the same bucket.
 
 To run locally::
 
-    ATLAN_BASE_URL=https://<tenant-domain> \\
+    ATLAN_BASE_URL=<your-tenant-base-url> \\
     ATLAN_API_KEY=... \\
     GITHUB_RUN_ID=$(date +%s) \\
         uv run pytest tests/e2e/ -v
@@ -64,7 +64,7 @@ class TestMySQLFullDAG(MySQLGeneratedE2EBase):
     # output rather than a dedicated ``view_data_prefix`` subfolder.
     qi_input_prefix_field = "transformed_data_prefix"
 
-    # Poll knobs sized for dev-tenant — lineage-app + lineage-publish can
+    # Poll knobs sized for a real tenant — lineage-app + lineage-publish can
     # sit Running 30+ min when the tenant's queues are deep. GH job
     # timeout-minutes in the workflow is bumped to 120 in lockstep.
     ae_poll_interval_seconds = 60

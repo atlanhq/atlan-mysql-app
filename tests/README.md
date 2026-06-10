@@ -18,7 +18,7 @@ uv run pytest tests/unit/ tests/integration/ -v
 
 ### E2E (full-DAG, requires tenant credentials)
 ```bash
-ATLAN_BASE_URL=https://<tenant-domain> \
+ATLAN_BASE_URL=<your-tenant-base-url> \
 ATLAN_API_KEY=... \
 SDR_OAUTH_CLIENT_ID=... SDR_OAUTH_CLIENT_SECRET=... \
 GITHUB_RUN_ID=$(date +%s) \

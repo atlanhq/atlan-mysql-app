@@ -122,7 +122,7 @@ Validates handler endpoints, full workflow start → poll → COMPLETED, extract
 End-to-end run of the full system-apps DAG (extract → qi → publish → lineage) against a real Atlan tenant. Gated behind the `e2e` PR label or `workflow_dispatch`:
 
 ```bash
-ATLAN_BASE_URL=https://<tenant-domain> \
+ATLAN_BASE_URL=<your-tenant-base-url> \
 ATLAN_API_KEY=... \
 SDR_OAUTH_CLIENT_ID=... SDR_OAUTH_CLIENT_SECRET=... \
 GITHUB_RUN_ID=$(date +%s) \

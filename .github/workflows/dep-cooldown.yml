@@ -18,5 +18,5 @@ jobs:
   cooldown:
     uses: atlanhq/.github/.github/workflows/reusable-dep-cooldown.yml@main
     # Forwards SLACK_DEP_COOLDOWN_WEBHOOK to the reusable workflow so
-    # cooldown failures alert in internal-security-channel.
+    # cooldown failures trigger a Slack alert.
     secrets: inherit
