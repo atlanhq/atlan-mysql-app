@@ -72,12 +72,49 @@ credentialCommonFields {
   }
 }
 
+// ---------------------------------------------------------------------------
+// internal-ref — Cloned INFORMATION_SCHEMA mirror
+//
+// Defined as a per-auth-option ``extraFields`` entry (not in
+// ``credentialCommonFields``) to match the proven pattern used by sibling
+// connectors that need non-auth design-time fields:
+//
+//   - ``atlan-databricks-app`` declares ``__http_path`` in
+//     ``credentialAuthOptions[basic].extraFields`` and reads it via
+//     ``creds.get("extra", {}).get("__http_path")``.
+//   - ``atlan-bigquery-app`` declares ``project_id`` similarly under
+//     ``credentialAuthOptions[gcp-wif]`` and reads it via
+//     ``credentials_json.get("extra", {}).get("project_id")``.
+//
+// The marketplace credential-persistence layer reliably stores fields
+// declared this way under the credential's ``extra.<name>`` namespace and
+// delivers them to the handler endpoints (test_auth / preflight_check /
+// fetch_metadata) before workflow runtime — exactly what we need for the
+// mirror-schema flow.
+//
+// An earlier iteration placed the field in ``credentialCommonFields``
+// (commit ``b2bfd77``). The form rendered the field and ``fe_inputs`` did
+// carry the value, but pod logs confirmed the credential record persisted
+// only the 6 well-known keys — the field was silently dropped before it
+// reached the handler. Switching to per-auth-option ``extraFields`` puts
+// the value through the same persistence path Databricks and BigQuery
+// rely on. (Verified via Explore-sub-agent survey 2026-05-27.)
+//
+// The field is duplicated across all three auth options because it's a
+// connection-identity attribute (mirror schema name), not an auth-method
+// concern — every auth flow needs the same handling.
+// ---------------------------------------------------------------------------
+
 credentialAuthOptions {
   ["basic"] = new AuthOption {
     label = "Basic Authentication"
     fields {
       new FieldSpec { name = "username"; displayName = "Username"; placeholder = "Username"; width = 4 }
       new FieldSpec { name = "password"; sensitive = true; displayName = "Password"; placeholder = "Password"; width = 4 }
+    }
+    extraFields {
+      // internal-ref: see header comment above credentialAuthOptions.
+      new FieldSpec { name = "clonedInformationSchema"; displayName = "Cloned INFORMATION_SCHEMA (optional)"; placeholder = "atlan_meta"; width = 4 }
     }
   }
   ["iam_user"] = new AuthOption {
@@ -90,6 +127,8 @@ credentialAuthOptions {
     extraFields {
       // MySQL DB user goes into extra.username (legacy structure — read by client.get_iam_user_token)
       new FieldSpec { name = "username"; displayName = "Database User"; placeholder = "MySQL username for IAM token auth"; width = 4 }
+      // internal-ref: see header comment above credentialAuthOptions.
+      new FieldSpec { name = "clonedInformationSchema"; displayName = "Cloned INFORMATION_SCHEMA (optional)"; placeholder = "atlan_meta"; width = 4 }
     }
   }
   ["iam_role"] = new AuthOption {
@@ -101,6 +140,8 @@ credentialAuthOptions {
     extraFields {
       // IAM Role ARN goes into extra.aws_role_arn (legacy structure)
       new FieldSpec { name = "aws_role_arn"; displayName = "IAM Role ARN"; placeholder = "arn:aws:iam::123456789012:role/MyRole"; width = 8 }
+      // internal-ref: see header comment above credentialAuthOptions.
+      new FieldSpec { name = "clonedInformationSchema"; displayName = "Cloned INFORMATION_SCHEMA (optional)"; placeholder = "atlan_meta"; width = 4 }
       new FieldSpec {
         name = "aws_external_id"
         displayName = "AWS External ID"
@@ -169,6 +210,11 @@ local agentConfig: Listing = new {
           ["properties"] = new Mapping {
             ["username"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "Store Credential Path" } }
             ["password"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["widget"] = ""; ["placeholder"] = "Store Credential Path" } }
+            ["extra"] = new Mapping {
+              ["properties"] = new Mapping {
+                ["clonedInformationSchema"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "atlan_meta (literal value, not a vault path)" } }
+              }
+            }
           }
         }
         ["iam_user"] = new Mapping {
@@ -178,6 +224,7 @@ local agentConfig: Listing = new {
             ["extra"] = new Mapping {
               ["properties"] = new Mapping {
                 ["username"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "MySQL DB User (Store Path)" } }
+                ["clonedInformationSchema"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "atlan_meta (literal value, not a vault path)" } }
               }
             }
           }
@@ -188,6 +235,7 @@ local agentConfig: Listing = new {
             ["extra"] = new Mapping {
               ["properties"] = new Mapping {
                 ["aws_role_arn"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "IAM Role ARN (Store Path)" } }
+                ["clonedInformationSchema"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "atlan_meta (literal value, not a vault path)" } }
                 ["aws_external_id"] = new Mapping { ["default"] = ""; ["ui"] = new Mapping { ["placeholder"] = "AWS External ID (Store Path)" } }
               }
             }
@@ -330,6 +378,63 @@ uiConfig = new UIConfig {
               value = "agent"
               overrideUi = new Widget {
                 widget = "sageV2"
+                `hidden` = true
+              }
+            }
+          }
+        }
+      }
+    }
+    // -----------------------------------------------------------------------
+    // Advanced — optional control-config overrides.
+    //
+    // internal-ref ("clonedInformationSchema"): customers whose connector user
+    // does not have SELECT on the native ``information_schema`` (a common
+    // restriction on AWS RDS / Aurora MySQL hardened deployments) can
+    // route every metadata query through a customer-managed mirror schema
+    // by setting:
+    //     control-config-strategy = "custom"
+    //     control-config          = {"clonedInformationSchema": "<schema>"}
+    // The connector then replaces ``information_schema.<table>`` with
+    // ``<schema>.<table>`` in every templated SQL.
+    // -----------------------------------------------------------------------
+    ["Advanced"] {
+      inputs {
+        ["control-config-strategy"] = new ConditionalInput {
+          title = "Control Config"
+          helpText = "Controls custom feature flags for the crawler. Select Custom to enable the INFORMATION_SCHEMA mirror-schema flow for restricted-access deployments."
+          placeholderText = "Default"
+          baseWidgetType = "radio"
+          baseEnum { "default"; "custom" }
+          baseEnumNames { "Default"; "Custom" }
+          default = "default"
+          required = true
+        }
+        // ``control-config`` is gated on ``control-config-strategy``.
+        // The field renders only when the user picks ``custom`` so the
+        // default-path UI doesn't expose an empty JSON box (internal-ref
+        // post-deploy feedback: the input was visible even on Default,
+        // which read as "fill me in" and was misleading).
+        ["control-config"] = new ConditionalInput {
+          title = "Custom Config"
+          helpText = "Custom JSON config. To route all metadata queries through a customer-managed mirror schema, set: {\"clonedInformationSchema\": \"<your-mirror-schema-name>\"} — the connector will query <your-mirror-schema-name>.* instead of information_schema.*. Required when the connector user does not have SELECT on the native information_schema."
+          placeholderText = "{\"clonedInformationSchema\": \"atlan_meta\"}"
+          baseWidgetType = "input"
+          width = 8
+          conditions {
+            new Condition {
+              property = "control-config-strategy"
+              value = "custom"
+              overrideUi = new Widget {
+                widget = "input"
+                `hidden` = false
+              }
+            }
+            new Condition {
+              property = "control-config-strategy"
+              value = "default"
+              overrideUi = new Widget {
+                widget = "input"
                 `hidden` = true
               }
             }

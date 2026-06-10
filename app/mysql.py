@@ -5,6 +5,7 @@ Extends SqlApp with MySQL-specific SQL queries and asset mappers.
 
 from __future__ import annotations
 
+import logging
 import math
 import os
 import time
@@ -12,21 +13,34 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 import pandas as pd
+from application_sdk.app import task
 from application_sdk.contracts.base import Output
 from application_sdk.contracts.storage import UploadInput
+from application_sdk.credentials import CredentialResolver
+from application_sdk.credentials.ref import CredentialRef
 from application_sdk.execution._temporal.activity_utils import get_object_store_prefix
+from application_sdk.infrastructure.context import get_infrastructure
 from application_sdk.observability.logger_adaptor import get_logger
 from application_sdk.templates.contracts.sql_metadata import (
     ExtractionInput,
     ExtractionTaskInput,
+    ExtractionTaskOutput,
 )
 from application_sdk.templates.sql_app import SqlApp
+from pydantic import ConfigDict
 
 from app.client import SQLClient
 from app.constants import DATABASE_PLACEHOLDER, TENANT_ID
 from app.handler import (  # noqa: F401 — SDK discovers {AppClass}Handler by convention
     MySQLAppHandler,
 )
+from app.utils import (
+    extract_control_config,
+    resolve_excluded_schemas,
+    resolve_information_schema,
+)
+
+_logger = logging.getLogger(__name__)
 
 logger = get_logger(__name__)
 
@@ -133,6 +147,60 @@ def _safe_str(v: Any) -> str:
     return str(v) if not isinstance(v, str) else v
 
 
+class MySQLExtractionInput(ExtractionInput, allow_unbounded_fields=True):  # type: ignore[call-arg]
+    """MySQL workflow input — adds typed control-config fields.
+
+    internal-ref: the base ``ExtractionInput`` declares ``model_config =
+    ConfigDict()`` (pydantic-v2 default ``extra='ignore'``), so when the
+    AE payload arrives with ``control_config_strategy`` and
+    ``control_config`` fields, pydantic **silently drops** them at the
+    model boundary.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    control_config_strategy: str = "default"
+    """``"custom"`` enables ``control_config`` overrides; anything else
+    (including absent) preserves the canonical ``information_schema``
+    code path."""
+
+    control_config: str | dict[str, Any] = ""
+    """JSON-encoded string or dict of feature-flag overrides.
+    Supports: ``clonedInformationSchema`` (mirror-schema name)."""
+
+
+class MySQLExtractionTaskInput(ExtractionTaskInput, allow_unbounded_fields=True):  # type: ignore[call-arg]
+    """MySQL task input — adds typed control-config fields.
+
+    internal-ref follow-up: each ``@task`` activity runs on a FRESH
+    ``app_instance = app_cls()`` (see SDK ``app/base.py:1478``). Stash-on-
+    ``self`` from ``run()`` (the workflow worker) is invisible to the
+    activity worker. Control-config must therefore travel ON THE INPUT
+    OBJECT into each activity.
+
+    Pydantic deserialisation on the activity side uses the @task method's
+    declared annotation. If the activity signature says
+    ``ExtractionTaskInput`` (extra='ignore' by default), the
+    ``control_config*`` fields are stripped at the boundary even when
+    workflow-side serialisation includes them. So:
+
+    1. This subclass declares the fields explicitly + sets
+       ``allow_unbounded_fields=True`` to silence the SDK's payload-safety
+       check on ``dict[str, Any]``.
+    2. ``MySQLApp`` overrides the 5 extract @task method signatures to
+       declare ``MySQLExtractionTaskInput`` — only then will the activity-
+       side pydantic round-trip preserve the fields.
+    3. ``MySQLApp.build_task_input`` overrides the SDK staticmethod to
+       construct ``MySQLExtractionTaskInput`` populated from the workflow
+       input (copying ``control_config_strategy`` + ``control_config``).
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    control_config_strategy: str = "default"
+    control_config: str | dict[str, Any] = ""
+
+
 class MySQLApp(SqlApp):
     """MySQL metadata extraction App.
 
@@ -140,13 +208,20 @@ class MySQLApp(SqlApp):
     - MySQL-specific SQL queries from app/sql/ files
     - Asset mapper functions for databases, schemas, tables, columns, views
     - SQLClient with basic + IAM user + IAM role authentication
+    - Optional mirror-schema override (``clonedInformationSchema`` in
+      Custom Control Config) for customers whose security policy forbids
+      ``SELECT`` on ``information_schema``. See internal-ref + ``app/utils.py``.
     """
 
     name: ClassVar[str] = "mysql"
 
     sql_client_class: ClassVar = SQLClient  # type: ignore[assignment]
 
-    # SQL templates from app/sql/ files
+    # SQL templates from app/sql/ files. The literal ``{information_schema}``
+    # placeholder is preserved here — runtime substitution happens in
+    # ``_prepare_sql`` below, using control-config carried on the workflow
+    # input. This keeps the class-level shape SDK-compatible (SqlApp reads
+    # these as ClassVar strings) while still allowing per-run schema overrides.
     fetch_database_sql: ClassVar[str] = _read_sql("extract_database.sql")
     fetch_schema_sql: ClassVar[str] = _read_sql("extract_schema.sql")
     fetch_table_sql: ClassVar[str] = _read_sql("extract_table.sql")
@@ -160,6 +235,144 @@ class MySQLApp(SqlApp):
     extract_temp_table_regex_column_sql: ClassVar[str] = _read_sql(
         "extract_temp_table_regex_column.sql"
     )
+
+    def _prepare_sql(self, sql: str, input: Any) -> str:  # type: ignore[override]
+        """Substitute SDK filter placeholders and the MySQL mirror-schema.
+
+        Runs the base ``SqlApp._prepare_sql`` first (which handles
+        ``{normalized_exclude_regex}``, ``{normalized_include_regex}`` and
+        ``{temp_table_regex_sql}``) and then resolves the connector-specific
+        placeholders — ``{information_schema}`` (which catalog to query) and
+        ``{excluded_schemas}`` (which schemas to filter out, including the
+        mirror itself so its pass-through views don't surface as user
+        assets). Both pull from the same control-config carried on the
+        input. Backward compatible: when no config is supplied, the
+        placeholders resolve to the canonical ``information_schema`` and
+        the original 4-schema exclusion list, and output SQL is
+        byte-identical to the pre-internal-ref behavior.
+
+        Reads control-config FROM the input — ``input`` here is a
+        ``MySQLExtractionTaskInput`` populated by our override of
+        ``build_task_input``. Stash-on-self does NOT work because each
+        ``@task`` activity runs on a fresh ``app_instance``
+        (``application_sdk/app/base.py:1478``); the workflow-side
+        ``self._control_config`` set in ``run()`` is invisible to
+        activities. Threading the config through the task input is the
+        only contract Temporal preserves across the worker boundary.
+        """
+        prepared = super()._prepare_sql(sql, input)
+        control_config = extract_control_config(input)
+        prepared = resolve_information_schema(prepared, control_config)
+        return resolve_excluded_schemas(prepared, control_config)
+
+    @staticmethod
+    def build_task_input(input_cls, src, *, cred_ref=None):  # type: ignore[override]
+        """Construct a ``MySQLExtractionTaskInput`` populated from ``src``.
+
+        Overrides the SDK staticmethod (``SqlApp.build_task_input``) so the
+        extract tasks receive a task input that carries
+        ``control_config_strategy`` / ``control_config``.
+        Falls back to the SDK base implementation when the caller asks for
+        a different task-input class — preserves backward compat for any
+        helper that explicitly passes ``ExtractionTaskInput`` (or another
+        subclass) without expecting MySQL's extras.
+        """
+        # Always upgrade ExtractionTaskInput requests to the MySQL subclass
+        # so control-config travels into the activities. The SDK's
+        # ``SqlApp.run()`` calls ``build_task_input(ExtractionTaskInput, ...)``
+        # — that's the path we need to intercept.
+        if input_cls is ExtractionTaskInput or issubclass(
+            input_cls, MySQLExtractionTaskInput
+        ):
+            return MySQLExtractionTaskInput(
+                workflow_id=src.workflow_id,
+                connection=src.connection,
+                credential_guid=src.credential_guid,
+                credential_ref=cred_ref,
+                output_prefix=src.output_prefix,
+                output_path=src.output_path,
+                exclude_filter=src.exclude_filter,
+                include_filter=src.include_filter,
+                temp_table_regex=src.temp_table_regex,
+                source_tag_prefix=getattr(src, "source_tag_prefix", ""),
+                # Carry control-config onto the typed fields of the subclass.
+                # ``getattr`` because ``src`` may be the SDK base class in
+                # tests / call sites that haven't been migrated.
+                control_config_strategy=getattr(
+                    src, "control_config_strategy", "default"
+                ),
+                control_config=getattr(src, "control_config", ""),
+            )
+        # Fall back to the SDK base implementation for any other task
+        # class the caller explicitly requested.
+        return SqlApp.build_task_input(input_cls, src, cred_ref=cred_ref)
+
+    # ── @task overrides — declare the MySQL task-input subclass so
+    # pydantic preserves ``control_config*`` on the activity side. The
+    # SDK's parent @task methods declare ``ExtractionTaskInput`` (default
+    # ``extra='ignore'``) and would strip the fields at activity-side
+    # deserialisation. Delegating to the SDK's per-entity helper keeps
+    # the bodies identical to the SDK base implementation.
+
+    @task(
+        timeout_seconds=1800, heartbeat_timeout_seconds=120, auto_heartbeat_seconds=30
+    )
+    async def extract_databases(  # type: ignore[override]
+        self, input: MySQLExtractionTaskInput
+    ) -> ExtractionTaskOutput:
+        return await self._extract_entity(
+            entity_type="database",
+            sql_template=self.fetch_database_sql,
+            input=input,
+        )
+
+    @task(
+        timeout_seconds=1800, heartbeat_timeout_seconds=120, auto_heartbeat_seconds=30
+    )
+    async def extract_schemas(  # type: ignore[override]
+        self, input: MySQLExtractionTaskInput
+    ) -> ExtractionTaskOutput:
+        return await self._extract_entity(
+            entity_type="schema",
+            sql_template=self.fetch_schema_sql,
+            input=input,
+        )
+
+    @task(
+        timeout_seconds=1800, heartbeat_timeout_seconds=120, auto_heartbeat_seconds=30
+    )
+    async def extract_tables(  # type: ignore[override]
+        self, input: MySQLExtractionTaskInput
+    ) -> ExtractionTaskOutput:
+        return await self._extract_entity(
+            entity_type="table",
+            sql_template=self.fetch_table_sql,
+            input=input,
+        )
+
+    @task(
+        timeout_seconds=1800, heartbeat_timeout_seconds=120, auto_heartbeat_seconds=30
+    )
+    async def extract_columns(  # type: ignore[override]
+        self, input: MySQLExtractionTaskInput
+    ) -> ExtractionTaskOutput:
+        return await self._extract_entity(
+            entity_type="column",
+            sql_template=self.fetch_column_sql,
+            input=input,
+        )
+
+    @task(
+        timeout_seconds=1800, heartbeat_timeout_seconds=120, auto_heartbeat_seconds=30
+    )
+    async def extract_procedures(  # type: ignore[override]
+        self, input: MySQLExtractionTaskInput
+    ) -> ExtractionTaskOutput:
+        return await self._extract_entity(
+            entity_type="extras-procedure",
+            sql_template=self.fetch_procedure_sql,
+            input=input,
+        )
 
     # ── Asset mappers ───────────────────────────────────────────────────
 
@@ -472,18 +685,166 @@ class MySQLApp(SqlApp):
             "customAttributes": {},
         }
 
+    def _materialize_mirror_into_input(self, creds: dict[str, Any], input: Any) -> None:
+        """internal-ref: inject ``extra.clonedInformationSchema`` from a resolved
+        credentials dict into ``input.control_config`` so ``_prepare_sql``
+        sees the mirror schema.
+
+        Called from :meth:`_init_sql_client` — that override runs inside
+        each extract activity (not in the workflow), so it's safe to do
+        credential resolution and ``input`` mutation here without tripping
+        Temporal's workflow-determinism guards.
+
+        Precedence: an operator-set ``control_config.clonedInformationSchema``
+        (from Advanced Config JSON) wins over the credential value. We try
+        three credential shapes because the resolver-side raw dict can
+        deliver the extras either nested or flat:
+
+          1. ``creds["extra"]["clonedInformationSchema"]`` (nested)
+          2. ``creds["extra.clonedInformationSchema"]`` (flat dotted)
+          3. ``creds["clonedInformationSchema"]`` (top-level fallback)
+        """
+        try:
+            existing = extract_control_config(input) or {}
+        except Exception:
+            existing = {}
+        if existing.get("clonedInformationSchema"):
+            return  # operator-supplied JSON wins
+
+        mirror: Any = None
+        if isinstance(creds, dict):
+            nested = creds.get("extra")
+            if isinstance(nested, dict):
+                mirror = nested.get("clonedInformationSchema")
+            if mirror is None:
+                mirror = creds.get("extra.clonedInformationSchema")
+            if mirror is None:
+                mirror = creds.get("clonedInformationSchema")
+
+        if not isinstance(mirror, str) or not mirror.strip():
+            return
+        mirror = mirror.strip()
+        _logger.info(
+            "internal-ref: materializing clonedInformationSchema=%s into "
+            "control_config from credential extras",
+            mirror,
+        )
+
+        # Mutate input in place. We're inside the activity here — ``input``
+        # is the task-input snapshot Temporal handed us; mutations stay
+        # local to this activity's execution.
+        try:
+            input.control_config_strategy = "custom"
+            if isinstance(input.control_config, dict):
+                input.control_config["clonedInformationSchema"] = mirror
+            else:
+                input.control_config = {"clonedInformationSchema": mirror}
+        except Exception as exc:  # pragma: no cover — fail-soft on frozen models
+            _logger.warning("internal-ref: failed to mutate task input with mirror: %s", exc)
+
+    async def _init_sql_client(self, input: Any) -> Any:  # type: ignore[override]
+        """Override SDK's ``_init_sql_client`` so we can plumb
+        ``extra.clonedInformationSchema`` from the resolved credential
+        into ``input.control_config`` before any extract SQL is prepared.
+
+        The SDK's base method (``application_sdk/templates/sql_app.py:898``)
+        resolves the credential via ``CredentialResolver.resolve_raw`` and
+        calls ``client.load(credentials=creds)``. We do the same here, but
+        intercept the ``creds`` dict to extract the mirror schema name and
+        materialize it into ``input.control_config`` — which downstream
+        ``_prepare_sql`` calls then pick up via ``extract_control_config``.
+
+        This runs inside each extract @task activity (per-activity
+        credential resolution is the SDK's existing pattern, so it's
+        already activity-context-safe — no Temporal determinism violation).
+        Previously we attempted this in ``MySQLApp.run()`` (workflow
+        context), which failed because ``CredentialResolver`` uses
+        ``threading.local`` internally; the activity context has no such
+        restriction.
+        """
+        if self.sql_client_class is None:
+            from application_sdk.templates.sql_app_errors import (  # noqa: PLC0415
+                SqlClientClassNotSetError,
+            )
+
+            raise SqlClientClassNotSetError()
+
+        client = self.sql_client_class()
+        creds: dict[str, Any] = {}
+
+        ref: CredentialRef | None = getattr(input, "credential_ref", None)
+        if ref is None and getattr(input, "credential_guid", None):
+            from application_sdk.credentials import (  # noqa: PLC0415
+                legacy_credential_ref,
+            )
+
+            ref = legacy_credential_ref(input.credential_guid)
+
+        if ref is not None:
+            try:
+                infra = get_infrastructure()
+                secret_store = infra.secret_store if infra else None
+                if secret_store is not None:
+                    resolver = CredentialResolver(secret_store)
+                    creds = await resolver.resolve_raw(ref) or {}
+            except Exception as exc:
+                _logger.warning(
+                    "internal-ref: credential resolve_raw failed in _init_sql_client: %s",
+                    exc,
+                )
+
+        # internal-ref: inject the mirror schema name into input.control_config
+        # so the upcoming _prepare_sql call(s) in this activity see it.
+        self._materialize_mirror_into_input(creds, input)
+
+        await client.load(credentials=creds)
+        return client
+
+    async def _materialize_credential_mirror_into_control_config(
+        self, input: MySQLExtractionInput
+    ) -> None:
+        """Legacy workflow-side helper — kept as a no-op for backwards
+        compat with any orchestration that still calls it. The real
+        materialization now happens in :meth:`_init_sql_client` (activity
+        context). Calling this from a workflow method is safe (no I/O).
+        """
+        # internal-ref history: this used to do credential resolution inline in
+        # the workflow, but Temporal's workflow-determinism guard blocks
+        # ``CredentialResolver.resolve_raw`` (it uses ``threading.local``).
+        # Logic was moved to ``_init_sql_client`` which runs in activity
+        # context. This stub is kept to avoid breaking any orchestrator
+        # that imports/calls the symbol.
+        return
+
     async def run(  # type: ignore[override]
-        self, input: ExtractionInput
+        self, input: MySQLExtractionInput
     ) -> MySQLExtractionOutput:
         """MySQL extraction: standard assets + procedures + lineage pipeline outputs.
 
-        1. Standard fetch/transform/upload (databases, schemas, tables, columns)
+        1. Standard fetch/transform/upload (databases, schemas, tables, columns).
+           ``control_config`` flows into each activity via ``MySQLExtractionTaskInput``
+           constructed by our ``build_task_input`` override — the SDK's
+           ``run()`` calls ``self.build_task_input(ExtractionTaskInput, input, ...)``
+           and gets the MySQL subclass back, carrying the typed fields.
         2. Stored procedures — writes ``extras-procedure/`` so the QI SQL parser
-           derives procedure-level lineage from ``definition`` fields
+           derives procedure-level lineage from ``definition`` fields.
         3. Returns extended output with view_lineage_output_prefix,
            lineage_stage_prefix, and storage_bucket so the manifest DAG can
-           chain qi → lineage-app → lineage-publish nodes (Athena pattern)
+           chain qi → lineage-app → lineage-publish nodes (Athena pattern).
         """
+        # internal-ref follow-up: thread the credential's
+        # ``extra.clonedInformationSchema`` into ``input.control_config`` so
+        # workflow-runtime extract activities pick up the mirror schema. The
+        # handler endpoints (test_auth / preflight / fetch_metadata) read
+        # from ``input.credentials`` directly, but the @task activities
+        # receive ``MySQLExtractionTaskInput`` which only carries
+        # ``control_config`` across the worker boundary. Mutating the
+        # workflow input here lets our ``build_task_input`` override
+        # snapshot the synthesized value via the existing
+        # ``control_config_strategy`` / ``control_config`` pathway — no
+        # changes to the task-input schema needed.
+        await self._materialize_credential_mirror_into_control_config(input)
+
         base_result = await super().run(input)
 
         if self.fetch_procedure_sql:
