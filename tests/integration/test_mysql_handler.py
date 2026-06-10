@@ -23,7 +23,7 @@ from application_sdk.handler import (
     PreflightStatus,
 )
 
-from app.handlers.mysql import MySQLAppHandler
+from app.handler import MySQLAppHandler
 
 
 def _creds(

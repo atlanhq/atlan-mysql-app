@@ -22,7 +22,7 @@ from application_sdk.handler import (
 )
 from application_sdk.observability.logger_adaptor import get_logger
 
-from app.clients import SQLClient
+from app.client import SQLClient
 from app.constants import DATABASE_PLACEHOLDER
 from app.failures import MetadataFetchError, MetadataHostMissingError
 
@@ -30,14 +30,14 @@ logger = get_logger(__name__)
 
 # SQL for handler endpoints
 _TEST_AUTH_SQL = (
-    (Path(__file__).parent.parent / "sql" / "test_authentication.sql")
+    (Path(__file__).parent / "sql" / "test_authentication.sql")
     .read_text()
     .strip()
     .replace("{database_placeholder}", DATABASE_PLACEHOLDER)
 )
 
 _TABLES_CHECK_SQL = (
-    (Path(__file__).parent.parent / "sql" / "tables_check.sql")
+    (Path(__file__).parent / "sql" / "tables_check.sql")
     .read_text()
     .strip()
     .replace("{database_placeholder}", DATABASE_PLACEHOLDER)
@@ -47,7 +47,7 @@ _TABLES_CHECK_SQL = (
 )
 
 _FILTER_METADATA_SQL = (
-    (Path(__file__).parent.parent / "sql" / "filter_metadata.sql")
+    (Path(__file__).parent / "sql" / "filter_metadata.sql")
     .read_text()
     .strip()
     .replace("{database_placeholder}", DATABASE_PLACEHOLDER)

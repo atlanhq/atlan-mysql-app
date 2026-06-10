@@ -1,29 +1,27 @@
-"""MySQL App — entry point.
+"""Container entry point for atlan-mysql-app.
 
-Uses external Dapr + Temporal (``run_combined_mode``) when ``DAPR_HTTP_PORT``
-is set (CI / docker-compose mode).  Falls back to the zero-dependency embedded
-mode (``run_dev_combined``) for local development.
+In container deployments the SDK runtime imports the App class declared in
+the ``ATLAN_APP_MODULE`` env var (``app.mysql:MySQLApp`` — see
+``Dockerfile`` and ``atlan.yaml`` → ``deploy.env``) and boots the combined
+HTTP handler + worker. This thin script provides the same behaviour when
+running the image directly without overriding the command.
+
+For local development use::
+
+    uv run python -m app.run_dev
+    # or equivalently:
+    uv run python main.py
+
+Both paths go through ``app.run_dev.main`` → ``run_dev_combined`` and
+bring up an in-process Temporal runtime + in-process backends for
+state / secrets / object storage — no external services required.
 """
 
-import asyncio
-import os
+from __future__ import annotations
 
-from app.mysql import MySQLApp
+import asyncio
+
+from app.run_dev import main
 
 if __name__ == "__main__":
-    if os.environ.get("DAPR_HTTP_PORT"):
-        # External Dapr sidecar is running — use production-equivalent combined mode.
-        # Temporal host defaults to localhost:7233; override via ATLAN_TEMPORAL_HOST.
-        from application_sdk.main import AppConfig, run_combined_mode
-
-        config = AppConfig(
-            mode="combined",
-            app_module="app.mysql:MySQLApp",
-            temporal_host=os.environ.get("ATLAN_TEMPORAL_HOST", "localhost:7233"),
-        )
-        asyncio.run(run_combined_mode(config))
-    else:
-        # No external Dapr — boot embedded Dapr + Temporal for local dev.
-        from application_sdk.main import run_dev_combined
-
-        asyncio.run(run_dev_combined(MySQLApp))
+    asyncio.run(main())
