@@ -1,10 +1,5 @@
 # MySQL Application
 
-[![Tests](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/tests.yaml/badge.svg)](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/tests.yaml)
-[![Build](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/build-and-publish.yaml/badge.svg)](https://github.com/atlanhq/atlan-mysql-app/actions/workflows/build-and-publish.yaml)
-[![Checked with pyright](https://microsoft.github.io/pyright/img/pyright_badge.svg)](https://microsoft.github.io/pyright/)
-[![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-
 MySQL metadata extraction app built on [Atlan Application SDK v3](https://github.com/atlanhq/application-sdk). Extracts databases, schemas, tables, views, columns, and procedures from MySQL and transforms them into Atlan-compatible assets.
 
 ## Architecture
