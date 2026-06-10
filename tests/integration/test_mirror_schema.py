@@ -682,7 +682,7 @@ class TestFilteredExtractionViaMirror:
             "nested /* */ comments → MySQL parser fails with syntax error. "
             "Unrelated to internal-ref — affects any temp_table_regex value. "
             "Filed against application_sdk: "
-            "internal-issue-tracker
+            "internal-issue-tracker"
         ),
         strict=False,
     )

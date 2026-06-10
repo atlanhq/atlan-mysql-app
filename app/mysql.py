@@ -740,7 +740,9 @@ class MySQLApp(SqlApp):
             else:
                 input.control_config = {"clonedInformationSchema": mirror}
         except Exception as exc:  # pragma: no cover — fail-soft on frozen models
-            _logger.warning("internal-ref: failed to mutate task input with mirror: %s", exc)
+            _logger.warning(
+                "internal-ref: failed to mutate task input with mirror: %s", exc
+            )
 
     async def _init_sql_client(self, input: Any) -> Any:  # type: ignore[override]
         """Override SDK's ``_init_sql_client`` so we can plumb
