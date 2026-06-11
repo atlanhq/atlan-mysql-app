@@ -67,7 +67,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     concurrency:
-      group: tests-${{ github.ref }}
+      # Dispatch from SDK CI passes a unique distinct_id (the PR's HEAD SHA).
+      # Using it as the group key lets multiple Renovate/SDK PRs run in
+      # parallel instead of serialising behind tests-refs/heads/main.
+      group: ${{ github.event_name == 'workflow_dispatch' && inputs.distinct_id != '' && format('tests-dispatch-{0}', inputs.distinct_id) || format('tests-{0}', github.ref) }}
       cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
     permissions:
       pull-requests: write
