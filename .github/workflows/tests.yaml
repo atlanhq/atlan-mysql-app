@@ -58,6 +58,15 @@ on:
         required: false
         default: ""
         type: string
+      base_image_ref:
+        description: |
+          Runtime base image for the connector Docker build (BASE_IMAGE
+          build-arg), set by the application-sdk PR dispatch so SDK
+          base-image / Dockerfile / daprd changes are exercised. Empty =
+          the connector Dockerfile default base.
+        required: false
+        default: ""
+        type: string
 
 jobs:
 
@@ -119,6 +128,7 @@ jobs:
       test-path: tests/e2e/
       agent-name-override: ${{ inputs.agent_name_override }}
       application-sdk-ref: ${{ inputs.application_sdk_ref }}
+      base-image-ref: ${{ inputs.base_image_ref }}
       distinct-id: ${{ inputs.distinct_id }}
     secrets: inherit
 
