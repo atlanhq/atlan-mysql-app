@@ -1,0 +1,57 @@
+# Unified E2E PR Validation workflow.
+#
+# One workflow file → one PR check ('E2E Validation') → one sticky comment.
+# Listens on both pull_request (auto) and issue_comment (override).
+#
+# Comment override format:
+#   /trigger-dev-tenant-tests tenant=E2E_<NAME> tags=@pw-<connector>-<scope>
+# Bypasses default 3-cloud fan-out, runs on the specified tenant only.
+#
+# All orchestration logic lives in:
+#   atlanhq/marketplace-releases/.github/workflows/e2e-pr-validation-reusable.yaml
+#
+# Pinned to @feat/e2e-pr-validation during dogfood — flip to @main and
+# drop the `with:` block once the central PR (atlanhq/marketplace-releases#2003) merges.
+
+name: E2E PR Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  issue_comment:
+    types: [created, edited]
+
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+  issues: write
+  pull-requests: write
+  statuses: write
+
+concurrency:
+  group: |-
+    ${{
+      (github.event_name == 'pull_request' ||
+       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/trigger-dev-tenant-tests')))
+      && format('e2e-pr-validation-{0}-{1}', github.repository, github.event.pull_request.number || github.event.issue.number)
+      || format('e2e-pr-validation-noop-{0}', github.run_id)
+    }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request != null &&
+       contains(github.event.comment.body, '/trigger-dev-tenant-tests') &&
+       (github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'COLLABORATOR') &&
+       github.actor != 'github-actions[bot]' &&
+       github.actor != 'atlan-ci')
+    uses: atlanhq/marketplace-releases/.github/workflows/e2e-pr-validation-reusable.yaml@feat/e2e-pr-validation
+    with:
+      config_ref: feat/e2e-pr-validation
+    secrets: inherit
