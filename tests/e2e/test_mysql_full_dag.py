@@ -105,8 +105,14 @@ class TestMySQLFullDAG(MySQLGeneratedE2EBase):
         # via agent-json ref-keys. Sending the DIRECT-mode shape causes the
         # orchestrator to skip credential creation and leave {{credentialGuid}}
         # unsubstituted, which produces HTTP 500 at submit time.
+        #
+        # The GITHUB_RUN_ATTEMPT suffix guards against the Postgres
+        # unique-constraint collision when the same run is re-attempted: run_id
+        # is stable across attempts, so without the suffix a retry would POST a
+        # credential name that already exists and fail with HTTP 400.
+        attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "1")
         return MySQLCredentialBody(
-            name=f"default-{self.connector_short_name}-{self.run_id}-0",
+            name=f"default-{self.connector_short_name}-{self.run_id}-{attempt}",
         )
 
     def _build_ae_payload(self, slug: str) -> dict:
