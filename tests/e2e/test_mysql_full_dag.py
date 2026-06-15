@@ -37,7 +37,6 @@ try:
     from application_sdk.testing.e2e import RunMode  # noqa: E402
     from application_sdk.testing.e2e.payload import DatabaseSpec, build_ae_payload  # noqa: E402
     from app.generated._e2e_base import MySQLGeneratedE2EBase  # noqa: E402
-    from app.generated._e2e_credential import MySQLCredentialBody  # noqa: E402
 except ImportError as _exc:
     pytest.skip(
         f"SDK does not yet export new e2e harness: {_exc}", allow_module_level=True
@@ -99,21 +98,20 @@ class TestMySQLFullDAG(MySQLGeneratedE2EBase):
             connector_config_name="atlan-connectors-mysql",
         )
 
-    def _credential_body(self) -> MySQLCredentialBody:
-        # AGENT mode: lightweight body — no host/username/password.
-        # Those live in the Dapr secret store and are resolved at runtime
-        # via agent-json ref-keys. Sending the DIRECT-mode shape causes the
-        # orchestrator to skip credential creation and leave {{credentialGuid}}
-        # unsubstituted, which produces HTTP 500 at submit time.
-        return MySQLCredentialBody(
-            name=f"default-{self.connector_short_name}-{self.run_id}-0",
-        )
+    def _credential_body(self) -> None:
+        # AGENT mode: credentials are resolved at runtime from the local Dapr
+        # secret store via agent-json ref-keys (SDR_MYSQL_USERNAME /
+        # SDR_MYSQL_PASSWORD — populated by make-secrets-e2e-full.py).
+        # No credential is stored in AE's Postgres, so AE never calls back to
+        # the connector pod during workflow submission. This eliminates the pod
+        # availability dependency at submit time.
+        return None
 
     def _build_ae_payload(self, slug: str) -> dict:
-        # The new build_ae_payload emits only the {{...}} mustache params and
-        # connection.* attrs. The Argo cluster template additionally reads flat
-        # credential-guid.* and agent-json.* params that the old harness sent.
-        # Inject them here so the template sees the same shape it expects.
+        # build_ae_payload emits the {{...}} mustache params and connection.*
+        # attrs. The AE workflow additionally reads flat agent-json.* params
+        # alongside the JSON-blob agent-json parameter — inject them to match
+        # the expected payload shape.
         payload = build_ae_payload(
             run_id=self.run_id,
             mode=self.mode,
@@ -128,17 +126,8 @@ class TestMySQLFullDAG(MySQLGeneratedE2EBase):
         )
         db = self.database_spec()
         agent = self.agent_spec()
-        extra_params = [
-            {
-                "name": "credential-guid.credential-type",
-                "value": db.connector_config_name
-                or f"atlan-connectors-{self.connector_short_name}",
-            },
-            {"name": "credential-guid.port", "value": db.port},
-            {"name": "credential-guid.auth-type", "value": db.auth_type},
-        ]
         if agent is not None:
-            extra_params.extend([
+            extra_params = [
                 {"name": "agent-json.host", "value": db.host},
                 {"name": "agent-json.port", "value": db.port},
                 {"name": "agent-json.auth-type", "value": db.auth_type},
@@ -158,8 +147,8 @@ class TestMySQLFullDAG(MySQLGeneratedE2EBase):
                     "name": "agent-json.basic.password",
                     "value": f"SDR_{self.connector_short_name.upper()}_PASSWORD",
                 },
-            ])
-        payload["spec"]["templates"][0]["dag"]["tasks"][0]["arguments"][
-            "parameters"
-        ].extend(extra_params)
+            ]
+            payload["spec"]["templates"][0]["dag"]["tasks"][0]["arguments"][
+                "parameters"
+            ].extend(extra_params)
         return payload
