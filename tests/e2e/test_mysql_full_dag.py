@@ -35,12 +35,26 @@ if not os.environ.get("ATLAN_BASE_URL") or not os.environ.get("ATLAN_API_KEY"):
 
 try:
     from application_sdk.testing.e2e import RunMode  # noqa: E402
+    from application_sdk.testing.e2e.client import AEWorkflowClient  # noqa: E402
     from application_sdk.testing.e2e.payload import DatabaseSpec, build_ae_payload  # noqa: E402
     from app.generated._e2e_base import MySQLGeneratedE2EBase  # noqa: E402
 except ImportError as _exc:
     pytest.skip(
         f"SDK does not yet export new e2e harness: {_exc}", allow_module_level=True
     )
+
+# The AE submit endpoint may block >60s while the SDR preflight Temporal workflow
+# schedules. Patch the default timeout to 180s before any client is instantiated.
+# (The default is baked into _request's signature at class-definition time, so
+# patching the module constant after import has no effect — replace the method.)
+_orig_request = AEWorkflowClient._request
+
+
+def _request_180(self, method, path, *, body=None, timeout=180):
+    return _orig_request(self, method, path, body=body, timeout=timeout)
+
+
+AEWorkflowClient._request = _request_180  # type: ignore[method-assign]
 
 
 class TestMySQLFullDAG(MySQLGeneratedE2EBase):
