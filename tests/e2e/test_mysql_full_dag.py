@@ -118,7 +118,7 @@ class TestMySQLFullDAG(MySQLGeneratedE2EBase):
             connector_short_name=self.connector_short_name,
             argo_package_name=self.argo_package_name,
             argo_template_name=self.argo_template_name,
-            app_service_url=self.app_service_url,
+            app_service_url="",  # AGENT mode: connector runs in CI compose, not in-cluster
             connection=self.connection_spec(),
             mustache_subs=self._mustache_substitutions(),
             credential_body=self._credential_body(),
