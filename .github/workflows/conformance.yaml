@@ -14,4 +14,4 @@ jobs:
   conformance:
     uses: atlanhq/application-sdk/.github/workflows/conformance-reusable.yaml@main
     with:
-      sdk-ref: main
+      event_name: ${{ github.event_name }}
