@@ -58,6 +58,11 @@ on:
         required: false
         default: ""
         type: string
+      storage_profile:
+        description: "Cross-cloud matrix profile for the e2e customer object store (aws|azure|gcp). Empty = SDK default (localstorage)."
+        required: false
+        default: ""
+        type: string
       base_image_ref:
         description: |
           Runtime base image for the connector Docker build (BASE_IMAGE
@@ -120,7 +125,9 @@ jobs:
         github.event.pull_request.head.repo.fork != true &&
         github.event.pull_request.user.login != 'dependabot[bot]'
       )
-    uses: atlanhq/application-sdk/.github/workflows/e2e-full-reusable.yaml@main
+    # TEMP(DISTR-767): pinned to the matrix branch to validate storage-profile
+    # end-to-end. Revert to @main once the SDK PR merges.
+    uses: atlanhq/application-sdk/.github/workflows/e2e-full-reusable.yaml@adityachoudhury/gcs-emulator-base-url
     with:
       app-name: mysql
       app-image-name: atlan-mysql-app
@@ -130,6 +137,7 @@ jobs:
       application-sdk-ref: ${{ inputs.application_sdk_ref }}
       base-image-ref: ${{ inputs.base_image_ref }}
       distinct-id: ${{ inputs.distinct_id }}
+      storage-profile: ${{ inputs.storage_profile }}
     secrets: inherit
 
   # ── Aggregator gate (single required check for branch protection) ─────
