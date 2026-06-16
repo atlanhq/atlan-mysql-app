@@ -84,6 +84,15 @@ class TestMySQLFullDAG(MySQLGeneratedE2EBase):
         "View": 1,
         "Column": 10,
     }
+    # Exact count-parity vs the hermetic seed (observed from a baseline run):
+    # validates DISTR-758 expected_counts end-to-end (catches over/under-extraction).
+    expected_exact_counts = {
+        "Database": 1,
+        "Schema": 1,
+        "Table": 2,
+        "View": 1,
+        "Column": 11,
+    }
     expect_lineage = True
 
     def database_spec(self) -> DatabaseSpec:
