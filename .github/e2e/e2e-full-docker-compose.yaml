@@ -13,12 +13,34 @@
 #      CI run has a clearly-labeled unique queue + workflow lineage
 #      for grep-driven traceability across systems.
 #
-# The S3/blobstorage objectstore component and ATLAN_AUTH_CLIENT_ID/
-# SECRET are handled by the configurator + SDK's docker-compose.ci.yml
-# base layer (SDR_CLIENT_ID/SECRET → ATLAN_AUTH_CLIENT_ID/SECRET) —
-# no explicit override needed here.
+# The UPSTREAM atlan-objectstore (Atlan blobstorage proxy) + ATLAN_AUTH_
+# CLIENT_ID/SECRET are handled by the configurator + SDK's docker-compose.ci.yml
+# base layer (SDR_CLIENT_ID/SECRET → ATLAN_AUTH_CLIENT_ID/SECRET).
+#
+# DISTR-762 (AWS/S3 matrix leg): the CUSTOMER object store is overridden to a
+# real S3 store via the LocalStack sidecar below + e2e-full-components/
+# objectstore.yaml. atlan-app waits on localstack being healthy (= bucket
+# created) so the worker's S3 staging path is exercised end-to-end.
 
 services:
+  localstack:
+    image: localstack/localstack:3
+    environment:
+      - SERVICES=s3
+      - DEBUG=0
+    volumes:
+      # Ready-hook: create the customer bucket once S3 is up.
+      - ${GITHUB_WORKSPACE}/.github/e2e/localstack-init-s3.sh:/etc/localstack/init/ready.d/init-s3.sh:ro
+    healthcheck:
+      # Green only after the ready-hook created the bucket → gates atlan-app.
+      test: ["CMD", "bash", "-c", "awslocal s3api head-bucket --bucket atlan-customer-e2e"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    expose:
+      - "4566"
+
   mysql:
     image: mysql:8.0.40
     healthcheck:
@@ -40,6 +62,8 @@ services:
   atlan-app:
     depends_on:
       mysql:
+        condition: service_healthy
+      localstack:
         condition: service_healthy
     environment:
       # Unique per-run deployment name embedding the test identifier.

@@ -1,0 +1,36 @@
+# DISTR-762 — AWS/S3 leg of the cross-cloud E2E matrix.
+#
+# Overrides the SDK CI default customer object store (bindings.localstorage)
+# with a real S3 store backed by LocalStack (see the localstack service in
+# e2e-full-docker-compose.yaml). This exercises the worker's S3 staging path
+# (raw + transformed write/read-back) for an "AWS customer" configuration.
+# The upstream `atlan-objectstore` (the Atlan blobstorage proxy) is untouched,
+# so the full DAG still publishes to the tenant and assets land in Atlas.
+#
+# The sdr-e2e action copies this over ci-deploy/components/ last, so it wins
+# over the configurator/SDK default `objectstore` component.
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: objectstore
+spec:
+  type: bindings.aws.s3
+  version: v1
+  metadata:
+    - name: bucket
+      value: atlan-customer-e2e
+    - name: region
+      value: us-east-1
+    # Compose-network DNS name of the LocalStack sidecar. http:// → the SDK
+    # binding infers allow_http (plaintext) automatically.
+    - name: endpoint
+      value: http://localstack:4566
+    - name: forcePathStyle
+      value: "true"
+    - name: disableSSL
+      value: "true"
+    # LocalStack accepts any static credentials.
+    - name: accessKey
+      value: test
+    - name: secretKey
+      value: test
