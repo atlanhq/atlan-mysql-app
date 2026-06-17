@@ -254,15 +254,16 @@ workflows = [
 
 [[package]]
 name = "atlan-application-sdk-conformance"
-version = "0.2.0"
+version = "0.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
+    { name = "jinja2" },
     { name = "jsonschema" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8b/24/24189b20ead5fdf9d381ad54948ec8b8ad5b2903d5e5cfd79ecd5f0d532c/atlan_application_sdk_conformance-0.2.0.tar.gz", hash = "sha256:e43d13764ff1bc513c046d4f39a3cb94bff2d4492b6b4967b3dddae26ddc540d", size = 304138, upload-time = "2026-06-15T22:18:20.596Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/19/bf/4036940a1e6d94468490d6e9f7c0beac771aa70f0a0970334ee19346b8db/atlan_application_sdk_conformance-0.3.0.tar.gz", hash = "sha256:29c243ec21b232e0c6b80aebf4ac760a1b3c6976c06a1244d571798cab5d5e16", size = 318241, upload-time = "2026-06-17T01:58:17.728Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/92/87/36ced7fe9ebd45cd1170bbc1a38704908e1dca48a26fe242fac77e6f1e30/atlan_application_sdk_conformance-0.2.0-py3-none-any.whl", hash = "sha256:cda140ee73941c15779e0c623a483c29e41b48a29e0311626f285a8b5fad7e8c", size = 116300, upload-time = "2026-06-15T22:18:21.518Z" },
+    { url = "https://files.pythonhosted.org/packages/ac/4d/610e528ed3e8abbd7dd86bb1d345b3838af65db1f4335ab8ff5a00e88a90/atlan_application_sdk_conformance-0.3.0-py3-none-any.whl", hash = "sha256:3fa72a09149307e7db79d6dac2007026603fefc763ae25c6ed66172e8d8095ee", size = 132129, upload-time = "2026-06-17T01:58:16.732Z" },
 ]
 
 [[package]]
