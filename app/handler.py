@@ -82,7 +82,7 @@ class MySQLAppHandler(Handler):
                 status=AuthStatus.SUCCESS, message="Authentication successful"
             )
         except Exception as e:
-            logger.exception("MySQL auth test failed")
+            logger.error("MySQL auth test failed", exc_info=True)
             return AuthOutput(status=AuthStatus.FAILED, message=str(e))
         finally:
             await client.close()
