@@ -1,8 +1,12 @@
 name: Conventional Commits Check
 
+# Enforces the conventional-commits PR title format (feat:, fix:, chore:,
+# docs:, etc.) so the SDK's release-version-bump workflow can categorise
+# entries when it generates the CHANGELOG.md after each merge to main.
+
 on:
   pull_request:
-    types: [ opened, synchronize, labeled, reopened ]
+    types: [opened, synchronize, labeled, reopened]
     branches:
       - main
 
@@ -12,7 +16,6 @@ permissions:
   actions: read
   security-events: write
 
-
 jobs:
-  docstring-coverage:
+  conventional-commits:
     uses: atlanhq/application-sdk/.github/workflows/commits.yaml@main

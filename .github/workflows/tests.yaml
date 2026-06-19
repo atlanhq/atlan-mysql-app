@@ -1,21 +1,21 @@
+# This file is scaffolded by `atlan-application-sdk-conformance bootstrap`
+# and drift-tracked at WARN by conformance check C002.
+#
+# Edit it freely — drift NEVER blocks CI (C002 is WARN-only, not BLOCK).
+# To force-regenerate this file from canonical, delete it and re-run bootstrap:
+#   atlan-application-sdk-conformance bootstrap --app-name <your-app-name>
 name: Tests
 
 # Unified workflow — unit + integration (testcontainers), and full-DAG e2e.
 #
-#   tests     — unit (tests/unit/) + testcontainers integration (tests/integration/)
-#               via connector-integration-tests composite action. Runs on every
-#               push to main and on every PR.
-#   e2e       — full system-apps DAG (extract→qi→publish→lineage) against a real
-#               tenant (tests/e2e/) via the reusable e2e-full workflow. On
-#               workflow_dispatch or the 'e2e' PR label only.
-#   tests-passed — aggregator gate; the single required check for branch
-#                  protection. tests must pass; e2e can be skipped.
-#
-# Cross-repo dispatch (from application-sdk PRs):
-#   application_sdk_ref pins the SDK in the tests job so the connector
-#   exercises the SDK branch under review.
-#   distinct_id is echoed in step names so codex-/return-dispatch can
-#   locate this run from the calling workflow via the GH Actions API.
+#   tests       — unit + integration tests via connector-integration-tests
+#                 composite. Source systems should start from session-scoped
+#                 pytest fixtures (see mysql/metabase conftest.py); uncomment
+#                 services-script below only if that pattern doesn't fit.
+#   e2e         — full-DAG tests against a real tenant via e2e-full-reusable.
+#                 Triggered by the 'e2e' PR label or workflow_dispatch.
+#   Tests Gate  — aggregator gate; the single required check for branch
+#                 protection.  tests must pass; e2e can be skipped.
 
 on:
   push:
@@ -69,103 +69,24 @@ on:
         type: string
 
 jobs:
-
-  # ── Unit + testcontainers e2e ─────────────────────────────────────────
   tests:
-    name: tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    concurrency:
-      group: tests-${{ github.ref }}
-      cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
-    permissions:
-      pull-requests: write
-      contents: read
-    outputs:
-      summary: ${{ steps.tests.outputs.summary }}
-    steps:
-      - name: echo distinct-id ${{ github.event.inputs.distinct_id }}
-        if: github.event.inputs.distinct_id != ''
-        run: echo "Dispatched; SDK ref=${{ github.event.inputs.application_sdk_ref }}"
-
-      - name: Run unit + e2e tests
-        id: tests
-        uses: atlanhq/application-sdk/.github/actions/connector-integration-tests@main
-        with:
-          app-name: mysql
-          application-sdk-ref: ${{ github.event.inputs.application_sdk_ref }}
-          # Scope to unit + testcontainers integration; tests/e2e/
-          # (full-DAG) runs in its own job below.
-          test-paths: "tests/unit/ tests/integration/"
-          pytest-args: >-
-            -n auto --dist=loadfile --tb=short
-            --cov=app --cov-report=xml --cov-report=html --cov-report=term
-            --cov-fail-under=0
-
-  # ── Full-DAG e2e (system apps — extract→qi→publish→lineage) ──────────
-  e2e:
-    name: e2e
-    concurrency:
-      group: tests-e2e-${{ github.ref }}
-      cancel-in-progress: false
-    # On workflow_dispatch (including cross-repo dispatch from apps-sdk),
-    # or when the 'e2e' label is present on the PR (covers both adding the
-    # label and pushing to a PR that already has it). Forks and bots are
-    # excluded — full-DAG runs touch real tenant assets.
-    if: |
-      (github.event_name == 'workflow_dispatch' && inputs.run_e2e == 'true') ||
-      (
-        github.event_name == 'pull_request' &&
-        contains(github.event.pull_request.labels.*.name, 'e2e') &&
-        github.event.pull_request.head.repo.fork != true &&
-        github.event.pull_request.user.login != 'dependabot[bot]'
-      )
-    uses: atlanhq/application-sdk/.github/workflows/e2e-full-reusable.yaml@main
+    uses: atlanhq/application-sdk/.github/workflows/tests-reusable.yaml@main
     with:
-      app-name: mysql
-      app-image-name: atlan-mysql-app
-      # Override default tests/full_dag/ path — mysql uses tests/e2e/
-      test-path: tests/e2e/
-      agent-name-override: ${{ inputs.agent_name_override }}
+      app-name: "mysql"
+      app-image-name: "atlan-mysql-app"
+
+
+      # services-script: .github/test/setup-services.sh
+      # Uncomment services-script (and add the script) if your source systems
+      # need CI-level startup rather than pytest fixtures.  See mysql/metabase
+      # tests/integration/conftest.py for the preferred fixture-based approach,
+      # and openapi's .github/test/setup-services.sh for a reference
+      # demonstration of the hook (used intentionally to exercise the pattern).
+
+      # Review test-paths and pytest-args before committing; defaults auto-discover.
       application-sdk-ref: ${{ inputs.application_sdk_ref }}
-      base-image-ref: ${{ inputs.base_image_ref }}
       distinct-id: ${{ inputs.distinct_id }}
+      run-e2e: ${{ inputs.run_e2e }}
+      base-image-ref: ${{ inputs.base_image_ref }}
+      agent-name-override: ${{ inputs.agent_name_override }}
     secrets: inherit
-
-  # ── Aggregator gate (single required check for branch protection) ─────
-  tests-passed:
-    name: tests-passed
-    needs: [tests, e2e]
-    if: always()
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-      contents: read
-    steps:
-      - name: Post unified test-summary comment on PR
-        if: always() && github.event_name == 'pull_request'
-        uses: mshick/add-pr-comment@8e4927817251f1ff60c001f04568532b38e0b4a0 # v3.11.0
-        with:
-          message-id: tests-summary
-          message: |
-            ## Tests Summary
-
-            | Job | Status | Result |
-            |---|---|---|
-            | tests | ${{ needs.tests.result == 'success' && '✅ Passed' || (needs.tests.result == 'skipped' && '⊘ Skipped' || '❌ Failed') }} | `${{ needs.tests.outputs.summary || 'no summary' }}` |
-            | e2e | ${{ needs.e2e.result == 'success' && '✅ Passed' || (needs.e2e.result == 'skipped' && '⊘ Skipped — add `e2e` label to trigger' || '❌ Failed') }} | (see run) |
-
-            **Overall:** ${{ (needs.tests.result == 'success' && (needs.e2e.result == 'success' || needs.e2e.result == 'skipped')) && '✅ All passed' || '❌ Some failed' }} — [view run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
-        continue-on-error: true
-
-      - name: Verify all test jobs succeeded
-        run: |
-          if [ "${{ needs.tests.result }}" != "success" ]; then
-            echo "::error::tests job did not succeed (result=${{ needs.tests.result }})"
-            exit 1
-          fi
-          if [ "${{ needs.e2e.result }}" != "success" ] && [ "${{ needs.e2e.result }}" != "skipped" ]; then
-            echo "::error::e2e job did not succeed (result=${{ needs.e2e.result }})"
-            exit 1
-          fi
-          echo "All test jobs passed."
