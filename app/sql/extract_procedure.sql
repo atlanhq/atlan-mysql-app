@@ -28,7 +28,7 @@ SELECT
     -- MySQL-specific timestamps
     R.CREATED AS created,
     R.LAST_ALTERED AS last_altered
-FROM information_schema.ROUTINES R
-WHERE R.ROUTINE_SCHEMA NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys')
+FROM {information_schema}.ROUTINES R
+WHERE R.ROUTINE_SCHEMA NOT IN ({excluded_schemas})
 AND CONCAT(COALESCE(DATABASE(), '{database_placeholder}'), CONCAT('.', R.ROUTINE_SCHEMA)) NOT REGEXP '{normalized_exclude_regex}'
 AND CONCAT(COALESCE(DATABASE(), '{database_placeholder}'), CONCAT('.', R.ROUTINE_SCHEMA)) REGEXP '{normalized_include_regex}';

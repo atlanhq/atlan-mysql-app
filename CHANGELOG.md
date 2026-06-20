@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### New Features
+
+- **`clonedInformationSchema` mirror-schema support for restricted-access deployments.** Adds a Custom Control Config option that routes every `INFORMATION_SCHEMA` query through a customer-managed mirror schema (e.g. `atlan_meta`), so the connector can crawl metadata without `SELECT` on the native `information_schema` (which in MySQL implicitly grants read on every underlying user table). Backward compatible — with no control-config supplied, rendered SQL is byte-identical to before. Ships `scripts/setup_information_schema_mirror.sql` for one-time DBA setup, identifier-validation guards against SQL injection (`app/utils.py`), per-request resolution in the handler (preflight + metadata) and per-activity resolution in the extract DAG (`MySQLApp._prepare_sql`).
+
 ## v1.1.3 (June 04, 2026)
 
 Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v1.1.2...v1.1.3
