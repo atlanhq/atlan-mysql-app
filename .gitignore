@@ -51,3 +51,7 @@ local
 
 test-scripts/
 
+remediation/
+.ruff_cache/
+.claude/worktrees/
+

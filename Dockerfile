@@ -1,5 +1,8 @@
 # syntax=docker/dockerfile:1
-FROM registry.atlan.com/public/app-runtime-base:3
+# Base image is overridable so application-sdk PRs can rebuild the connector
+# on a PR-scoped runtime base (see the e2e base_image_ref dispatch input).
+ARG BASE_IMAGE=registry.atlan.com/public/app-runtime-base:3
+FROM ${BASE_IMAGE}
 
 WORKDIR /app
 
