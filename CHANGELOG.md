@@ -1,5 +1,65 @@
 # Changelog
 
+## v2.0.0 (June 19, 2026)
+
+Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v1.1.3...v2.0.0
+
+### Features
+
+- drop ATLAN_API_KEY, OAuth-only auth + search-based Connection probe + colourful poll log (by @Aryamanz29 in [efa122e](https://github.com/atlanhq/atlan-mysql-app/commit/efa122e))
+- widen poll timeouts to 90m AE + 30m Atlas, 60s interval, colour emoji (by @Aryamanz29 in [495201c](https://github.com/atlanhq/atlan-mysql-app/commit/495201c))
+- add label trigger (e2e-full) + application_sdk_ref input (by @Aryamanz29 in [6c9ce46](https://github.com/atlanhq/atlan-mysql-app/commit/6c9ce46))
+- add connector-side SDR + Full-DAG E2E walkthrough (by @Aryamanz29 in [25b773d](https://github.com/atlanhq/atlan-mysql-app/commit/25b773d))
+- wire unit-tests gate (DISTR-456) (by @web-flow in [4f1d0af](https://github.com/atlanhq/atlan-mysql-app/commit/4f1d0af))
+- add Deploy to Tenant workflow (ported from atlan-mssql-app) (#127) (by @AtMrun in [17d487f](https://github.com/atlanhq/atlan-mysql-app/commit/17d487f))
+- add progressive canary rollout config to atlan.yaml (by @Aryamanz29 in [5e0f358](https://github.com/atlanhq/atlan-mysql-app/commit/5e0f358))
+- remove CI status badges from README (by @vaibhavatlan in [4562ab4](https://github.com/atlanhq/atlan-mysql-app/commit/4562ab4))
+
+### Bug Fixes
+
+- load seed DAG from manifest.json (DRY) — restores publish flags (by @Aryamanz29 in [497a924](https://github.com/atlanhq/atlan-mysql-app/commit/497a924))
+- Mustache-fill the manifest seed before publishing (by @Aryamanz29 in [327d66a](https://github.com/atlanhq/atlan-mysql-app/commit/327d66a))
+- skip-guard accepts OAuth + dynamic report title (SDK 095717dc) (by @Aryamanz29 in [b3d5ab3](https://github.com/atlanhq/atlan-mysql-app/commit/b3d5ab3))
+- retry create_workflow on AE 5xx (by @Aryamanz29 in [8a3c32a](https://github.com/atlanhq/atlan-mysql-app/commit/8a3c32a))
+- restore ATLAN_API_KEY for AE-management calls (path 2) (by @Aryamanz29 in [3b9ba7d](https://github.com/atlanhq/atlan-mysql-app/commit/3b9ba7d))
+- accept distinct_id input + rename job + bump setup-uv (by @Aryamanz29 in [20cb187](https://github.com/atlanhq/atlan-mysql-app/commit/20cb187))
+- add app.yaml at repo root so SDR action's configurator step works (by @Aryamanz29 in [bfb0703](https://github.com/atlanhq/atlan-mysql-app/commit/bfb0703))
+- realign preflight_invalid_credentials with new envelope semantics (by @Aryamanz29 in [2fc665c](https://github.com/atlanhq/atlan-mysql-app/commit/2fc665c))
+- make preflight_invalid_credentials cross-SDK-version safe (by @Aryamanz29 in [a63c03b](https://github.com/atlanhq/atlan-mysql-app/commit/a63c03b))
+- pin SDK to FileReference transform fix branch (by @Aryamanz29 in [311f013](https://github.com/atlanhq/atlan-mysql-app/commit/311f013))
+- re-pin SDK to 911f5080 — file_names dropped (by @Aryamanz29 in [5678fba](https://github.com/atlanhq/atlan-mysql-app/commit/5678fba))
+- align credential fixture with embedded Dapr's objectstore root (by @Aryamanz29 in [6360096](https://github.com/atlanhq/atlan-mysql-app/commit/6360096))
+- re-pin SDK to 4f94e223 — file_names kept as deprecated (by @Aryamanz29 in [e63790d](https://github.com/atlanhq/atlan-mysql-app/commit/e63790d))
+- re-pin SDK to 81941835 — raw_dir field dropped (by @Aryamanz29 in [045cc22](https://github.com/atlanhq/atlan-mysql-app/commit/045cc22))
+- disable SDK cleanup interceptor so test artefacts survive (by @Aryamanz29 in [2bf90d8](https://github.com/atlanhq/atlan-mysql-app/commit/2bf90d8))
+- re-pin SDK to 4eafc0f0 — picks up docstring reframing (by @Aryamanz29 in [eeb41c2](https://github.com/atlanhq/atlan-mysql-app/commit/eeb41c2))
+- re-pin SDK to f7fabb52 — RETAINED tier for FileReference uploads (by @Aryamanz29 in [12f4ada](https://github.com/atlanhq/atlan-mysql-app/commit/12f4ada))
+- re-pin SDK to d15f763c — adds regression tests for RETAINED tier (by @Aryamanz29 in [9c0c8d3](https://github.com/atlanhq/atlan-mysql-app/commit/9c0c8d3))
+- re-pin SDK to c9c40e1d — corrected tier model (per-ref intent) (by @Aryamanz29 in [4b075b2](https://github.com/atlanhq/atlan-mysql-app/commit/4b075b2))
+- re-pin SDK to 7a7a580c — canonical storage paths (by @Aryamanz29 in [3fe1be4](https://github.com/atlanhq/atlan-mysql-app/commit/3fe1be4))
+- re-pin SDK to da2d4b1f — adds multi-entity / multi-pod regression tests (by @Aryamanz29 in [a40fa4d](https://github.com/atlanhq/atlan-mysql-app/commit/a40fa4d))
+- re-pin SDK to b4eb7822 — pre-commit ruff-format fixup (by @Aryamanz29 in [ee37828](https://github.com/atlanhq/atlan-mysql-app/commit/ee37828))
+- re-pin SDK to c4776ee3 — UploadInput.skip_if_exists wired through (by @Aryamanz29 in [97abc00](https://github.com/atlanhq/atlan-mysql-app/commit/97abc00))
+- re-pin SDK to e519235d — Windows path separator normalization (by @Aryamanz29 in [fb08d6c](https://github.com/atlanhq/atlan-mysql-app/commit/fb08d6c))
+- re-pin SDK to df056bcf — Windows drive-letter strip + cross-platform tests (by @Aryamanz29 in [377d1ab](https://github.com/atlanhq/atlan-mysql-app/commit/377d1ab))
+- restore E2E Application Test — three layered infra-drift fixes (by @web-flow in [2534778](https://github.com/atlanhq/atlan-mysql-app/commit/2534778))
+- tenant-deploy reads CREDENTIAL_GUID + CONNECTION_QN from secrets (#128) (by @AtMrun in [f2fc04b](https://github.com/atlanhq/atlan-mysql-app/commit/f2fc04b))
+- use workflow_type "mysql" not "mysql-metadata-extractor" in AE DAG (#129) (by @AtMrun in [61abae2](https://github.com/atlanhq/atlan-mysql-app/commit/61abae2))
+- persist temporal CLI on PATH across e2e-test steps (#131) (by @AtMrun in [bc3a7d4](https://github.com/atlanhq/atlan-mysql-app/commit/bc3a7d4))
+- re-pin SDK → 7862d1ad for prime_sql_auth (by @Aryamanz29 in [063fc15](https://github.com/atlanhq/atlan-mysql-app/commit/063fc15))
+- bump SDK → 710ad447 for prime_sql_auth post-review refactor (by @Aryamanz29 in [ed6006a](https://github.com/atlanhq/atlan-mysql-app/commit/ed6006a))
+- disable connection cache for lineage-publish (#135) (by @AtMrun in [c972886](https://github.com/atlanhq/atlan-mysql-app/commit/c972886))
+- drop git-hash pin, promote SDK to PyPI >=3.13.1,<4 (by @Aryamanz29 in [7d5fead](https://github.com/atlanhq/atlan-mysql-app/commit/7d5fead))
+- tenacity retry (5 attempts, jitter) for caching_sha2_password cold-cache (by @Aryamanz29 in [dda1981](https://github.com/atlanhq/atlan-mysql-app/commit/dda1981))
+- make current_state_enabled explicit on publish node (by @Aryamanz29 in [83e7f92](https://github.com/atlanhq/atlan-mysql-app/commit/83e7f92))
+- install uv via setup-deps before SDK pin step (#155) (by @cmgrote in [7cfb7e5](https://github.com/atlanhq/atlan-mysql-app/commit/7cfb7e5))
+- typed AppErrors, %-style logs, and lint rules (#156) (by @cmgrote in [09f246c](https://github.com/atlanhq/atlan-mysql-app/commit/09f246c))
+- expose aws_external_id in iam_role auth (#158) (by @vaibhavatlan in [204fa2e](https://github.com/atlanhq/atlan-mysql-app/commit/204fa2e))
+- translate AwsAssumeRoleError at load() boundary so STS failures route to AuthError (#162) (by @vaibhavatlan in [7af1df3](https://github.com/atlanhq/atlan-mysql-app/commit/7af1df3))
+- cover IAM token validation, error translation, and env-var lifecycle (#168) (by @vaibhavatlan in [a4c3d4a](https://github.com/atlanhq/atlan-mysql-app/commit/a4c3d4a))
+- use GITHUB_RUN_ATTEMPT suffix in credential name to avoid re-run collisions (#301) (by @cmgrote in [5063c5b](https://github.com/atlanhq/atlan-mysql-app/commit/5063c5b))
+
+
 ## v1.1.3 (June 04, 2026)
 
 Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v1.1.2...v1.1.3
