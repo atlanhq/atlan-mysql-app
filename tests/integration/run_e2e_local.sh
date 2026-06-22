@@ -33,14 +33,14 @@ if ! curl -s http://localhost:8000 > /dev/null 2>&1; then
     echo "⚠️  App server not running on http://localhost:8000"
     echo ""
     echo "Please start the app first:"
-    echo "  uv run scalene --profile-all --cli --outfile ./.github/scalene.json --json main.py &"
+    echo "  uv run python main.py &"
     echo "  sleep 20  # Wait for app to start"
     echo ""
     read -p "Do you want to start the app now? (y/n) " -n 1 -r
     echo
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         echo "Starting app in background..."
-        uv run scalene --profile-all --cli --outfile ./.github/scalene.json --json main.py &
+        uv run python main.py &
         APP_PID=$!
         echo "App started with PID: $APP_PID"
         echo "Waiting 20 seconds for app to initialize..."

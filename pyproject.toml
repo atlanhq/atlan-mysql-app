@@ -25,12 +25,6 @@ dev = [
     "isort>=5.13.2",
     "watchdog>=6.0.0",
     "requests",
-    # scalene — Python CPU/GPU/memory profiler for local profiling.
-    # Used in tests/integration/run_e2e_local.sh via the 1.x invocation
-    # (`scalene --profile-all --cli main.py`). Pinned <2.0 because scalene
-    # 2.x switched to a subcommand CLI (`scalene run script.py`), which is
-    # incompatible with the 1.x style used in the local run script.
-    "scalene>=2.3,<2.4",
 ]
 test = [
     "pytest>=8.3.3",
