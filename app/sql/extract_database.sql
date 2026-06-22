@@ -1,5 +1,5 @@
 /*
- * File: extract_database.sql
+ * File: extract_database.sql 
  * Purpose: Extracts basic database metadata from MySQL
  *
  * This query retrieves catalog-level database information including the catalog name
