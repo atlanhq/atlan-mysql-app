@@ -80,7 +80,7 @@ export ATLAN_SQL_SERVER_MIN_VERSION="8.0"
 
 1. Ensure the MySQL app is running:
    ```bash
-   uv run scalene --profile-all --cli --outfile ./.github/scalene.json --json main.py &
+   uv run python main.py &
    sleep 20  # Wait for app to start
    ```
 
