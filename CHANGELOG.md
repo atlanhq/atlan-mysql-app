@@ -1,5 +1,15 @@
 # Changelog
 
+## v2.0.1 (June 22, 2026)
+
+Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.0.0...v2.0.1
+
+### Bug Fixes
+
+- re-resolve app-contract-toolkit lockfile to 0.14.1 (#326) (by @vaibhavatlan in [3d66cf3](https://github.com/atlanhq/atlan-mysql-app/commit/3d66cf3))
+- update dependency scalene to v2 (#182) (by @renovate[bot] in [133332d](https://github.com/atlanhq/atlan-mysql-app/commit/133332d))
+
+
 ## v2.0.0 (June 19, 2026)
 
 Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v1.1.3...v2.0.0
