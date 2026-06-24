@@ -46,7 +46,7 @@ test = [
 # Regenerate contract artifacts from contract/app.pkl into app/generated/.
 # Required by the SDK Certify-app publish gate: `poe generate` must exist
 # and leave the working tree clean.
-generate = "bash -c 'cd contract && pkl eval -m generated app.pkl && cp generated/app/generated/*.json ../app/generated/ && rm -rf generated'"
+generate = "bash -c 'cd contract && pkl eval -m generated app.pkl && cp -R generated/. .. && rm -rf generated'"
 
 # Dapr and Temporal service tasks
 # Note: --dapr-http-max-request-size was removed in Dapr CLI v1.13+
