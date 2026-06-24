@@ -4,10 +4,10 @@
     "extract": {
       "activity_name": "execute_workflow",
       "activity_display_name": "Extract MySQL Assets Metadata",
-      "app_name": "{app_name}",
+      "app_name": "mysql",
       "inputs": {
         "workflow_type": "mysql",
-        "app_name": "{app_name}",
+        "app_name": "mysql",
         "app_id": "",
         "argo_workflow_slug": "",
         "task_queue": "atlan-mysql-{deployment_name}",
