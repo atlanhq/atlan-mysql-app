@@ -37,7 +37,7 @@ try:
     from application_sdk.testing.e2e import RunMode  # noqa: E402
     from application_sdk.testing.e2e.payload import DatabaseSpec, build_ae_payload  # noqa: E402
     from app.generated._e2e_base import MysqlGeneratedE2EBase  # noqa: E402
-    from app.generated._e2e_credential import MysqlCredentialBody  # noqa: E402
+    from app.generated._e2e_credential import MysqlAgentCredentialBody  # noqa: E402
 except ImportError as _exc:
     pytest.skip(
         f"SDK does not yet export new e2e harness: {_exc}", allow_module_level=True
@@ -99,7 +99,7 @@ class TestMySQLFullDAG(MysqlGeneratedE2EBase):
             connector_config_name="atlan-connectors-mysql",
         )
 
-    def _credential_body(self) -> MysqlCredentialBody:
+    def _credential_body(self) -> MysqlAgentCredentialBody:
         # AGENT mode: lightweight body — no host/username/password.
         # Those live in the Dapr secret store and are resolved at runtime
         # via agent-json ref-keys. Sending the DIRECT-mode shape causes the
@@ -111,7 +111,7 @@ class TestMySQLFullDAG(MysqlGeneratedE2EBase):
         # is stable across attempts, so without the suffix a retry would POST a
         # credential name that already exists and fail with HTTP 400.
         attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "1")
-        return MysqlCredentialBody(
+        return MysqlAgentCredentialBody(
             name=f"default-{self.connector_short_name}-{self.run_id}-{attempt}",
         )
 
