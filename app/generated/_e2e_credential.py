@@ -1,18 +1,33 @@
-from pydantic import Field
+# Generated from contract/app.pkl via contract-toolkit. DO NOT EDIT.
+# Regenerate with: pkl eval -m . contract/app.pkl
+from pydantic import Field, BaseModel, ConfigDict
 
-from application_sdk.testing.e2e.credential import CredentialBody  # type: ignore[attr-defined]
+from application_sdk.testing.e2e.credential import CredentialBody
 
 
-class MySQLCredentialBody(CredentialBody):
-    """AE credential body for the MySQL connector.
+class MysqlCredentialBodyExtra(BaseModel):
+    model_config = ConfigDict(
+        frozen=True, populate_by_name=True, serialize_by_alias=True
+    )
 
-    In AGENT mode the body is lightweight — no host/username/password (those
-    live in the agent's Dapr secret store, resolved via agent-json ref-keys at
-    runtime).  Sending the DIRECT-mode shape in AGENT mode causes the
-    orchestrator to skip credential creation, leaving {{credentialGuid}}
-    unsubstituted and triggering HTTP 500 at submit time.
-    """
+    username: str = Field(default="", alias="username")
+    aws_role_arn: str = Field(default="", alias="aws_role_arn")
+    aws_external_id: str = Field(default="", alias="aws_external_id")
 
+
+class MysqlCredentialBody(CredentialBody):
+    name: str = Field(alias="name")
+    auth_type: str = Field(default="basic", alias="authType")
+    host: str = Field(alias="host")
+    port: int = Field(default=3306, alias="port")
+    username: str = Field(default="", alias="username")
+    password: str = Field(default="", alias="password")
+    extra: MysqlCredentialBodyExtra = Field(
+        default_factory=MysqlCredentialBodyExtra, alias="extra"
+    )
+
+
+class MysqlAgentCredentialBody(CredentialBody):
     name: str = Field(alias="name")
     auth_type: str = Field(default="basic", alias="authType")
     connector_config_name: str = Field(
