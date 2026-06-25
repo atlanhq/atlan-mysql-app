@@ -11,9 +11,9 @@ publish app reads from the same bucket.
 
 To run locally::
 
-    ATLAN_BASE_URL=<your-tenant-base-url> \\
-    ATLAN_API_KEY=... \\
-    GITHUB_RUN_ID=$(date +%s) \\
+    ATLAN_BASE_URL=<your-tenant-base-url> \
+    ATLAN_API_KEY=... \
+    GITHUB_RUN_ID=$(date +%s) \
         uv run pytest tests/e2e/ -v
 
 The test class skips gracefully when the harness env isn't configured,
@@ -36,19 +36,19 @@ if not os.environ.get("ATLAN_BASE_URL") or not os.environ.get("ATLAN_API_KEY"):
 try:
     from application_sdk.testing.e2e import RunMode  # noqa: E402
     from application_sdk.testing.e2e.payload import DatabaseSpec, build_ae_payload  # noqa: E402
-    from app.generated._e2e_base import MySQLGeneratedE2EBase  # noqa: E402
-    from app.generated._e2e_credential import MySQLCredentialBody  # noqa: E402
+    from app.generated._e2e_base import MysqlGeneratedE2EBase  # noqa: E402
+    from app.generated._e2e_credential import MysqlCredentialBody  # noqa: E402
 except ImportError as _exc:
     pytest.skip(
         f"SDK does not yet export new e2e harness: {_exc}", allow_module_level=True
     )
 
 
-class TestMySQLFullDAG(MySQLGeneratedE2EBase):
+class TestMySQLFullDAG(MysqlGeneratedE2EBase):
     """Submit an AE workflow targeting our CI-side worker + assert in Atlas.
 
     Inherits identity attrs, connection_spec (with $admin role ACL), and
-    _mustache_substitutions from MySQLGeneratedE2EBase / SQLAppE2ETest.
+    _mustache_substitutions from MysqlGeneratedE2EBase / SQLAppE2ETest.
     The base harness builds the connection QN as default/mysql/{epoch}
     automatically — no override needed.
     """
@@ -99,7 +99,7 @@ class TestMySQLFullDAG(MySQLGeneratedE2EBase):
             connector_config_name="atlan-connectors-mysql",
         )
 
-    def _credential_body(self) -> MySQLCredentialBody:
+    def _credential_body(self) -> MysqlCredentialBody:
         # AGENT mode: lightweight body — no host/username/password.
         # Those live in the Dapr secret store and are resolved at runtime
         # via agent-json ref-keys. Sending the DIRECT-mode shape causes the
@@ -111,7 +111,7 @@ class TestMySQLFullDAG(MySQLGeneratedE2EBase):
         # is stable across attempts, so without the suffix a retry would POST a
         # credential name that already exists and fail with HTTP 400.
         attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "1")
-        return MySQLCredentialBody(
+        return MysqlCredentialBody(
             name=f"default-{self.connector_short_name}-{self.run_id}-{attempt}",
         )
 
