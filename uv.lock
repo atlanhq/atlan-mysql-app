@@ -202,7 +202,7 @@ wheels = [
 
 [[package]]
 name = "atlan-application-sdk"
-version = "3.19.0"
+version = "3.20.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -224,15 +224,12 @@ dependencies = [
     { name = "temporalio" },
     { name = "uvloop", marker = "sys_platform != 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/67/3c/81c8c6d3666ccc1731677edbd14b00c808f6fdb0380f4444a560653e8f8f/atlan_application_sdk-3.19.0.tar.gz", hash = "sha256:7fa7caa1e09679b1d045c51edad00f4e81361e9cfcae1d4ab743332673e362af", size = 3610654, upload-time = "2026-06-22T18:19:02.057Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/95/85/e7210d70421741878ef0e05ef168959357f6024705f010f10b0bf9b34e3f/atlan_application_sdk-3.20.0.tar.gz", hash = "sha256:311cba51b17d984ddb469a691ca5f32e41ae805f0f2511a2ff8fa669295c858f", size = 3679970, upload-time = "2026-06-25T01:10:08.707Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/eb/6b/c7344f66f5f88f7e4aad32039f8ff66153b7892947c15006637226dfbf22/atlan_application_sdk-3.19.0-py3-none-any.whl", hash = "sha256:6daba8f1e16ed786af10bffd38653bdd642c271fed4a3e69fade5b37a0fd7d28", size = 858438, upload-time = "2026-06-22T18:19:00.21Z" },
+    { url = "https://files.pythonhosted.org/packages/46/e5/1303ad64bad6f7ac7bb82cff5b334faf7da26307337b101b5d89d6ae0766/atlan_application_sdk-3.20.0-py3-none-any.whl", hash = "sha256:005f01d1464e87238c152aed3dfcbb5c90b2e5cca51833bd8cb6b22666490eef", size = 855160, upload-time = "2026-06-25T01:10:06.987Z" },
 ]
 
 [package.optional-dependencies]
-daft = [
-    { name = "daft" },
-]
 iam-auth = [
     { name = "boto3" },
 ]
@@ -254,16 +251,16 @@ workflows = [
 
 [[package]]
 name = "atlan-application-sdk-conformance"
-version = "0.6.0"
+version = "0.7.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jinja2" },
     { name = "jsonschema" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a1/b5/15f23d6751fe2b648b6dae7574a920aa0f1100e8c8ab1cf75e829c7ef161/atlan_application_sdk_conformance-0.6.0.tar.gz", hash = "sha256:a5820bdf2b85510749631d219ea20ec04e65d8089126d14c7e34675590addcb6", size = 501643, upload-time = "2026-06-22T16:33:21.615Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/45/b1/a5ab7fe5b0aab0a213803015c2c95e9bd1b9289adaa963bbb09a251f1d0f/atlan_application_sdk_conformance-0.7.0.tar.gz", hash = "sha256:044b3ad392c447ad5965841c2110c219d402a2052efc27077255b918fad1691d", size = 541422, upload-time = "2026-06-25T00:49:16.454Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ee/bc/2fbb61838f1aa32120d70908c2fcc8c1d8d14d7b9d55fa13168c94fd3830/atlan_application_sdk_conformance-0.6.0-py3-none-any.whl", hash = "sha256:ebbb25635890b6391d520c42533e0ed9a8de793c32ea8c36250b1783576a5128", size = 330638, upload-time = "2026-06-22T16:33:20.215Z" },
+    { url = "https://files.pythonhosted.org/packages/8f/2f/6d0d7e3f40206fdb1668054545cfb978b4ba5d456079bb8524a9bf272289/atlan_application_sdk_conformance-0.7.0-py3-none-any.whl", hash = "sha256:734c3240ac4fc50befe8e2063c730dc4b725eacf58a87d330adb8d75a2b66612", size = 366894, upload-time = "2026-06-25T00:49:15.045Z" },
 ]
 
 [[package]]
@@ -273,7 +270,7 @@ source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "aiomysql" },
-    { name = "atlan-application-sdk", extra = ["daft", "iam-auth", "pandas", "sql", "workflows"] },
+    { name = "atlan-application-sdk", extra = ["iam-auth", "pandas", "sql", "workflows"] },
     { name = "cryptography" },
     { name = "poethepoet" },
     { name = "protobuf" },
@@ -758,26 +755,6 @@ wheels = [
 ]
 
 [[package]]
-name = "daft"
-version = "0.7.15"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "fsspec" },
-    { name = "packaging" },
-    { name = "pyarrow" },
-    { name = "tqdm" },
-    { name = "typing-extensions", marker = "python_full_version < '3.12'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/ea/54/5553c78dfaa0b387bbc2795d36832ad57901e45eed55594b553a4efa48fc/daft-0.7.15.tar.gz", hash = "sha256:f7c7bfd5714eb5729cf9ce3362834cae2a8759a97bd7423b69ba2bfbba203bf5", size = 3317832, upload-time = "2026-06-07T03:05:56.942Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/10/eb/201ecf2f3ed4ea709e0692716f29ddd7aedc1c38fb0e2a5a8429c352a6de/daft-0.7.15-cp310-abi3-macosx_10_12_x86_64.whl", hash = "sha256:b893e732db49020daeab500f636842d271eaa8d0a210e9b1a68e4b178da1e419", size = 61756120, upload-time = "2026-06-07T03:05:26.8Z" },
-    { url = "https://files.pythonhosted.org/packages/06/8e/7b7298def7412f85fa00cca00b7cea619252257efe236423f7524b41659b/daft-0.7.15-cp310-abi3-macosx_11_0_arm64.whl", hash = "sha256:6f192c9e090a27f121855f2a4a4f5781569d7fe7f158a0ad3d8f161b50f92c08", size = 57299676, upload-time = "2026-06-07T03:05:30.624Z" },
-    { url = "https://files.pythonhosted.org/packages/6f/53/f94fa83a0c3808e045556ad057e78eb85659299a32ce7f78358632673cbb/daft-0.7.15-cp310-abi3-manylinux_2_24_aarch64.whl", hash = "sha256:e4231a0d2512fa6a7a74eca1b8f5c1be3fba75901f3ab32f34914f020403f930", size = 59881693, upload-time = "2026-06-07T03:05:34.806Z" },
-    { url = "https://files.pythonhosted.org/packages/2e/b1/e98c641b9197285cfc6d29b5794ec683478747a4845e63e46368740ff8fe/daft-0.7.15-cp310-abi3-manylinux_2_24_x86_64.whl", hash = "sha256:70fac4183d2d68be8eed7e57534189fc35da269f231cba66ed1212d5907abf60", size = 62193072, upload-time = "2026-06-07T03:05:38.617Z" },
-    { url = "https://files.pythonhosted.org/packages/24/64/5672db6574314ea21d8ce62a458668981c9d3d01205cda3b5fc8bf2a65f9/daft-0.7.15-cp310-abi3-win_amd64.whl", hash = "sha256:789a05490748befea2cb585b0b0527eb130a0b5888b73fbc8dcc93ce2112da0f", size = 62969464, upload-time = "2026-06-07T03:05:42.253Z" },
-]
-
-[[package]]
 name = "detect-installer"
 version = "0.1.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1163,15 +1140,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/89/76/c615883b7b521ead2944bb3480398cbb07e12b7b4e4d073d3752eb721558/frozenlist-1.8.0-cp314-cp314t-win_amd64.whl", hash = "sha256:06be8f67f39c8b1dc671f5d83aaefd3358ae5cdcf8314552c57e7ed3e6475bdd", size = 49451, upload-time = "2025-10-06T05:37:53.425Z" },
     { url = "https://files.pythonhosted.org/packages/e0/a3/5982da14e113d07b325230f95060e2169f5311b1017ea8af2a29b374c289/frozenlist-1.8.0-cp314-cp314t-win_arm64.whl", hash = "sha256:102e6314ca4da683dca92e3b1355490fed5f313b768500084fbe6371fddfdb79", size = 42507, upload-time = "2025-10-06T05:37:54.513Z" },
     { url = "https://files.pythonhosted.org/packages/9a/9a/e35b4a917281c0b8419d4207f4334c8e8c5dbf4f3f5f9ada73958d937dcc/frozenlist-1.8.0-py3-none-any.whl", hash = "sha256:0c18a16eab41e82c295618a77502e17b195883241c563b00f0aa5106fc4eaa0d", size = 13409, upload-time = "2025-10-06T05:38:16.721Z" },
-]
-
-[[package]]
-name = "fsspec"
-version = "2026.4.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d5/8d/1c51c094345df128ca4a990d633fe1a0ff28726c9e6b3c41ba65087bba1d/fsspec-2026.4.0.tar.gz", hash = "sha256:301d8ac70ae90ef3ad05dcf94d6c3754a097f9b5fe4667d2787aa359ec7df7e4", size = 312760, upload-time = "2026-04-29T20:42:38.635Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d5/0c/043d5e551459da400957a1395e0febbf771446ff34291afcbe3d8be2a279/fsspec-2026.4.0-py3-none-any.whl", hash = "sha256:11ef7bb35dab8a394fde6e608221d5cf3e8499401c249bebaeaad760a1a8dec2", size = 203402, upload-time = "2026-04-29T20:42:36.842Z" },
 ]
 
 [[package]]
@@ -3507,18 +3475,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/12/64/da524626d3b9cc40c168a13da8335fe1c51be12c0a63685cc6db7308daae/tomli-2.4.1-cp314-cp314t-win_amd64.whl", hash = "sha256:2c1c351919aca02858f740c6d33adea0c5deea37f9ecca1cc1ef9e884a619d26", size = 121196, upload-time = "2026-03-25T20:22:01.169Z" },
     { url = "https://files.pythonhosted.org/packages/5a/cd/e80b62269fc78fc36c9af5a6b89c835baa8af28ff5ad28c7028d60860320/tomli-2.4.1-cp314-cp314t-win_arm64.whl", hash = "sha256:eab21f45c7f66c13f2a9e0e1535309cee140182a9cdae1e041d02e47291e8396", size = 100393, upload-time = "2026-03-25T20:22:02.137Z" },
     { url = "https://files.pythonhosted.org/packages/7b/61/cceae43728b7de99d9b847560c262873a1f6c98202171fd5ed62640b494b/tomli-2.4.1-py3-none-any.whl", hash = "sha256:0d85819802132122da43cb86656f8d1f8c6587d54ae7dcaf30e90533028b49fe", size = 14583, upload-time = "2026-03-25T20:22:03.012Z" },
-]
-
-[[package]]
-name = "tqdm"
-version = "4.67.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "colorama", marker = "sys_platform == 'win32'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/09/a9/6ba95a270c6f1fbcd8dac228323f2777d886cb206987444e4bce66338dd4/tqdm-4.67.3.tar.gz", hash = "sha256:7d825f03f89244ef73f1d4ce193cb1774a8179fd96f31d7e1dcde62092b960bb", size = 169598, upload-time = "2026-02-03T17:35:53.048Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/16/e1/3079a9ff9b8e11b846c6ac5c8b5bfb7ff225eee721825310c91b3b50304f/tqdm-4.67.3-py3-none-any.whl", hash = "sha256:ee1e4c0e59148062281c49d80b25b67771a127c85fc9676d3be5f243206826bf", size = 78374, upload-time = "2026-02-03T17:35:50.982Z" },
 ]
 
 [[package]]
