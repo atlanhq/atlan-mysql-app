@@ -1,16 +1,15 @@
 # Runs the LM SDR orchestrator e2e pipelines on THIS app's PR, gated on the
 # standard `e2e` label — the SAME label that already runs the SDK e2e tests, so
 # one label triggers everything (no separate `sdr-e2e` label):
-#   - sdr-docker-e2e   orchestrator reconcile/upgrade/self-update (docker)
-#   - sdr-k8s-e2e      same, in a kind cluster
+#   - sdr-docker-e2e         orchestrator reconcile/upgrade/self-update (docker)
+#   - sdr-k8s-e2e            same, in a kind cluster
+#   - sdr-cloud-runtime-e2e  connector deploy through the orchestrator onto a real
+#                            cloud k8s node — GCP only per-PR (tenants=gcp) to keep
+#                            runtime reasonable; the full aws+azure+gcp matrix runs
+#                            on the workflow's own dispatch/orchestrator-change runs.
 #
-# NOT wired yet (deliberately):
-#   - sdr-cloud-runtime-e2e — needs its `workflow_call` trigger on
-#     atlan-local-marketplace-app `main` first (currently only in #508). Add the
-#     job here once that trigger is on main, else the unresolvable `uses:` ref
-#     breaks the whole caller.
-#   - sdr-publish-e2e — publish coverage is moving to the per-connector SDK e2e
-#     (tests/e2e full-DAG); re-add an LM publish leg here only if we keep one.
+# Publish is NOT here — publish coverage lives in the per-connector SDK e2e
+# (the `e2e` label is SDR-based on the app side), not in an LM pipeline.
 #
 # Heavy (boots orchestrator/marketplace/registry), hence label-gated. Complements
 # the SDK single-app SDR tests (tests/sdr/) that run per-PR.
@@ -56,4 +55,14 @@ jobs:
       version_a_ref: main
       version_b_image: ${{ needs.build-pr-image.outputs.ghcr_image }}
       deployment_name: ci-k8s
+    secrets: inherit
+
+  sdr-cloud-runtime-e2e:
+    needs: build-pr-image
+    uses: atlanhq/atlan-local-marketplace-app/.github/workflows/sdr-cloud-runtime-e2e.yaml@main
+    with:
+      app_name: mysql
+      app_id: "019c4c4b-8468-7e42-b0d6-eada59da2da1"
+      version_image: ${{ needs.build-pr-image.outputs.ghcr_image }}
+      tenants: gcp
     secrets: inherit
