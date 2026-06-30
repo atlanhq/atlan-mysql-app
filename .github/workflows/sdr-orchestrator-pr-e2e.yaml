@@ -1,21 +1,19 @@
-# Runs ALL FOUR LM SDR e2e pipelines on THIS app's PR — gated on the `sdr-e2e`
-# label (apply the label to run; remove the label-gate later to run every PR):
-#   - sdr-docker-e2e      orchestrator reconcile/upgrade/self-update (docker)
-#   - sdr-k8s-e2e         same, in a kind cluster
-#   - sdr-cloud-runtime-e2e  connector boot on a real cloud k8s node
-#   - sdr-publish-e2e     REAL agent-mode crawl -> publish -> assets-in-Atlas
-#                         for THIS connector + its PR-built image
+# Runs the LM SDR orchestrator e2e pipelines on THIS app's PR, gated on the
+# standard `e2e` label — the SAME label that already runs the SDK e2e tests, so
+# one label triggers everything (no separate `sdr-e2e` label):
+#   - sdr-docker-e2e   orchestrator reconcile/upgrade/self-update (docker)
+#   - sdr-k8s-e2e      same, in a kind cluster
 #
-# Heavy (boots orchestrator/marketplace/registry + drives a tenant), hence
-# label-gated. Complements the SDK single-app SDR tests (tests/sdr/) that run
-# per-PR.
+# NOT wired yet (deliberately):
+#   - sdr-cloud-runtime-e2e — needs its `workflow_call` trigger on
+#     atlan-local-marketplace-app `main` first (currently only in #508). Add the
+#     job here once that trigger is on main, else the unresolvable `uses:` ref
+#     breaks the whole caller.
+#   - sdr-publish-e2e — publish coverage is moving to the per-connector SDK e2e
+#     (tests/e2e full-DAG); re-add an LM publish leg here only if we keep one.
 #
-# DEPENDS ON (must be on atlan-local-marketplace-app `main` first, or the whole
-# caller fails to load — an unresolvable `uses:` ref breaks every job):
-#   - atlan-local-marketplace-app#508 — adds sdr-publish-e2e.yaml + the
-#     `connector` input AND the sdr-cloud-runtime-e2e workflow_call trigger.
-#   - the application-sdk e2e robustness PR (required_dag_nodes + native-status
-#     tolerance), with the LM publish harness flipped to a released/@main SDK.
+# Heavy (boots orchestrator/marketplace/registry), hence label-gated. Complements
+# the SDK single-app SDR tests (tests/sdr/) that run per-PR.
 name: SDR e2e (app PR)
 
 on:
@@ -29,7 +27,7 @@ concurrency:
 
 jobs:
   build-pr-image:
-    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'sdr-e2e') }}
+    if: ${{ github.event_name == 'workflow_dispatch' || contains(github.event.pull_request.labels.*.name, 'e2e') }}
     uses: atlanhq/application-sdk/.github/workflows/build-and-publish-app.yaml@main
     with:
       ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -58,26 +56,4 @@ jobs:
       version_a_ref: main
       version_b_image: ${{ needs.build-pr-image.outputs.ghcr_image }}
       deployment_name: ci-k8s
-    secrets: inherit
-
-  sdr-cloud-runtime-e2e:
-    needs: build-pr-image
-    uses: atlanhq/atlan-local-marketplace-app/.github/workflows/sdr-cloud-runtime-e2e.yaml@main
-    with:
-      app_name: mysql
-      app_id: "019c4c4b-8468-7e42-b0d6-eada59da2da1"
-      version_image: ${{ needs.build-pr-image.outputs.ghcr_image }}
-      tenants: gcp
-    secrets: inherit
-
-  sdr-publish-e2e:
-    # Real agent-mode crawl->publish for THIS connector + its PR-built image:
-    # stands up a seeded mysql source, runs the PR image in agent mode, asserts
-    # assets land in the tenant's Atlas. The new per-connector parameterization
-    # (LM #508) selects the mysql source/seed/cred config.
-    needs: build-pr-image
-    uses: atlanhq/atlan-local-marketplace-app/.github/workflows/sdr-publish-e2e.yaml@main
-    with:
-      connector: mysql
-      connector_image: ${{ needs.build-pr-image.outputs.ghcr_image }}
     secrets: inherit
