@@ -27,10 +27,10 @@
     "qi": {
       "activity_name": "execute_workflow",
       "activity_display_name": "Parse View & Procedure Lineage",
-      "app_name": "automation-engine",
+      "app_name": "query-intelligence",
       "inputs": {
         "workflow_type": "QueryIntelligenceWorkflow",
-        "app_name": "automation-engine",
+        "app_name": "query-intelligence",
         "task_queue": "atlan-query-intelligence-{deployment_name}",
         "args": {
           "connection_qualified_name": "$.extract.outputs.connection_qualified_name",
@@ -52,10 +52,10 @@
     "lineage-app": {
       "activity_name": "execute_workflow",
       "activity_display_name": "Build Lineage Entities",
-      "app_name": "automation-engine",
+      "app_name": "lineage",
       "inputs": {
         "workflow_type": "LineageWorkflow",
-        "app_name": "automation-engine",
+        "app_name": "lineage",
         "task_queue": "atlan-lineage-{deployment_name}",
         "args": {
           "connection_qualified_name": "$.extract.outputs.connection_qualified_name",
