@@ -64,5 +64,5 @@ jobs:
       app_name: mysql
       app_id: "019c4c4b-8468-7e42-b0d6-eada59da2da1"
       version_image: ${{ needs.build-pr-image.outputs.ghcr_image }}
-      tenants: gcp
+      tenants: aws,azure,gcp
     secrets: inherit
