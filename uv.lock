@@ -252,16 +252,16 @@ workflows = [
 
 [[package]]
 name = "atlan-application-sdk-conformance"
-version = "0.11.2"
+version = "0.11.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jinja2" },
     { name = "jsonschema" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d7/3d/17bd61ff93bb145be7900d5ddc2e88c71ec8ce4688b2040c63c6db4ae167/atlan_application_sdk_conformance-0.11.2.tar.gz", hash = "sha256:b1a54f198288eeaa50d09da386c2ab04e4c73bc869d805b4f062e6e332203178", size = 736108, upload-time = "2026-07-05T01:11:50.435Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/0f/62/f73421e12b6eeac53cda401e126c765c8a8ae774428c6401e10487fe1b1a/atlan_application_sdk_conformance-0.11.3.tar.gz", hash = "sha256:7e097ee1ac48368e7d5a28d9c45dbc1d15591a8ca52ccc9768f37a37e91bcf0d", size = 738072, upload-time = "2026-07-06T10:10:33.941Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/b7/c6/7b1ee255b3f7837b1bf15cbcb6fe58162765e938a52086cccfec755ca5a8/atlan_application_sdk_conformance-0.11.2-py3-none-any.whl", hash = "sha256:85b50522ebb8171a54dd7c18595abbea2c10bcc91229dee287ab65ddc23dff4d", size = 561623, upload-time = "2026-07-05T01:11:49.19Z" },
+    { url = "https://files.pythonhosted.org/packages/7a/66/d88e292f0d3028105ca4a8aa053420cb1c45ce7f9acf2383875be31a450e/atlan_application_sdk_conformance-0.11.3-py3-none-any.whl", hash = "sha256:85150375207084fe1cff0e42d8d674d0cc223b9fc5a4379360fed002799668d7", size = 563027, upload-time = "2026-07-06T10:10:32.457Z" },
 ]
 
 [[package]]
@@ -3555,15 +3555,15 @@ wheels = [
 
 [[package]]
 name = "uvicorn"
-version = "0.50.0"
+version = "0.50.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "h11" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/2e/41/06cce5dbb9f77591512957710ac709e60b12e6216a2f2d0d607fd49706e8/uvicorn-0.50.0.tar.gz", hash = "sha256:0c92e1bc2259cb7faa4fcef774a5966588f2e88542744550b66799fba10b76f1", size = 93257, upload-time = "2026-07-04T05:03:26.33Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/9f/f6/cc9aadc0e481344a42095d222bfa764122fb8cfba708d1922917bd8bfb01/uvicorn-0.50.2.tar.gz", hash = "sha256:b92bf03509b82bcb9d49e7335b4fd364518ad021c2dc18b4e6a2fec8c955a0bb", size = 93716, upload-time = "2026-07-06T10:38:31.984Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/a0/3a/eb70620ca2bf8213603d5c731460687c49fee38b0072f0b4a637781f0a53/uvicorn-0.50.0-py3-none-any.whl", hash = "sha256:05f0eb19edf38208f79f43df8a63081b48df31b0cd1e5997be957a4dc97d1b19", size = 72716, upload-time = "2026-07-04T05:03:24.848Z" },
+    { url = "https://files.pythonhosted.org/packages/aa/f0/7c228ee10c7ab8fd3a21d06579a6f7c6075c6ce72594a20fb5d2f206ff24/uvicorn-0.50.2-py3-none-any.whl", hash = "sha256:4ae72a385630bcc17a0adb8290f26c993865e0b43a2114c2aab96420172c056a", size = 72846, upload-time = "2026-07-06T10:38:30.543Z" },
 ]
 
 [package.optional-dependencies]
