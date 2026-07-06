@@ -41,7 +41,7 @@ jobs:
 
       - name: Install Temporal CLI
         if: steps.changes.outputs.changed == 'true'
-        uses: temporalio/setup-temporal@8bde337644eaaa6644b8b527d9a8406c2207de5b
+        uses: temporalio/setup-temporal@d65e8bbd5afc5e9f4316280876fe9c19d53ede5b
 
       - name: Start Temporal dev server
         if: steps.changes.outputs.changed == 'true'
