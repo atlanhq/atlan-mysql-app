@@ -8,6 +8,7 @@ from __future__ import annotations
 import math
 import os
 import time
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -151,15 +152,37 @@ def _asset_to_dict(asset: Any) -> dict[str, Any]:
     return orjson.loads(asset.to_nested_bytes())
 
 
-def _qn(value: Any) -> str:
-    """Narrow a pyatlan_v9 ``qualified_name`` field (``str | None | UnsetType``) to ``str``.
+@lru_cache(maxsize=4096)
+def _database_qn(name: str, connection_qn: str) -> str:
+    """Database qualifiedName, derived via ``.creator()`` and memoized.
 
-    ``.creator()`` always sets ``qualified_name`` to a real string; this exists
-    only so downstream ``.creator()`` calls that take a parent qualified name
-    type-check cleanly.
+    Every schema/table/column record under the same database would otherwise
+    re-derive this identical value — a MySQL sync can process thousands of
+    column rows per database, so building a throwaway ``Database`` asset per
+    row just to read its ``qualified_name`` is real, not just cosmetic, waste.
     """
-    assert isinstance(value, str)
-    return value
+    qn = Database.creator(
+        name=name, connection_qualified_name=connection_qn
+    ).qualified_name
+    assert isinstance(qn, str)
+    return qn
+
+
+@lru_cache(maxsize=4096)
+def _schema_qn(name: str, database_qn: str) -> str:
+    """Schema qualifiedName, derived via ``.creator()`` and memoized (see ``_database_qn``)."""
+    qn = Schema.creator(name=name, database_qualified_name=database_qn).qualified_name
+    assert isinstance(qn, str)
+    return qn
+
+
+@lru_cache(maxsize=4096)
+def _table_qn(name: str, schema_qn: str, is_view: bool) -> str:
+    """Table/View qualifiedName, derived via ``.creator()`` and memoized (see ``_database_qn``)."""
+    cls = View if is_view else Table
+    qn = cls.creator(name=name, schema_qualified_name=schema_qn).qualified_name
+    assert isinstance(qn, str)
+    return qn
 
 
 class MySQLApp(SqlApp):
@@ -208,11 +231,7 @@ class MySQLApp(SqlApp):
             record.get("database_name", record.get("datname", DATABASE_PLACEHOLDER)),
         )
         schema_name = record.get("schema_name", "")
-        db_qn = _qn(
-            Database.creator(
-                name=db_name, connection_qualified_name=connection_qn
-            ).qualified_name
-        )
+        db_qn = _database_qn(db_name, connection_qn)
         asset = Schema.creator(name=schema_name, database_qualified_name=db_qn)
         asset.table_count = record.get("table_count", 0)
         asset.views_count = record.get("views_count", 0)
@@ -236,16 +255,8 @@ class MySQLApp(SqlApp):
             "table_kind", record.get("table_type", "BASE TABLE")
         ).upper()
 
-        db_qn = _qn(
-            Database.creator(
-                name=db_name, connection_qualified_name=connection_qn
-            ).qualified_name
-        )
-        schema_qn = _qn(
-            Schema.creator(
-                name=schema_name, database_qualified_name=db_qn
-            ).qualified_name
-        )
+        db_qn = _database_qn(db_name, connection_qn)
+        schema_qn = _schema_qn(schema_name, db_qn)
 
         is_view = table_kind in ("VIEW", "SYSTEM VIEW")
         asset_cls = View if is_view else Table
@@ -320,26 +331,14 @@ class MySQLApp(SqlApp):
         column_name = record.get("column_name", "")
         table_type = record.get("table_type", "BASE TABLE").upper()
 
-        db_qn = _qn(
-            Database.creator(
-                name=db_name, connection_qualified_name=connection_qn
-            ).qualified_name
-        )
-        schema_qn = _qn(
-            Schema.creator(
-                name=schema_name, database_qualified_name=db_qn
-            ).qualified_name
-        )
+        db_qn = _database_qn(db_name, connection_qn)
+        schema_qn = _schema_qn(schema_name, db_qn)
 
         is_view = table_type in ("VIEW", "SYSTEM VIEW")
         constraint = record.get("constraint_type", "")
 
         parent_cls = View if is_view else Table
-        table_qn = _qn(
-            parent_cls.creator(
-                name=table_name, schema_qualified_name=schema_qn
-            ).qualified_name
-        )
+        table_qn = _table_qn(table_name, schema_qn, is_view)
 
         asset = Column.creator(
             name=column_name,
@@ -417,14 +416,8 @@ class MySQLApp(SqlApp):
         definition = record.get("procedure_definition", "") or ""
         proc_type = record.get("procedure_type", "PROCEDURE")
 
-        db_qn = _qn(
-            Database.creator(
-                name=catalog, connection_qualified_name=connection_qn
-            ).qualified_name
-        )
-        schema_qn = _qn(
-            Schema.creator(name=schema, database_qualified_name=db_qn).qualified_name
-        )
+        db_qn = _database_qn(catalog, connection_qn)
+        schema_qn = _schema_qn(schema, db_qn)
 
         # Procedure.creator() derives the qualified name as
         # "{schema_qualified_name}/_procedures_/{name}" — matches the legacy format.
