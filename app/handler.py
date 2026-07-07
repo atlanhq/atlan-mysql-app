@@ -81,9 +81,9 @@ class MySQLAppHandler(Handler):
             return AuthOutput(
                 status=AuthStatus.SUCCESS, message="Authentication successful"
             )
-        except Exception as e:
+        except Exception:
             logger.error("MySQL auth test failed", exc_info=True)  # noqa: G201
-            return AuthOutput(status=AuthStatus.FAILED, message=str(e))
+            return AuthOutput(status=AuthStatus.FAILED, message="Authentication failed")
         finally:
             await client.close()
 
@@ -96,11 +96,11 @@ class MySQLAppHandler(Handler):
             creds = _creds_to_dict(input.credentials)
             try:
                 await client.load(credentials=creds)
-            except Exception as e:
+            except Exception:
                 logger.warning("Auth preflight check failed", exc_info=True)
                 checks.append(
                     PreflightCheck(
-                        name="auth", passed=False, message=f"Connection failed: {e}"
+                        name="auth", passed=False, message="Connection failed"
                     )
                 )
                 return PreflightOutput(status=PreflightStatus.NOT_READY, checks=checks)
@@ -111,12 +111,10 @@ class MySQLAppHandler(Handler):
                 checks.append(
                     PreflightCheck(name="auth", passed=True, message="Authenticated")
                 )
-            except Exception as e:
+            except Exception:
                 logger.warning("Auth preflight check failed", exc_info=True)
                 checks.append(
-                    PreflightCheck(
-                        name="auth", passed=False, message=f"Auth failed: {e}"
-                    )
+                    PreflightCheck(name="auth", passed=False, message="Auth failed")
                 )
                 return PreflightOutput(status=PreflightStatus.NOT_READY, checks=checks)
 
@@ -131,13 +129,13 @@ class MySQLAppHandler(Handler):
                         message=f"Found {count} accessible tables",
                     )
                 )
-            except Exception as e:
+            except Exception:
                 logger.warning("Connectivity preflight check failed", exc_info=True)
                 checks.append(
                     PreflightCheck(
                         name="connectivity",
                         passed=False,
-                        message=f"Table check failed: {e}",
+                        message="Table check failed",
                     )
                 )
 
@@ -195,6 +193,7 @@ class MySQLAppHandler(Handler):
                     )
 
             return SqlMetadataOutput(objects=objects)
+        # conformance: ignore[E004] boundary catch-and-translate; re-raises AppErrors as-is and wraps everything else in a typed MetadataFetchError with `from e`
         except Exception as e:
             if isinstance(e, AppError):
                 raise

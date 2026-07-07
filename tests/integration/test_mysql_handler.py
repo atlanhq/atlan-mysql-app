@@ -25,6 +25,8 @@ from application_sdk.handler import (
 
 from app.handler import MySQLAppHandler
 
+pytestmark = pytest.mark.integration
+
 
 def _creds(
     *,

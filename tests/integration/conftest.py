@@ -49,14 +49,18 @@ import pytest
 import pytest_asyncio
 from application_sdk.app.context import AppContext
 from application_sdk.dev import embedded_runtime
-from application_sdk.dev._dapr import (
+from application_sdk.dev._dapr import (  # conformance: ignore[P005] no public twin: embedded_dapr()'s component templates use nestedSeparator mode, not the multiValued mode this fixture deliberately tests
     _ensure_daprd_binary,
     _pick_free_port,
     _wait_for_dapr_ready,
 )
-from application_sdk.execution._temporal.backend import TemporalExecutorBackend
-from application_sdk.execution._temporal.converter import create_data_converter_for_app
-from application_sdk.execution._temporal.worker import create_worker
+from application_sdk.execution import (
+    TemporalClient,
+    TemporalExecutorBackend,
+    create_data_converter_for_app,
+    create_temporal_client,
+    create_worker,
+)
 from application_sdk.execution.retry import RetryPolicy
 from application_sdk.infrastructure.context import (
     InfrastructureContext,
@@ -66,7 +70,6 @@ from application_sdk.observability.logger_adaptor import get_logger
 from application_sdk.observability.observability import AtlanObservability
 from application_sdk.storage import create_local_store, create_memory_store
 from application_sdk.testing.mocks import MockSecretStore, MockStateStore
-from temporalio.client import Client
 from testcontainers.mysql import MySqlContainer
 
 # Trigger MySQLApp registration before create_worker is called.
@@ -485,15 +488,17 @@ async def embedded_temporal():
 
 
 @pytest_asyncio.fixture(scope="session")
-async def temporal_client(embedded_temporal) -> Client:
+async def temporal_client(embedded_temporal) -> TemporalClient:
     """Connect to the embedded Temporal dev server."""
     data_converter = create_data_converter_for_app(MySQLApp)
-    return await Client.connect(embedded_temporal.host, data_converter=data_converter)
+    return await create_temporal_client(
+        embedded_temporal.host, data_converter=data_converter
+    )
 
 
 @pytest_asyncio.fixture(scope="session")
 async def mysql_worker(
-    temporal_client: Client,
+    temporal_client: TemporalClient,
     infrastructure: InfrastructureContext,  # noqa: ARG001 — ensures infra is wired first
 ) -> Any:
     """Start the MySQL connector worker in-process."""
@@ -504,7 +509,7 @@ async def mysql_worker(
 
 @pytest.fixture(scope="session")
 def mysql_executor(
-    temporal_client: Client,
+    temporal_client: TemporalClient,
     mysql_worker: Any,  # noqa: ARG001 — ensures worker is running
     embedded_dapr_sidecar: Any,  # noqa: ARG001 — ensures DAPR_HTTP_PORT is set
 ) -> AppExecutor:

@@ -170,6 +170,7 @@ class SQLClient(AsyncBaseSQLClient):
                 port=int(port),
                 region=region,
             )
+        # conformance: ignore[E004] boundary catch around the AWS SDK call; wraps and re-raises as a typed IamTokenGenerationError with `from e`, preserving the traceback
         except Exception as e:
             raise IamTokenGenerationError(
                 failure_reason="token_generation_failed", cause=e
@@ -477,6 +478,7 @@ class SQLClient(AsyncBaseSQLClient):
             raise  # already typed from event listener; propagate as-is
         except AwsAssumeRoleError:
             raise  # let load()'s outer wrapper translate it
+        # conformance: ignore[E004] boundary catch around the connection test; wraps and re-raises as a typed IamTokenGenerationError with `from e`, preserving the traceback
         except Exception as e:
             # The token was generated successfully, so a connection-test
             # failure here is almost always MySQL rejecting the IAM token

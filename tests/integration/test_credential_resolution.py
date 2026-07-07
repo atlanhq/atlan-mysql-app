@@ -34,6 +34,8 @@ from application_sdk.credentials.errors import (
 )
 from application_sdk.infrastructure.secrets import SecretNotFoundError
 
+pytestmark = pytest.mark.integration
+
 
 # ---------------------------------------------------------------------------
 # Minimal SecretStore stubs

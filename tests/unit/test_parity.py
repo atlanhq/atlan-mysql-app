@@ -1,10 +1,13 @@
-"""Parity guard rail tests — validate JSONL entity structure matches legacy Argo MySQL connector.
+"""Structural guard rail tests for the pyatlan_v9 asset-mapper (.creator()) output.
 
-These tests ensure the asset mappers produce entities with the same keys,
-relationship refs, and structure as the legacy connector. Values are not compared,
-only the presence and shape of fields.
+These tests ensure the asset mappers produce entities with the expected keys,
+relationship refs, and structure for the native pyatlan_v9 wire shape (BLDX-1492
+asset-mapper migration) — relationship refs live under ``relationshipAttributes``,
+not nested inside ``attributes``, and ``tenantId``/``status`` are not duplicated
+at the top level the way the legacy hand-rolled dict shape did. Values are not
+compared, only the presence and shape of fields.
 
-Reference: tests/integration/fixtures/parity_spec.json + /tmp/legacy-mysql-transformed/
+Reference: tests/integration/fixtures/parity_spec.json
 """
 
 from __future__ import annotations
@@ -39,7 +42,7 @@ def _sanitize_for_json(obj: Any) -> Any:
     return obj
 
 
-PARITY_SPEC = json.loads(
+SHAPE_SPEC = json.loads(
     (
         Path(__file__).parent.parent / "integration" / "fixtures" / "parity_spec.json"
     ).read_text()
@@ -56,9 +59,9 @@ def app():
 # ── Helper ───────────────────────────────────────────────────────────────
 
 
-def _assert_structure(entity: dict, spec_key: str, entity_type: str):
-    """Validate entity has all required top-level keys and attributes."""
-    spec = PARITY_SPEC[spec_key]
+def assert_structure(entity: dict, spec_key: str, entity_type: str):
+    """Validate entity has all required top-level keys, attributes, and relationships."""
+    spec = SHAPE_SPEC[spec_key]
 
     # Top-level keys
     for key in spec["top_level_keys"]:
@@ -69,8 +72,13 @@ def _assert_structure(entity: dict, spec_key: str, entity_type: str):
     for key in spec["required_attributes"]:
         assert key in attrs, f"{entity_type} missing attribute: {key}"
 
+    # Required relationships (relationshipAttributes, not nested in attributes)
+    rels = entity.get("relationshipAttributes", {})
+    for key in spec.get("required_relationships", []):
+        assert key in rels, f"{entity_type} missing relationship: {key}"
 
-def _assert_ref(ref: dict, expected_type: str):
+
+def assert_ref(ref: dict, expected_type: str):
     """Validate a relationship ref has the correct shape."""
     assert ref is not None, "Relationship ref is None"
     assert ref.get("typeName") == expected_type, (
@@ -88,7 +96,7 @@ class TestDatabaseParity:
     def test_structure(self, app):
         record = {"database_name": "def", "schema_count": 5}
         entity = app.map_database(record, CONNECTION_QN)
-        _assert_structure(entity, "database", "Database")
+        assert_structure(entity, "database", "Database")
 
     def test_qualified_name_includes_connection(self, app):
         entity = app.map_database({"database_name": "def"}, CONNECTION_QN)
@@ -98,12 +106,7 @@ class TestDatabaseParity:
 
     def test_tenant_id(self, app):
         entity = app.map_database({"database_name": "def"}, CONNECTION_QN)
-        assert entity["tenantId"] == "default"
         assert entity["attributes"]["tenantId"] == "default"
-
-    def test_custom_attributes_present(self, app):
-        entity = app.map_database({"database_name": "def"}, CONNECTION_QN)
-        assert "customAttributes" in entity
 
 
 # ── Schema ───────────────────────────────────────────────────────────────
@@ -118,12 +121,12 @@ class TestSchemaParity:
             "views_count": 4,
         }
         entity = app.map_schema(record, CONNECTION_QN)
-        _assert_structure(entity, "schema", "Schema")
+        assert_structure(entity, "schema", "Schema")
 
     def test_database_relationship_ref(self, app):
         record = {"catalog_name": "def", "schema_name": "employees"}
         entity = app.map_schema(record, CONNECTION_QN)
-        _assert_ref(entity["attributes"]["database"], "Database")
+        assert_ref(entity["relationshipAttributes"]["database"], "Database")
 
     def test_views_count(self, app):
         record = {"catalog_name": "def", "schema_name": "employees", "views_count": 4}
@@ -159,7 +162,7 @@ class TestTableParity:
             "create_options": "",
         }
         entity = app.map_table(record, CONNECTION_QN)
-        _assert_structure(entity, "table", "Table")
+        assert_structure(entity, "table", "Table")
         assert entity["typeName"] == "Table"
 
     def test_structure_view(self, app):
@@ -173,7 +176,7 @@ class TestTableParity:
             "view_definition": "CREATE VIEW ...",
         }
         entity = app.map_table(record, CONNECTION_QN)
-        _assert_structure(entity, "view", "View")
+        assert_structure(entity, "view", "View")
         assert entity["typeName"] == "View"
 
     def test_atlan_schema_ref(self, app):
@@ -184,7 +187,7 @@ class TestTableParity:
             "table_kind": "BASE TABLE",
         }
         entity = app.map_table(record, CONNECTION_QN)
-        _assert_ref(entity["attributes"]["atlanSchema"], "Schema")
+        assert_ref(entity["relationshipAttributes"]["atlanSchema"], "Schema")
 
     def test_custom_attributes(self, app):
         record = {
@@ -272,14 +275,14 @@ class TestColumnParity:
             "constraint_type": "PRIMARY KEY",
         }
         entity = app.map_column(record, CONNECTION_QN)
-        _assert_structure(entity, "column", "Column")
+        assert_structure(entity, "column", "Column")
 
         # Table-specific conditional attributes
         attrs = entity["attributes"]
-        for key in PARITY_SPEC["column"]["conditional_attributes"]["table_column"]:
+        for key in SHAPE_SPEC["column"]["conditional_attributes"]["table_column"]:
             assert key in attrs, f"Table column missing: {key}"
 
-        _assert_ref(attrs["table"], "Table")
+        assert_ref(entity["relationshipAttributes"]["table"], "Table")
 
     def test_structure_view_column(self, app):
         record = {
@@ -295,11 +298,11 @@ class TestColumnParity:
         entity = app.map_column(record, CONNECTION_QN)
 
         attrs = entity["attributes"]
-        for key in PARITY_SPEC["column"]["conditional_attributes"]["view_column"]:
+        for key in SHAPE_SPEC["column"]["conditional_attributes"]["view_column"]:
             assert key in attrs, f"View column missing: {key}"
 
-        _assert_ref(attrs["view"], "View")
-        assert "table" not in attrs
+        assert_ref(entity["relationshipAttributes"]["view"], "View")
+        assert "table" not in entity["relationshipAttributes"]
 
     def test_primary_key_detection(self, app):
         record = {
@@ -491,14 +494,16 @@ class TestCrossEntityConsistency:
                 CONNECTION_QN,
             ),
         ]:
-            assert entity.get("tenantId") == "default", (
+            assert entity["attributes"].get("tenantId") == "default", (
                 f"{entity['typeName']} missing tenantId"
             )
 
-    def test_all_entities_have_custom_attributes(self, app):
+    def test_table_and_column_have_custom_attributes(self, app):
+        """Only Table/Column mappers populate custom_attributes on the pyatlan_v9
+        asset — Database/Schema/Procedure have no MySQL-specific metadata to carry,
+        so they legitimately omit the key (unlike the legacy shape, which always
+        included an empty ``customAttributes: {}``)."""
         for entity in [
-            app.map_database({"database_name": "def"}, CONNECTION_QN),
-            app.map_schema({"catalog_name": "def", "schema_name": "s"}, CONNECTION_QN),
             app.map_table(
                 {
                     "table_catalog": "def",

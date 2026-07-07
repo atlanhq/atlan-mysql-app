@@ -69,8 +69,7 @@ class TestMySQLAppMappers:
         assert result["attributes"]["qualifiedName"] == f"{connection_qn}/def"
         assert result["attributes"]["connectorName"] == "mysql"
         assert result["attributes"]["schemaCount"] == 5
-        assert result["tenantId"] == "default"
-        assert "customAttributes" in result
+        assert result["attributes"]["tenantId"] == "default"
 
     def test_map_schema(self, app, connection_qn):
         record = {
@@ -86,7 +85,7 @@ class TestMySQLAppMappers:
         assert result["attributes"]["databaseName"] == "def"
         assert result["attributes"]["tableCount"] == 10
         assert result["attributes"]["viewsCount"] == 3
-        assert result["attributes"]["database"]["typeName"] == "Database"
+        assert result["relationshipAttributes"]["database"]["typeName"] == "Database"
 
     def test_map_table_base_table(self, app, connection_qn):
         record = {
@@ -106,7 +105,7 @@ class TestMySQLAppMappers:
         assert result["attributes"]["columnCount"] == 5
         assert result["attributes"]["rowCount"] == 100
         assert result["attributes"]["subType"] == "TABLE"
-        assert result["attributes"]["atlanSchema"]["typeName"] == "Schema"
+        assert result["relationshipAttributes"]["atlanSchema"]["typeName"] == "Schema"
 
     def test_map_table_view(self, app, connection_qn):
         """Views are returned as typeName=View based on table_kind."""
@@ -177,7 +176,7 @@ class TestMySQLAppMappers:
         assert result["attributes"]["maxLength"] == 255
         assert result["attributes"]["isNullable"] is True
         assert result["attributes"]["order"] == 3
-        assert result["attributes"]["table"]["typeName"] == "Table"
+        assert result["relationshipAttributes"]["table"]["typeName"] == "Table"
         assert "customAttributes" in result
 
     def test_map_column_not_nullable(self, app, connection_qn):
@@ -202,9 +201,9 @@ class TestMySQLAppMappers:
             "table_type": "VIEW",
         }
         result = app.map_column(record, connection_qn)
-        assert "view" in result["attributes"]
-        assert result["attributes"]["view"]["typeName"] == "View"
-        assert "table" not in result["attributes"]
+        assert "view" in result["relationshipAttributes"]
+        assert result["relationshipAttributes"]["view"]["typeName"] == "View"
+        assert "table" not in result["relationshipAttributes"]
         assert result["attributes"]["viewName"] == "active_view"
 
 
@@ -269,9 +268,9 @@ class TestMapProcedure:
 
     def test_schema_ref(self, app, basic_record, connection_qn):
         result = app.map_procedure(basic_record, connection_qn)
-        attrs = result["attributes"]
-        assert attrs["atlanSchema"]["typeName"] == "Schema"
-        assert attrs["atlanSchema"]["uniqueAttributes"]["qualifiedName"] == (
+        schema_ref = result["relationshipAttributes"]["atlanSchema"]
+        assert schema_ref["typeName"] == "Schema"
+        assert schema_ref["uniqueAttributes"]["qualifiedName"] == (
             "default/mysql/123/def/atlan"
         )
 
@@ -283,7 +282,6 @@ class TestMapProcedure:
         from app.constants import TENANT_ID
 
         result = app.map_procedure(basic_record, connection_qn)
-        assert result["tenantId"] == TENANT_ID
         assert result["attributes"]["tenantId"] == TENANT_ID
 
     def test_hierarchy_qualified_names(self, app, basic_record, connection_qn):

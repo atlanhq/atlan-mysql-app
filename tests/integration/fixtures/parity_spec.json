@@ -1,6 +1,6 @@
 {
-  "_description": "Expected JSONL entity structure from legacy Argo MySQL connector. Used as parity guard rail in tests.",
-  "_note": "sdk_injected_attributes are added by the SDK framework (not app mappers) \u2014 connectionName, lastSync*",
+  "_description": "Expected JSONL entity shape produced by the pyatlan_v9 asset-mapper (.creator()) pattern. Structural guard rail — relationship refs live under relationshipAttributes, not nested inside attributes; tenantId/status are not duplicated at the top level (status is top-level, tenantId is attributes-only).",
+  "_note": "sdk_injected_attributes are added by the SDK framework (not app mappers) — connectionName, lastSync*",
   "sdk_injected_attributes": [
     "lastSyncWorkflowName",
     "lastSyncRun",
@@ -10,10 +10,8 @@
   "database": {
     "top_level_keys": [
       "typeName",
-      "tenantId",
       "status",
-      "attributes",
-      "customAttributes"
+      "attributes"
     ],
     "required_attributes": [
       "name",
@@ -27,10 +25,9 @@
   "schema": {
     "top_level_keys": [
       "typeName",
-      "tenantId",
       "status",
       "attributes",
-      "customAttributes"
+      "relationshipAttributes"
     ],
     "required_attributes": [
       "name",
@@ -41,16 +38,18 @@
       "databaseQualifiedName",
       "tableCount",
       "viewsCount",
-      "tenantId",
+      "tenantId"
+    ],
+    "required_relationships": [
       "database"
     ]
   },
   "table": {
     "top_level_keys": [
       "typeName",
-      "tenantId",
       "status",
       "attributes",
+      "relationshipAttributes",
       "customAttributes"
     ],
     "required_attributes": [
@@ -66,25 +65,22 @@
       "sizeBytes",
       "isPartitioned",
       "partitionCount",
-      "tenantId",
+      "tenantId"
+    ],
+    "required_relationships": [
       "atlanSchema"
     ],
     "table_only_attributes": [
       "rowCount",
       "subType"
-    ],
-    "view_only_attributes": [
-      "definition",
-      "description"
     ]
   },
   "view": {
     "top_level_keys": [
       "typeName",
-      "tenantId",
       "status",
       "attributes",
-      "customAttributes"
+      "relationshipAttributes"
     ],
     "required_attributes": [
       "name",
@@ -99,18 +95,19 @@
       "description",
       "columnCount",
       "sizeBytes",
-      "isPartitioned",
-      "partitionCount",
-      "tenantId",
+      "tenantId"
+    ],
+    "required_relationships": [
       "atlanSchema"
-    ]
+    ],
+    "_note": "View has no is_partitioned/partition_count on the pyatlan_v9 model (Table-only concepts) — unlike the legacy hand-rolled shape, which set them unconditionally on both."
   },
   "column": {
     "top_level_keys": [
       "typeName",
-      "tenantId",
       "status",
       "attributes",
+      "relationshipAttributes",
       "customAttributes"
     ],
     "required_attributes": [
@@ -136,14 +133,16 @@
     "conditional_attributes": {
       "table_column": [
         "tableName",
-        "tableQualifiedName",
-        "table"
+        "tableQualifiedName"
       ],
       "view_column": [
         "viewName",
-        "viewQualifiedName",
-        "view"
+        "viewQualifiedName"
       ]
+    },
+    "conditional_relationships": {
+      "table_column": ["table"],
+      "view_column": ["view"]
     }
   },
   "relationship_ref_format": {
