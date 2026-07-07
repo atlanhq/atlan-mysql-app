@@ -51,8 +51,15 @@ jobs:
 
       - name: Run connector SDR tests
         id: sdr
-        uses: atlanhq/application-sdk/.github/actions/sdr-e2e@main
+        # TWO-STORE PROTOTYPE: pinned to the #2552 SDK feature branch so the
+        # two-store overlay + upstream/deployment guards (not yet on main) run.
+        # Revert to @main once #2552 merges.
+        uses: atlanhq/application-sdk/.github/actions/sdr-e2e@adityachoudhury/sdr-harness-output-floor
         with:
           app-name: mysql
           app-image-name: atlan-mysql-app
           secrets-script: .github/e2e/make-secrets.py
+          # Repin the SDK package to the #2552 branch so base.py's guards ship
+          # in the image under test (uv.lock otherwise pins a PyPI release).
+          application-sdk-ref: adityachoudhury/sdr-harness-output-floor
+          container-health-timeout-seconds: "240"
