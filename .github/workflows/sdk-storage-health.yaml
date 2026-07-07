@@ -1,0 +1,85 @@
+name: SDK Storage Health
+
+# Gate for connector PR authors on the health of the SDK's real-cloud SDR
+# object-store suite (S3/Azure/GCS). That suite runs in atlanhq/application-sdk
+# (the keyless OIDC role trusts THAT repo only), on a nightly schedule — a
+# connector cannot, and should not, trigger a real-bucket run on its own PR.
+# Instead this reads the SDK's LATEST nightly "Storage Integration Tests" result
+# and FAILS this connector PR when the SDK storage layer the connector rides is
+# currently broken. It runs no storage test itself.
+#
+# Prerequisites / caveats (see PR description):
+#   1. Cross-repo read of application-sdk (a PRIVATE repo) needs an org-scoped
+#      token — the default GITHUB_TOKEN is scoped to this repo only. Until
+#      `secrets.ORG_PAT_GITHUB` (or an org GitHub-App token) is available here,
+#      the gate NO-OPS (warns + passes) — it can't assert failure without the
+#      read, and must never false-block on a missing token.
+#   2. To actually BLOCK merges, add the `sdk-storage-health` check to this
+#      repo's required status checks (branch protection).
+#   3. Reflects application-sdk `main`'s latest nightly, loosely tied to the
+#      exact pinned SDK version (the nightly runs on main, not on release tags).
+#   4. Prototype on this connector — the intended home is the shared
+#      application-sdk sdr-e2e reusable (owner: Mrun) so every SDR connector
+#      gets it consistently, with the token wired once.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  sdk-storage-health:
+    name: sdk-storage-health
+    runs-on: ubuntu-latest
+    steps:
+      - name: Gate on the SDK's latest real-cloud storage run
+        env:
+          GH_TOKEN: ${{ secrets.ORG_PAT_GITHUB }}
+        run: |
+          set -uo pipefail
+          SDK=atlanhq/application-sdk
+
+          if [ -z "${GH_TOKEN:-}" ]; then
+            echo "::warning::No cross-repo token (ORG_PAT_GITHUB) — cannot read ${SDK} storage health; gate INACTIVE. Provision an org token to enable."
+            echo "### SDK real-cloud SDR storage gate: INACTIVE (no cross-repo token)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          # Latest completed nightly (schedule.yaml) run on main.
+          if ! run_json=$(gh api "repos/${SDK}/actions/workflows/schedule.yaml/runs?branch=main&status=completed&per_page=1" 2>/dev/null); then
+            echo "::warning::Could not query ${SDK} Actions (token scope?) — gate INACTIVE."
+            exit 0
+          fi
+          run_id=$(echo "$run_json" | jq -r '.workflow_runs[0].id // empty')
+          updated=$(echo "$run_json" | jq -r '.workflow_runs[0].updated_at // empty')
+          url=$(echo "$run_json" | jq -r '.workflow_runs[0].html_url // empty')
+          if [ -z "$run_id" ]; then
+            echo "::warning::No completed ${SDK} nightly storage run found — gate INACTIVE."
+            exit 0
+          fi
+
+          # Conclusion of the "Storage Integration Tests" job within that run
+          # (schedule.yaml also runs stale-PR / trivy jobs, so gate on the job,
+          # not the workflow-run's overall conclusion).
+          concl=$(gh api "repos/${SDK}/actions/runs/${run_id}/jobs" \
+            --jq '.jobs[] | select(.name | test("Storage Integration")) | .conclusion' 2>/dev/null | head -1)
+          {
+            echo "### SDK real-cloud SDR storage: \`${concl:-none}\`"
+            echo ""
+            echo "- Latest nightly (${SDK} main): ${updated:-unknown}"
+            echo "- Run: ${url:-unknown}"
+            echo ""
+            echo "_Reflects ${SDK} main's latest nightly S3/Azure/GCS run; loosely tied to the pinned SDK version._"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -z "$concl" ]; then
+            echo "::warning::${SDK} nightly run ${run_id} has no 'Storage Integration Tests' job — gate INACTIVE."
+            exit 0
+          fi
+          if [ "$concl" != "success" ]; then
+            echo "::error::SDK real-cloud SDR storage is '${concl}' as of ${updated} (${url}). The storage layer this connector rides is currently broken — fix ${SDK} before merging (or override if this change is storage-independent)."
+            exit 1
+          fi
+          echo "SDK real-cloud storage is green (as of ${updated}) — safe to proceed."
