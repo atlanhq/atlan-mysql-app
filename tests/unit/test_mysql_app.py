@@ -122,7 +122,6 @@ class TestMySQLAppMappers:
         assert result["attributes"]["definition"] == (
             "CREATE OR REPLACE VIEW active_users_view AS SELECT * FROM users WHERE active=1"
         )
-        assert result["attributes"]["description"] == "VIEW"
         assert "rowCount" not in result["attributes"]
         # QI reads defaultCatalogName/defaultSchemaName from top-level entity fields
         # to write them to success.json rows for lineage-app catalog resolution.
@@ -265,6 +264,23 @@ class TestMapProcedure:
     def test_sub_type(self, app, basic_record, connection_qn):
         result = app.map_procedure(basic_record, connection_qn)
         assert result["attributes"]["subType"] == "PROCEDURE"
+
+    def test_description_from_remarks(self, app, connection_qn):
+        """description comes from ROUTINE_COMMENT (aliased 'remarks')."""
+        record = {
+            "procedure_catalog": "def",
+            "procedure_schema": "atlan",
+            "procedure_name": "count_rows",
+            "procedure_definition": "BEGIN SELECT COUNT(*) FROM bigtable; END",
+            "procedure_type": "PROCEDURE",
+            "remarks": "Counts rows in the big table",
+        }
+        result = app.map_procedure(record, connection_qn)
+        assert result["attributes"]["description"] == "Counts rows in the big table"
+
+    def test_description_empty_when_no_remarks(self, app, basic_record, connection_qn):
+        result = app.map_procedure(basic_record, connection_qn)
+        assert result["attributes"]["description"] == ""
 
     def test_schema_ref(self, app, basic_record, connection_qn):
         result = app.map_procedure(basic_record, connection_qn)

@@ -227,7 +227,20 @@ class TestTableParity:
         assert entity["attributes"]["rowCount"] == 500
         assert entity["attributes"]["subType"] == "TABLE"
 
-    def test_view_has_definition_and_description(self, app):
+    def test_table_has_no_definition(self, app):
+        """'definition' is genuinely View-only on the pyatlan_v9 model — Table has
+        no such field at all, unlike 'description' (present on every asset type,
+        just not populated for tables by this mapper today)."""
+        record = {
+            "table_catalog": "def",
+            "table_schema": "s",
+            "table_name": "t",
+            "table_kind": "BASE TABLE",
+        }
+        entity = app.map_table(record, CONNECTION_QN)
+        assert "definition" not in entity["attributes"]
+
+    def test_view_has_definition(self, app):
         record = {
             "table_catalog": "def",
             "table_schema": "s",
@@ -239,8 +252,40 @@ class TestTableParity:
         assert (
             entity["attributes"]["definition"] == "CREATE OR REPLACE VIEW v AS SELECT 1"
         )
-        assert entity["attributes"]["description"] == "VIEW"
         assert "rowCount" not in entity["attributes"]
+
+    def test_table_and_view_description_from_remarks(self, app):
+        """'description' comes from TABLE_COMMENT (aliased 'remarks' by
+        extract_table.sql) for both Table and View — not a View-only marker."""
+        table_record = {
+            "table_catalog": "def",
+            "table_schema": "s",
+            "table_name": "t",
+            "table_kind": "BASE TABLE",
+            "remarks": "Orders placed by customers",
+        }
+        table_entity = app.map_table(table_record, CONNECTION_QN)
+        assert table_entity["attributes"]["description"] == "Orders placed by customers"
+
+        view_record = {
+            "table_catalog": "def",
+            "table_schema": "s",
+            "table_name": "v",
+            "table_kind": "VIEW",
+            "remarks": "Active orders only",
+        }
+        view_entity = app.map_table(view_record, CONNECTION_QN)
+        assert view_entity["attributes"]["description"] == "Active orders only"
+
+    def test_table_description_empty_when_no_remarks(self, app):
+        record = {
+            "table_catalog": "def",
+            "table_schema": "s",
+            "table_name": "t",
+            "table_kind": "BASE TABLE",
+        }
+        entity = app.map_table(record, CONNECTION_QN)
+        assert entity["attributes"]["description"] == ""
 
     def test_source_created_at(self, app):
         record = {
@@ -341,6 +386,30 @@ class TestColumnParity:
         }
         entity = app.map_column(record, CONNECTION_QN)
         assert entity["attributes"]["dataType"] == "VARCHAR"
+
+    def test_description_from_remarks(self, app):
+        """description comes from COLUMN_COMMENT (aliased 'remarks')."""
+        record = {
+            "table_catalog": "def",
+            "table_schema": "s",
+            "table_name": "t",
+            "column_name": "c",
+            "table_type": "BASE TABLE",
+            "remarks": "Primary identifier",
+        }
+        entity = app.map_column(record, CONNECTION_QN)
+        assert entity["attributes"]["description"] == "Primary identifier"
+
+    def test_description_empty_when_no_remarks(self, app):
+        record = {
+            "table_catalog": "def",
+            "table_schema": "s",
+            "table_name": "t",
+            "column_name": "c",
+            "table_type": "BASE TABLE",
+        }
+        entity = app.map_column(record, CONNECTION_QN)
+        assert entity["attributes"]["description"] == ""
 
     def test_custom_attributes(self, app):
         record = {

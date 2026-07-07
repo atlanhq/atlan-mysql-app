@@ -216,7 +216,13 @@ class MySQLApp(SqlApp):
     # ── Asset mappers ───────────────────────────────────────────────────
 
     def map_database(self, record: dict[str, Any], connection_qn: str) -> dict:
-        """Map raw database record to Atlan Database entity."""
+        """Map raw database record to Atlan Database entity.
+
+        No ``description`` is set: MySQL's catalog level ('def') has no comment
+        concept, and extract_database.sql doesn't select one — unlike
+        table/view/column/procedure, whose ``remarks`` field (their respective
+        *_COMMENT columns) is wired into ``description`` below.
+        """
         db_name = record.get("database_name", record.get("datname", ""))
         asset = Database.creator(name=db_name, connection_qualified_name=connection_qn)
         asset.schema_count = record.get("schema_count", 0)
@@ -225,7 +231,12 @@ class MySQLApp(SqlApp):
         return _asset_to_dict(asset)
 
     def map_schema(self, record: dict[str, Any], connection_qn: str) -> dict:
-        """Map raw schema record to Atlan Schema entity."""
+        """Map raw schema record to Atlan Schema entity.
+
+        No ``description`` is set: extract_schema.sql doesn't select a schema
+        comment (MySQL's ``information_schema.SCHEMATA`` has no reliably
+        available comment column across supported versions).
+        """
         db_name = record.get(
             "catalog_name",
             record.get("database_name", record.get("datname", DATABASE_PLACEHOLDER)),
@@ -266,6 +277,10 @@ class MySQLApp(SqlApp):
         asset.size_bytes = record.get("size_bytes", 0)
         asset.tenant_id = TENANT_ID
         asset.status = "ACTIVE"
+        # TABLE_COMMENT (extract_table.sql aliases it "remarks"); empty when the
+        # source table/view has no comment set. Applies to both Table and View —
+        # 'description' is a generic Asset-level field, not View-specific.
+        asset.description = record.get("remarks", "") or ""
 
         # Table-specific fields (View has no is_partitioned/partition_count/row_count/
         # sub_type on the pyatlan_v9 model — isinstance narrows for the type checker)
@@ -285,7 +300,6 @@ class MySQLApp(SqlApp):
                 asset.definition = f"CREATE OR REPLACE VIEW {table_name} AS {view_body}"
             else:
                 asset.definition = ""
-            asset.description = "VIEW"
 
         # Source timestamps
         source_created = _epoch_ms(record.get("create_time"))
@@ -347,6 +361,8 @@ class MySQLApp(SqlApp):
             order=record.get("ordinal_position", 0),
         )
         asset.data_type = (record.get("data_type") or "").upper()
+        # COLUMN_COMMENT (extract_column.sql aliases it "remarks"); empty when unset.
+        asset.description = record.get("remarks", "") or ""
         asset.is_nullable = record.get("is_nullable", "YES") == "YES"
         asset.is_partition = False
         asset.is_primary = constraint == "PRIMARY KEY"
@@ -431,6 +447,8 @@ class MySQLApp(SqlApp):
         asset.sub_type = proc_type
         asset.tenant_id = TENANT_ID
         asset.status = "ACTIVE"
+        # ROUTINE_COMMENT (extract_procedure.sql aliases it "remarks"); empty when unset.
+        asset.description = record.get("remarks", "") or ""
 
         source_owner = record.get("source_owner", "") or ""
         if source_owner:

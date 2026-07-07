@@ -61,6 +61,7 @@
       "databaseQualifiedName",
       "schemaName",
       "schemaQualifiedName",
+      "description",
       "columnCount",
       "sizeBytes",
       "isPartitioned",
@@ -80,7 +81,8 @@
       "typeName",
       "status",
       "attributes",
-      "relationshipAttributes"
+      "relationshipAttributes",
+      "customAttributes"
     ],
     "required_attributes": [
       "name",
@@ -100,7 +102,10 @@
     "required_relationships": [
       "atlanSchema"
     ],
-    "_note": "View has no is_partitioned/partition_count on the pyatlan_v9 model (Table-only concepts) — unlike the legacy hand-rolled shape, which set them unconditionally on both."
+    "view_only_attributes": [
+      "definition"
+    ],
+    "_note": "'definition' is genuinely View-only on the pyatlan_v9 model — Table has no such field at all (AttributeError on assignment). 'description' is NOT model-restricted (Database/Schema/Table/Column/Procedure all have it too) and is populated on Table/View/Column/Procedure alike from each's *_COMMENT column (aliased 'remarks' by the extract_*.sql files) — Database/Schema have no comment source extracted, so they don't set it. 'isPartitioned'/'partitionCount' are Table-only on the model (View lacks them entirely) — unlike the legacy hand-rolled shape, which set them unconditionally on both."
   },
   "column": {
     "top_level_keys": [
@@ -119,6 +124,7 @@
       "databaseQualifiedName",
       "schemaName",
       "schemaQualifiedName",
+      "description",
       "dataType",
       "isNullable",
       "isPartition",
