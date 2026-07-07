@@ -1,0 +1,40 @@
+# SDR integration compose overlay.
+#
+# Auto-stacked by the application-sdk sdr-e2e composite action on top of the
+# configurator-generated ci-deploy/docker-compose.yaml + the SDK CI defaults
+# (the action appends `-f .github/e2e/docker-compose.ci.yml` when present).
+#
+# Brings up a sibling mysql:8.0 seeded from the same hermetic
+# .github/e2e/seed.sql the full-DAG e2e uses, so the SDR suite's auth +
+# extraction scenarios run self-contained on every PR — no external DB, no
+# per-connector source secret.
+#
+# The connector reaches this DB at hostname `mysql` (see
+# tests/sdr/test_mysql_sdr.py :: _AGENT_JSON["host"]); the username/password
+# come from the Dapr local.file secret store populated by
+# .github/e2e/make-secrets.py. This mirrors .github/e2e/e2e-full-docker-compose.yaml
+# (the full-DAG overlay) minus its unique-queue ATLAN_DEPLOYMENT_NAME.
+
+services:
+  mysql:
+    image: mysql:8.0.40
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    environment:
+      MYSQL_ROOT_PASSWORD: root_e2e_pass
+      MYSQL_DATABASE: e2e_main
+      MYSQL_USER: e2e_user
+      MYSQL_PASSWORD: e2e_pass
+    volumes:
+      - ${GITHUB_WORKSPACE}/.github/e2e/seed.sql:/docker-entrypoint-initdb.d/seed.sql:ro
+    expose:
+      - "3306"
+
+  atlan-app:
+    depends_on:
+      mysql:
+        condition: service_healthy
