@@ -122,6 +122,11 @@ class TestMySQLAppMappers:
         assert result["attributes"]["definition"] == (
             "CREATE OR REPLACE VIEW active_users_view AS SELECT * FROM users WHERE active=1"
         )
+        # No "remarks" in the record (no COMMENT on the source view) — description
+        # is still set, just empty. See TestTableParity in test_parity.py for the
+        # remarks-populated case; views are just as capable of having a real
+        # description as tables are, it's not a View-exclusive marker.
+        assert result["attributes"]["description"] == ""
         assert "rowCount" not in result["attributes"]
         # QI reads defaultCatalogName/defaultSchemaName from top-level entity fields
         # to write them to success.json rows for lineage-app catalog resolution.
