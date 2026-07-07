@@ -1,0 +1,58 @@
+name: SDR Integration Tests
+
+# Standalone SDR job. mysql-app's tests.yaml uses the shared
+# atlanhq/application-sdk tests-reusable.yaml (unit + integration +
+# label-gated full-DAG e2e), which has no SDR slot — so SDR readiness runs
+# from this dedicated workflow instead.
+#
+# Runs on every PR (not label-gated) so an SDR-only regression — agent
+# queue-routing, manifest upload, or a silent-success / zero-asset
+# extraction — fails here rather than in a customer's self-deployed runtime.
+#
+# The stack is self-contained: .github/e2e/docker-compose.ci.yml brings up a
+# seeded sibling MySQL, so no external source-DB secret is needed. The SDR
+# test-tenant secrets (SDR_TEST_TENANT / SDR_CLIENT_ID / SDR_CLIENT_SECRET)
+# are required for the container to reach the CI tenant's Temporal; the
+# extraction scenario skips (auth still runs) when they're absent.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  sdr:
+    name: sdr
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    concurrency:
+      group: sdr-${{ github.ref }}
+      cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+    permissions:
+      pull-requests: write
+      contents: read
+      statuses: write
+      # packages:write — the sdr-e2e composite pushes the PR-tagged image
+      # (ghcr.io/atlanhq/atlan-mysql-app:sdr-test-<sha>) before container start.
+      packages: write
+    env:
+      SDR_TEST_TENANT: ${{ secrets.SDR_TEST_TENANT }}
+      SDR_CLIENT_ID: ${{ secrets.SDR_CLIENT_ID }}
+      SDR_CLIENT_SECRET: ${{ secrets.SDR_CLIENT_SECRET }}
+    steps:
+      # The SDR composite does NOT call actions/checkout — caller's
+      # responsibility per its docstring.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Run connector SDR tests
+        id: sdr
+        uses: atlanhq/application-sdk/.github/actions/sdr-e2e@main
+        with:
+          app-name: mysql
+          app-image-name: atlan-mysql-app
+          secrets-script: .github/e2e/make-secrets.py
