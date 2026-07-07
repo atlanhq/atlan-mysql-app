@@ -105,7 +105,7 @@
     "view_only_attributes": [
       "definition"
     ],
-    "_note": "'definition' is genuinely View-only on the pyatlan_v9 model — Table has no such field at all (AttributeError on assignment). 'description' is NOT model-restricted (Database/Schema/Table/Column/Procedure all have it too) and is populated on Table/View/Column/Procedure alike from each's *_COMMENT column (aliased 'remarks' by the extract_*.sql files) — Database/Schema have no comment source extracted, so they don't set it. 'isPartitioned'/'partitionCount' are Table-only on the model (View lacks them entirely) — unlike the legacy hand-rolled shape, which set them unconditionally on both."
+    "_note": "'definition' is genuinely View-only on the pyatlan_v9 model — Table has no such field at all (AttributeError on assignment). 'description' is NOT model-restricted (Database/Schema/Table/Column/Procedure all have it too) and is populated on Table/View/Column/Procedure alike from each's *_COMMENT column (aliased 'remarks' by the extract_*.sql files). Database/Schema stay unset — not a gap in this connector, but a real MySQL limitation: the catalog level ('def') isn't a real object (a JDBC-driver placeholder), and standard MySQL has no schema/database-level comment concept at all (information_schema.SCHEMATA has no comment column; CREATE DATABASE has no COMMENT clause — that's a MariaDB-only extension, not applicable to this connector's standard-MySQL queries). 'isPartitioned'/'partitionCount' are Table-only on the model (View lacks them entirely) — unlike the legacy hand-rolled shape, which set them unconditionally on both."
   },
   "column": {
     "top_level_keys": [

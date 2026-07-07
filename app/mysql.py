@@ -218,10 +218,13 @@ class MySQLApp(SqlApp):
     def map_database(self, record: dict[str, Any], connection_qn: str) -> dict:
         """Map raw database record to Atlan Database entity.
 
-        No ``description`` is set: MySQL's catalog level ('def') has no comment
-        concept, and extract_database.sql doesn't select one — unlike
-        table/view/column/procedure, whose ``remarks`` field (their respective
-        *_COMMENT columns) is wired into ``description`` below.
+        No ``description`` is set: the 'def' catalog isn't a real MySQL object
+        at all — it's a fixed placeholder the JDBC/ODBC driver convention uses
+        to satisfy the catalog+schema hierarchy MySQL doesn't actually have
+        (MySQL only has one level: schema == database). There is nothing to
+        attach a comment to. Contrast table/view/column/procedure, whose
+        ``remarks`` field (their respective real *_COMMENT columns) is wired
+        into ``description`` below.
         """
         db_name = record.get("database_name", record.get("datname", ""))
         asset = Database.creator(name=db_name, connection_qualified_name=connection_qn)
@@ -233,9 +236,15 @@ class MySQLApp(SqlApp):
     def map_schema(self, record: dict[str, Any], connection_qn: str) -> dict:
         """Map raw schema record to Atlan Schema entity.
 
-        No ``description`` is set: extract_schema.sql doesn't select a schema
-        comment (MySQL's ``information_schema.SCHEMATA`` has no reliably
-        available comment column across supported versions).
+        No ``description`` is set: MySQL genuinely has no schema/database-level
+        comment concept — ``information_schema.SCHEMATA`` has exactly six
+        columns (CATALOG_NAME, SCHEMA_NAME, DEFAULT_CHARACTER_SET_NAME,
+        DEFAULT_COLLATION_NAME, SQL_PATH, DEFAULT_ENCRYPTION), and
+        ``CREATE DATABASE``/``CREATE SCHEMA`` has no ``COMMENT`` clause. (MariaDB
+        added ``CREATE DATABASE ... COMMENT`` in 10.5.0, but this connector's
+        extract_schema.sql targets standard MySQL's information_schema, not a
+        MariaDB-specific extension.) So there's no ``remarks``-equivalent field
+        for this mapper to read, unlike table/view/column/procedure below.
         """
         db_name = record.get(
             "catalog_name",
