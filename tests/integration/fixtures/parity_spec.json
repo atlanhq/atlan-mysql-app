@@ -1,6 +1,6 @@
 {
-  "_description": "Expected JSONL entity structure from legacy Argo MySQL connector. Used as parity guard rail in tests.",
-  "_note": "sdk_injected_attributes are added by the SDK framework (not app mappers) \u2014 connectionName, lastSync*",
+  "_description": "Expected JSONL entity shape produced by the pyatlan_v9 asset-mapper (.creator()) pattern. Structural guard rail — relationship refs live under relationshipAttributes, not nested inside attributes; tenantId/status are not duplicated at the top level (status is top-level, tenantId is attributes-only).",
+  "_note": "sdk_injected_attributes are added by the SDK framework (not app mappers) — connectionName, lastSync*",
   "sdk_injected_attributes": [
     "lastSyncWorkflowName",
     "lastSyncRun",
@@ -10,10 +10,8 @@
   "database": {
     "top_level_keys": [
       "typeName",
-      "tenantId",
       "status",
-      "attributes",
-      "customAttributes"
+      "attributes"
     ],
     "required_attributes": [
       "name",
@@ -27,10 +25,9 @@
   "schema": {
     "top_level_keys": [
       "typeName",
-      "tenantId",
       "status",
       "attributes",
-      "customAttributes"
+      "relationshipAttributes"
     ],
     "required_attributes": [
       "name",
@@ -41,16 +38,18 @@
       "databaseQualifiedName",
       "tableCount",
       "viewsCount",
-      "tenantId",
+      "tenantId"
+    ],
+    "required_relationships": [
       "database"
     ]
   },
   "table": {
     "top_level_keys": [
       "typeName",
-      "tenantId",
       "status",
       "attributes",
+      "relationshipAttributes",
       "customAttributes"
     ],
     "required_attributes": [
@@ -62,28 +61,30 @@
       "databaseQualifiedName",
       "schemaName",
       "schemaQualifiedName",
+      "description",
       "columnCount",
       "sizeBytes",
       "isPartitioned",
       "partitionCount",
-      "tenantId",
+      "tenantId"
+    ],
+    "required_relationships": [
       "atlanSchema"
     ],
     "table_only_attributes": [
       "rowCount",
-      "subType"
+      "subType",
+      "isPartitioned",
+      "partitionCount"
     ],
-    "view_only_attributes": [
-      "definition",
-      "description"
-    ]
+    "_note": "All four table_only_attributes are set together in the same 'if isinstance(asset, Table)' branch in map_table — equally exclusive to Table, not just rowCount/subType. This is a documentation cross-reference (what the sibling 'view' spec entry can never have), not an independent check; required_attributes above is what assert_structure() actually validates."
   },
   "view": {
     "top_level_keys": [
       "typeName",
-      "tenantId",
       "status",
       "attributes",
+      "relationshipAttributes",
       "customAttributes"
     ],
     "required_attributes": [
@@ -99,18 +100,22 @@
       "description",
       "columnCount",
       "sizeBytes",
-      "isPartitioned",
-      "partitionCount",
-      "tenantId",
+      "tenantId"
+    ],
+    "required_relationships": [
       "atlanSchema"
-    ]
+    ],
+    "view_only_attributes": [
+      "definition"
+    ],
+    "_note": "'definition' is genuinely View-only on the pyatlan_v9 model — Table has no such field at all (AttributeError on assignment). 'description' is NOT model-restricted (Database/Schema/Table/Column/Procedure all have it too) and is populated on Table/View/Column/Procedure alike from each's *_COMMENT column (aliased 'remarks' by the extract_*.sql files). Database/Schema stay unset — not a gap in this connector, but a real MySQL limitation: the catalog level ('def') isn't a real object (a JDBC-driver placeholder), and standard MySQL has no schema/database-level comment concept at all (information_schema.SCHEMATA has no comment column; CREATE DATABASE has no COMMENT clause — that's a MariaDB-only extension, not applicable to this connector's standard-MySQL queries). 'isPartitioned'/'partitionCount' are Table-only on the model (View lacks them entirely) — unlike the legacy hand-rolled shape, which set them unconditionally on both."
   },
   "column": {
     "top_level_keys": [
       "typeName",
-      "tenantId",
       "status",
       "attributes",
+      "relationshipAttributes",
       "customAttributes"
     ],
     "required_attributes": [
@@ -122,6 +127,7 @@
       "databaseQualifiedName",
       "schemaName",
       "schemaQualifiedName",
+      "description",
       "dataType",
       "isNullable",
       "isPartition",
@@ -136,14 +142,16 @@
     "conditional_attributes": {
       "table_column": [
         "tableName",
-        "tableQualifiedName",
-        "table"
+        "tableQualifiedName"
       ],
       "view_column": [
         "viewName",
-        "viewQualifiedName",
-        "view"
+        "viewQualifiedName"
       ]
+    },
+    "conditional_relationships": {
+      "table_column": ["table"],
+      "view_column": ["view"]
     }
   },
   "relationship_ref_format": {

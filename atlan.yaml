@@ -40,6 +40,17 @@ deploy:
       cap: 50
       stage_timeout: 18
       multi_cloud: true
+pools:
+  default:
+    keda:
+      enabled: true
+      minReplicaCount: 0
+      temporal:
+        targetQueueSize: 5
+    env:
+      ATLAN_HEARTBEAT_TIMEOUT_SECONDS: '7200'
+      ATLAN_START_TO_CLOSE_TIMEOUT_SECONDS: '7200'
+      ATLAN_TENANT_ID: default
 argo_package_names:
 - '@atlan/mysql'
 release_model: semver

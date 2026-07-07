@@ -69,8 +69,7 @@ class TestMySQLAppMappers:
         assert result["attributes"]["qualifiedName"] == f"{connection_qn}/def"
         assert result["attributes"]["connectorName"] == "mysql"
         assert result["attributes"]["schemaCount"] == 5
-        assert result["tenantId"] == "default"
-        assert "customAttributes" in result
+        assert result["attributes"]["tenantId"] == "default"
 
     def test_map_schema(self, app, connection_qn):
         record = {
@@ -86,7 +85,7 @@ class TestMySQLAppMappers:
         assert result["attributes"]["databaseName"] == "def"
         assert result["attributes"]["tableCount"] == 10
         assert result["attributes"]["viewsCount"] == 3
-        assert result["attributes"]["database"]["typeName"] == "Database"
+        assert result["relationshipAttributes"]["database"]["typeName"] == "Database"
 
     def test_map_table_base_table(self, app, connection_qn):
         record = {
@@ -106,7 +105,7 @@ class TestMySQLAppMappers:
         assert result["attributes"]["columnCount"] == 5
         assert result["attributes"]["rowCount"] == 100
         assert result["attributes"]["subType"] == "TABLE"
-        assert result["attributes"]["atlanSchema"]["typeName"] == "Schema"
+        assert result["relationshipAttributes"]["atlanSchema"]["typeName"] == "Schema"
 
     def test_map_table_view(self, app, connection_qn):
         """Views are returned as typeName=View based on table_kind."""
@@ -116,6 +115,7 @@ class TestMySQLAppMappers:
             "table_name": "active_users_view",
             "table_kind": "VIEW",
             "view_definition": "SELECT * FROM users WHERE active=1",
+            "remarks": "Currently active users",
         }
         result = app.map_table(record, connection_qn)
         assert result["typeName"] == "View"
@@ -123,7 +123,10 @@ class TestMySQLAppMappers:
         assert result["attributes"]["definition"] == (
             "CREATE OR REPLACE VIEW active_users_view AS SELECT * FROM users WHERE active=1"
         )
-        assert result["attributes"]["description"] == "VIEW"
+        # description comes from TABLE_COMMENT (aliased "remarks" by
+        # extract_table.sql) — views are just as capable of having a real
+        # description as tables are, it's not a View-exclusive marker.
+        assert result["attributes"]["description"] == "Currently active users"
         assert "rowCount" not in result["attributes"]
         # QI reads defaultCatalogName/defaultSchemaName from top-level entity fields
         # to write them to success.json rows for lineage-app catalog resolution.
@@ -177,7 +180,7 @@ class TestMySQLAppMappers:
         assert result["attributes"]["maxLength"] == 255
         assert result["attributes"]["isNullable"] is True
         assert result["attributes"]["order"] == 3
-        assert result["attributes"]["table"]["typeName"] == "Table"
+        assert result["relationshipAttributes"]["table"]["typeName"] == "Table"
         assert "customAttributes" in result
 
     def test_map_column_not_nullable(self, app, connection_qn):
@@ -202,9 +205,9 @@ class TestMySQLAppMappers:
             "table_type": "VIEW",
         }
         result = app.map_column(record, connection_qn)
-        assert "view" in result["attributes"]
-        assert result["attributes"]["view"]["typeName"] == "View"
-        assert "table" not in result["attributes"]
+        assert "view" in result["relationshipAttributes"]
+        assert result["relationshipAttributes"]["view"]["typeName"] == "View"
+        assert "table" not in result["relationshipAttributes"]
         assert result["attributes"]["viewName"] == "active_view"
 
 
@@ -267,11 +270,28 @@ class TestMapProcedure:
         result = app.map_procedure(basic_record, connection_qn)
         assert result["attributes"]["subType"] == "PROCEDURE"
 
+    def test_description_from_remarks(self, app, connection_qn):
+        """description comes from ROUTINE_COMMENT (aliased 'remarks')."""
+        record = {
+            "procedure_catalog": "def",
+            "procedure_schema": "atlan",
+            "procedure_name": "count_rows",
+            "procedure_definition": "BEGIN SELECT COUNT(*) FROM bigtable; END",
+            "procedure_type": "PROCEDURE",
+            "remarks": "Counts rows in the big table",
+        }
+        result = app.map_procedure(record, connection_qn)
+        assert result["attributes"]["description"] == "Counts rows in the big table"
+
+    def test_description_empty_when_no_remarks(self, app, basic_record, connection_qn):
+        result = app.map_procedure(basic_record, connection_qn)
+        assert result["attributes"]["description"] == ""
+
     def test_schema_ref(self, app, basic_record, connection_qn):
         result = app.map_procedure(basic_record, connection_qn)
-        attrs = result["attributes"]
-        assert attrs["atlanSchema"]["typeName"] == "Schema"
-        assert attrs["atlanSchema"]["uniqueAttributes"]["qualifiedName"] == (
+        schema_ref = result["relationshipAttributes"]["atlanSchema"]
+        assert schema_ref["typeName"] == "Schema"
+        assert schema_ref["uniqueAttributes"]["qualifiedName"] == (
             "default/mysql/123/def/atlan"
         )
 
@@ -283,7 +303,6 @@ class TestMapProcedure:
         from app.constants import TENANT_ID
 
         result = app.map_procedure(basic_record, connection_qn)
-        assert result["tenantId"] == TENANT_ID
         assert result["attributes"]["tenantId"] == TENANT_ID
 
     def test_hierarchy_qualified_names(self, app, basic_record, connection_qn):

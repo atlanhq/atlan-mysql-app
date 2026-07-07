@@ -8,14 +8,14 @@ license = "Apache-2.0"
 readme = "README.md"
 dependencies = [
     "atlan-application-sdk[daft,iam-auth,sql,workflows,pandas]>=3.13.2,<4",
-    "aiomysql>=0.3.0",
-    "cryptography>=46.0.5",
-    "poethepoet>=0.34.0",
-    "aiohttp>=3.13.3",  # pinned: transitive dep, security fix
-    "protobuf>=6.33.5",  # pinned: transitive dep, security fix
-    "python-multipart>=0.0.22",  # pinned: transitive dep, security fix
-    "starlette>=0.49.1",  # pinned: transitive dep, security fix
-    "urllib3>=2.6.0",  # pinned: transitive dep, security fix
+    "aiomysql>=0.3.0",  # conformance: ignore[D003] loaded dynamically by SQLAlchemy via the "mysql+aiomysql" dialect string, not a direct Python import
+    "cryptography>=46.0.5",  # conformance: ignore[D003] required by aiomysql/PyMySQL's caching_sha2_password auth plugin for RSA key exchange with MySQL 8 servers; loaded by the driver
+    "poethepoet>=0.34.0",  # conformance: ignore[D003] provides the poe CLI entrypoint used by [tool.poe.tasks] (generate, start-dapr, etc.); invoked as a console script, never imported
+    "aiohttp>=3.13.3",  # conformance: ignore[D002,D003] pinned above the SDK's transitive floor (>=3.10.0) for a security fix; consumed transitively, not imported directly
+    "protobuf>=6.33.5",  # conformance: ignore[D003] transitive dependency pinned above its floor for a security fix; consumed by lower layers, not imported directly
+    "python-multipart>=0.0.22",  # conformance: ignore[D003] transitive dependency pinned above its floor for a security fix; loaded dynamically by Starlette's multipart form parser
+    "starlette>=0.49.1",  # conformance: ignore[D003] transitive dependency pinned above its floor for a security fix; used internally by the SDK's HTTP server layer, not imported directly
+    "urllib3>=2.6.0",  # conformance: ignore[D003] transitive dependency pinned above its floor for a security fix; consumed internally by requests/httpx, not imported directly
 ]
 
 # Optional dependencies for specific functionality - Install using: uv sync --extra dev
@@ -38,7 +38,6 @@ test = [
     "docker>=7.0.0",
     "pymysql>=1.1.0",
     "pandas>=2.0.0",
-    "pyatlan>=9.5.0",
     "pytest-order>=1.3.0",
 ]
 
@@ -62,29 +61,10 @@ stop-deps.shell = "lsof -ti:3000,3500,7233,50001 | xargs kill -9 2>/dev/null || 
 
 [tool.poe.tasks.download-components]
 interpreter = "python"
-env = { SDK_VERSION = "v3.14.0" }
 shell = """
-import pathlib, requests, os, shutil, tarfile, tempfile
-
-# Download components
-components_dir = pathlib.Path("components")
-components_dir.mkdir(exist_ok=True)
-
-api_url = "https://api.github.com/repos/atlanhq/application-sdk/contents/components"
-
-response = requests.get(api_url, params={"ref": os.getenv("SDK_VERSION")})
-response.raise_for_status()
-
-for file_info in response.json():
-    if file_info["type"] == "file" and file_info["name"].endswith(".yaml"):
-        raw_url = file_info["download_url"]
-
-        file_response = requests.get(raw_url)
-        file_response.raise_for_status()
-
-        file_path = components_dir / file_info["name"]
-        file_path.write_text(file_response.text)
-        print(f"Downloaded: {file_info['name']}")
+import application_sdk, pathlib, shutil
+src = pathlib.Path(application_sdk.__file__).parent / 'components'
+shutil.copytree(src, 'components', dirs_exist_ok=True)
 """
 
 
@@ -119,6 +99,7 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 markers = [
     "asyncio: marks tests as async (deselect with '-m \"not asyncio\"')",
+    "integration: marks tests requiring external services (deselect with '-m \"not integration\"')",
 ]
 log_cli = true
 log_cli_level = "INFO"

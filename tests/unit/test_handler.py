@@ -89,7 +89,7 @@ class TestMySQLHandlerAuth:
             result = await handler.test_auth(AuthInput(credentials=valid_creds))
 
         assert result.status == AuthStatus.FAILED
-        assert "Connection refused" in result.message
+        assert result.message == "Authentication failed"
 
     @pytest.mark.asyncio
     async def test_auth_empty_credentials(self, handler):

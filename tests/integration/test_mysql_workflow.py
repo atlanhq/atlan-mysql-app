@@ -31,6 +31,8 @@ if TYPE_CHECKING:
 
 logger = get_logger("integration.workflow")
 
+pytestmark = pytest.mark.integration
+
 _CONNECTION_NAME = "mysql-e2e-test"
 # Use the platform's canonical QN format, same as Connection.creator() produces:
 # default/{connector}/{epoch} — purely numerical last component, no prefix.

@@ -8,19 +8,22 @@ from __future__ import annotations
 import math
 import os
 import time
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, ClassVar
 
+import orjson
 import pandas as pd
 from application_sdk.contracts.base import Output
 from application_sdk.contracts.storage import UploadInput
-from application_sdk.execution._temporal.activity_utils import get_object_store_prefix
+from application_sdk.execution import get_object_store_prefix
 from application_sdk.observability.logger_adaptor import get_logger
 from application_sdk.templates.contracts.sql_metadata import (
     ExtractionInput,
     ExtractionTaskInput,
 )
 from application_sdk.templates.sql_app import SqlApp
+from pyatlan_v9.model.assets import Column, Database, Procedure, Schema, Table, View
 
 from app.client import SQLClient
 from app.constants import DATABASE_PLACEHOLDER, TENANT_ID
@@ -87,6 +90,7 @@ def _epoch_ms(value: Any) -> int | None:
         if pd.isna(ts):  # type: ignore[arg-type]
             return None
         return int(ts.timestamp() * 1000)  # type: ignore[union-attr]
+    # conformance: ignore[E004] best-effort value coercion; pd.Timestamp can raise several distinct exception types on malformed input; already logged with exc_info=True and falls back to None
     except Exception:
         logger.debug("Could not coerce value to epoch ms", exc_info=True)
         return None
@@ -133,6 +137,54 @@ def _safe_str(v: Any) -> str:
     return str(v) if not isinstance(v, str) else v
 
 
+def _asset_to_dict(asset: Any) -> dict[str, Any]:
+    """Serialize a pyatlan_v9 Asset via its canonical ``to_nested_bytes()`` wire shape.
+
+    Returned as a dict (not the raw ``Asset``) because the installed SDK's
+    ``SqlApp._transform_entity`` only recognises a mapper return value that
+    exposes ``to_nested_dict``/``model_dump``/``dict`` — none of which exist on
+    the msgspec-based ``Asset`` — and silently falls back to writing the
+    unmapped raw record otherwise. Parsing the same bytes it would itself
+    write keeps `.creator()` as the single owner of qualifiedName grammar and
+    attribute placement while staying on the dict branch the base class
+    already handles correctly.
+    """
+    return orjson.loads(asset.to_nested_bytes())
+
+
+@lru_cache(maxsize=4096)
+def _database_qn(name: str, connection_qn: str) -> str:
+    """Database qualifiedName, derived via ``.creator()`` and memoized.
+
+    Every schema/table/column record under the same database would otherwise
+    re-derive this identical value — a MySQL sync can process thousands of
+    column rows per database, so building a throwaway ``Database`` asset per
+    row just to read its ``qualified_name`` is real, not just cosmetic, waste.
+    """
+    qn = Database.creator(
+        name=name, connection_qualified_name=connection_qn
+    ).qualified_name
+    assert isinstance(qn, str)
+    return qn
+
+
+@lru_cache(maxsize=4096)
+def _schema_qn(name: str, database_qn: str) -> str:
+    """Schema qualifiedName, derived via ``.creator()`` and memoized (see ``_database_qn``)."""
+    qn = Schema.creator(name=name, database_qualified_name=database_qn).qualified_name
+    assert isinstance(qn, str)
+    return qn
+
+
+@lru_cache(maxsize=4096)
+def _table_qn(name: str, schema_qn: str, is_view: bool) -> str:
+    """Table/View qualifiedName, derived via ``.creator()`` and memoized (see ``_database_qn``)."""
+    cls = View if is_view else Table
+    qn = cls.creator(name=name, schema_qualified_name=schema_qn).qualified_name
+    assert isinstance(qn, str)
+    return qn
+
+
 class MySQLApp(SqlApp):
     """MySQL metadata extraction App.
 
@@ -164,52 +216,48 @@ class MySQLApp(SqlApp):
     # ── Asset mappers ───────────────────────────────────────────────────
 
     def map_database(self, record: dict[str, Any], connection_qn: str) -> dict:
-        """Map raw database record to Atlan Database entity."""
+        """Map raw database record to Atlan Database entity.
+
+        No ``description`` is set: the 'def' catalog isn't a real MySQL object
+        at all — it's a fixed placeholder the JDBC/ODBC driver convention uses
+        to satisfy the catalog+schema hierarchy MySQL doesn't actually have
+        (MySQL only has one level: schema == database). There is nothing to
+        attach a comment to. Contrast table/view/column/procedure, whose
+        ``remarks`` field (their respective real *_COMMENT columns) is wired
+        into ``description`` below.
+        """
         db_name = record.get("database_name", record.get("datname", ""))
-        return {
-            "typeName": "Database",
-            "tenantId": TENANT_ID,
-            "status": "ACTIVE",
-            "attributes": {
-                "name": db_name,
-                "qualifiedName": f"{connection_qn}/{db_name}",
-                "connectionQualifiedName": connection_qn,
-                "connectorName": "mysql",
-                "schemaCount": record.get("schema_count", 0),
-                "tenantId": TENANT_ID,
-            },
-            "customAttributes": {},
-        }
+        asset = Database.creator(name=db_name, connection_qualified_name=connection_qn)
+        asset.schema_count = record.get("schema_count", 0)
+        asset.tenant_id = TENANT_ID
+        asset.status = "ACTIVE"
+        return _asset_to_dict(asset)
 
     def map_schema(self, record: dict[str, Any], connection_qn: str) -> dict:
-        """Map raw schema record to Atlan Schema entity."""
+        """Map raw schema record to Atlan Schema entity.
+
+        No ``description`` is set: MySQL genuinely has no schema/database-level
+        comment concept — ``information_schema.SCHEMATA`` has exactly six
+        columns (CATALOG_NAME, SCHEMA_NAME, DEFAULT_CHARACTER_SET_NAME,
+        DEFAULT_COLLATION_NAME, SQL_PATH, DEFAULT_ENCRYPTION), and
+        ``CREATE DATABASE``/``CREATE SCHEMA`` has no ``COMMENT`` clause. (MariaDB
+        added ``CREATE DATABASE ... COMMENT`` in 10.5.0, but this connector's
+        extract_schema.sql targets standard MySQL's information_schema, not a
+        MariaDB-specific extension.) So there's no ``remarks``-equivalent field
+        for this mapper to read, unlike table/view/column/procedure below.
+        """
         db_name = record.get(
             "catalog_name",
             record.get("database_name", record.get("datname", DATABASE_PLACEHOLDER)),
         )
         schema_name = record.get("schema_name", "")
-        db_qn = f"{connection_qn}/{db_name}"
-        return {
-            "typeName": "Schema",
-            "tenantId": TENANT_ID,
-            "status": "ACTIVE",
-            "attributes": {
-                "name": schema_name,
-                "qualifiedName": f"{db_qn}/{schema_name}",
-                "connectionQualifiedName": connection_qn,
-                "connectorName": "mysql",
-                "databaseName": db_name,
-                "databaseQualifiedName": db_qn,
-                "tableCount": record.get("table_count", 0),
-                "viewsCount": record.get("views_count", 0),
-                "tenantId": TENANT_ID,
-                "database": {
-                    "typeName": "Database",
-                    "uniqueAttributes": {"qualifiedName": db_qn},
-                },
-            },
-            "customAttributes": {},
-        }
+        db_qn = _database_qn(db_name, connection_qn)
+        asset = Schema.creator(name=schema_name, database_qualified_name=db_qn)
+        asset.table_count = record.get("table_count", 0)
+        asset.views_count = record.get("views_count", 0)
+        asset.tenant_id = TENANT_ID
+        asset.status = "ACTIVE"
+        return _asset_to_dict(asset)
 
     def map_table(self, record: dict[str, Any], connection_qn: str) -> dict:
         """Map raw table/view record to Atlan Table or View entity.
@@ -227,56 +275,45 @@ class MySQLApp(SqlApp):
             "table_kind", record.get("table_type", "BASE TABLE")
         ).upper()
 
-        db_qn = f"{connection_qn}/{db_name}"
-        schema_qn = f"{db_qn}/{schema_name}"
-        entity_qn = f"{schema_qn}/{table_name}"
+        db_qn = _database_qn(db_name, connection_qn)
+        schema_qn = _schema_qn(schema_name, db_qn)
 
         is_view = table_kind in ("VIEW", "SYSTEM VIEW")
-        type_name = "View" if is_view else "Table"
+        asset_cls = View if is_view else Table
+        asset = asset_cls.creator(name=table_name, schema_qualified_name=schema_qn)
 
-        attrs: dict[str, Any] = {
-            "name": table_name,
-            "qualifiedName": entity_qn,
-            "connectionQualifiedName": connection_qn,
-            "connectorName": "mysql",
-            "databaseName": db_name,
-            "databaseQualifiedName": db_qn,
-            "schemaName": schema_name,
-            "schemaQualifiedName": schema_qn,
-            "columnCount": record.get("column_count", 0),
-            "sizeBytes": record.get("size_bytes", 0),
-            "isPartitioned": bool(record.get("is_partition", False)),
-            "partitionCount": record.get("partition_count", 0),
-            "tenantId": TENANT_ID,
-            "atlanSchema": {
-                "typeName": "Schema",
-                "uniqueAttributes": {"qualifiedName": schema_qn},
-            },
-        }
+        asset.column_count = record.get("column_count", 0)
+        asset.size_bytes = record.get("size_bytes", 0)
+        asset.tenant_id = TENANT_ID
+        asset.status = "ACTIVE"
+        # TABLE_COMMENT (extract_table.sql aliases it "remarks"); empty when the
+        # source table/view has no comment set. Applies to both Table and View —
+        # 'description' is a generic Asset-level field, not View-specific.
+        asset.description = record.get("remarks", "") or ""
 
-        # Table-specific fields
-        if not is_view:
-            attrs["rowCount"] = record.get("row_count", 0)
-            attrs["subType"] = "TABLE"
+        # Table-specific fields (View has no is_partitioned/partition_count/row_count/
+        # sub_type on the pyatlan_v9 model — isinstance narrows for the type checker)
+        if isinstance(asset, Table):
+            asset.row_count = record.get("row_count", 0)
+            asset.sub_type = "TABLE"
+            asset.is_partitioned = bool(record.get("is_partition", False))
+            asset.partition_count = record.get("partition_count", 0)
 
         # View-specific fields
-        if is_view:
+        if isinstance(asset, View):
             view_body = record.get("view_definition", "") or ""
             if view_body:
                 # Prepend CREATE VIEW so QI/gudusoft can identify the target view
                 # and generate view→table lineage edges. MySQL's VIEW_DEFINITION
                 # stores only the SELECT body without the CREATE VIEW prefix.
-                attrs["definition"] = (
-                    f"CREATE OR REPLACE VIEW {table_name} AS {view_body}"
-                )
+                asset.definition = f"CREATE OR REPLACE VIEW {table_name} AS {view_body}"
             else:
-                attrs["definition"] = ""
-            attrs["description"] = "VIEW"
+                asset.definition = ""
 
         # Source timestamps
         source_created = _epoch_ms(record.get("create_time"))
         if source_created:
-            attrs["sourceCreatedAt"] = source_created
+            asset.source_created_at = source_created
 
         # Custom attributes (MySQL-specific metadata)
         custom: dict[str, Any] = {}
@@ -290,19 +327,16 @@ class MySQLApp(SqlApp):
         ):
             custom[key] = _safe_str(record.get(key))
         custom["is_transient"] = ""
+        asset.custom_attributes = custom
 
-        entity: dict[str, Any] = {
-            "typeName": type_name,
-            "tenantId": TENANT_ID,
-            "status": "ACTIVE",
-            "attributes": attrs,
-            "customAttributes": custom,
-        }
+        entity = _asset_to_dict(asset)
 
         # QI reads column_mapping.defaultCatalogName / defaultSchemaName from the
         # top-level entity fields (not from nested attributes) and writes them to
         # each success.json row. Lineage-app uses these to resolve bare view/table
-        # names (e.g. "akshaycat") to fully-qualified Atlas entity paths.
+        # names (e.g. "akshaycat") to fully-qualified Atlas entity paths. This is a
+        # live cross-app contract with QI/lineage-app, not a legacy-shape artifact —
+        # pyatlan_v9's Asset model has no equivalent field, so it's added post-serialization.
         if is_view:
             entity["defaultCatalogName"] = db_name
             entity["defaultSchemaName"] = schema_name
@@ -320,55 +354,37 @@ class MySQLApp(SqlApp):
         column_name = record.get("column_name", "")
         table_type = record.get("table_type", "BASE TABLE").upper()
 
-        db_qn = f"{connection_qn}/{db_name}"
-        schema_qn = f"{db_qn}/{schema_name}"
-        table_qn = f"{schema_qn}/{table_name}"
-        column_qn = f"{table_qn}/{column_name}"
+        db_qn = _database_qn(db_name, connection_qn)
+        schema_qn = _schema_qn(schema_name, db_qn)
 
         is_view = table_type in ("VIEW", "SYSTEM VIEW")
         constraint = record.get("constraint_type", "")
 
-        attrs: dict[str, Any] = {
-            "name": column_name,
-            "qualifiedName": column_qn,
-            "connectionQualifiedName": connection_qn,
-            "connectorName": "mysql",
-            "databaseName": db_name,
-            "databaseQualifiedName": db_qn,
-            "schemaName": schema_name,
-            "schemaQualifiedName": schema_qn,
-            "dataType": (record.get("data_type") or "").upper(),
-            "isNullable": record.get("is_nullable", "YES") == "YES",
-            "isPartition": False,
-            "isPrimary": constraint == "PRIMARY KEY",
-            "isForeign": constraint == "FOREIGN KEY",
-            "maxLength": record.get(
-                "max_length", record.get("character_maximum_length", 0)
-            )
-            or 0,
-            "numericScale": _coerce_numeric(
-                record.get("numeric_scale", record.get("decimal_digits"))
-            ),
-            "order": record.get("ordinal_position", 0),
-            "precision": _coerce_numeric(record.get("numeric_precision")),
-            "tenantId": TENANT_ID,
-        }
+        parent_cls = View if is_view else Table
+        table_qn = _table_qn(table_name, schema_qn, is_view)
 
-        # Table or View relationship ref
-        if is_view:
-            attrs["viewName"] = table_name
-            attrs["viewQualifiedName"] = table_qn
-            attrs["view"] = {
-                "typeName": "View",
-                "uniqueAttributes": {"qualifiedName": table_qn},
-            }
-        else:
-            attrs["tableName"] = table_name
-            attrs["tableQualifiedName"] = table_qn
-            attrs["table"] = {
-                "typeName": "Table",
-                "uniqueAttributes": {"qualifiedName": table_qn},
-            }
+        asset = Column.creator(
+            name=column_name,
+            parent_qualified_name=table_qn,
+            parent_type=parent_cls,
+            order=record.get("ordinal_position", 0),
+        )
+        asset.data_type = (record.get("data_type") or "").upper()
+        # COLUMN_COMMENT (extract_column.sql aliases it "remarks"); empty when unset.
+        asset.description = record.get("remarks", "") or ""
+        asset.is_nullable = record.get("is_nullable", "YES") == "YES"
+        asset.is_partition = False
+        asset.is_primary = constraint == "PRIMARY KEY"
+        asset.is_foreign = constraint == "FOREIGN KEY"
+        asset.max_length = (
+            record.get("max_length", record.get("character_maximum_length", 0)) or 0
+        )
+        asset.numeric_scale = _coerce_numeric(
+            record.get("numeric_scale", record.get("decimal_digits"))
+        )
+        asset.precision = int(_coerce_numeric(record.get("numeric_precision")))
+        asset.tenant_id = TENANT_ID
+        asset.status = "ACTIVE"
 
         # Custom attributes (all raw SQL metadata)
         custom: dict[str, Any] = {}
@@ -407,14 +423,9 @@ class MySQLApp(SqlApp):
                 )
         # Ensure type_name from data_type
         custom["type_name"] = (record.get("data_type") or "").lower()
+        asset.custom_attributes = custom
 
-        return {
-            "typeName": "Column",
-            "tenantId": TENANT_ID,
-            "status": "ACTIVE",
-            "attributes": attrs,
-            "customAttributes": custom,
-        }
+        return _asset_to_dict(asset)
 
     def map_procedure(self, record: dict[str, Any], connection_qn: str) -> dict:
         """Map raw procedure record to Atlan Procedure entity.
@@ -430,47 +441,36 @@ class MySQLApp(SqlApp):
         definition = record.get("procedure_definition", "") or ""
         proc_type = record.get("procedure_type", "PROCEDURE")
 
-        db_qn = f"{connection_qn}/{catalog}"
-        schema_qn = f"{db_qn}/{schema}"
-        # Qualified name matches legacy format: connection/db/schema/_procedures_/name
-        proc_qn = f"{schema_qn}/_procedures_/{name}"
+        db_qn = _database_qn(catalog, connection_qn)
+        schema_qn = _schema_qn(schema, db_qn)
 
-        attrs: dict[str, Any] = {
-            "name": name,
-            "qualifiedName": proc_qn,
-            "connectionQualifiedName": connection_qn,
-            "connectorName": "mysql",
-            "databaseName": catalog,
-            "databaseQualifiedName": db_qn,
-            "schemaName": schema,
-            "schemaQualifiedName": schema_qn,
-            "definition": definition,
-            "subType": proc_type,
-            "tenantId": TENANT_ID,
-            "atlanSchema": {
-                "typeName": "Schema",
-                "uniqueAttributes": {"qualifiedName": schema_qn},
-            },
-        }
+        # Procedure.creator() derives the qualified name as
+        # "{schema_qualified_name}/_procedures_/{name}" — matches the legacy format.
+        # creator() rejects a blank definition (some procedures/functions have no
+        # captured body, e.g. permission-restricted SHOW CREATE PROCEDURE), so pass
+        # a placeholder to satisfy validation and overwrite it immediately after.
+        asset = Procedure.creator(
+            name=name, definition=definition or "-", schema_qualified_name=schema_qn
+        )
+        asset.definition = definition
+        asset.sub_type = proc_type
+        asset.tenant_id = TENANT_ID
+        asset.status = "ACTIVE"
+        # ROUTINE_COMMENT (extract_procedure.sql aliases it "remarks"); empty when unset.
+        asset.description = record.get("remarks", "") or ""
 
         source_owner = record.get("source_owner", "") or ""
         if source_owner:
-            attrs["sourceCreatedBy"] = source_owner
+            asset.source_created_by = source_owner
 
         source_created = _epoch_ms(record.get("created"))
         if source_created:
-            attrs["sourceCreatedAt"] = source_created
+            asset.source_created_at = source_created
         source_updated = _epoch_ms(record.get("last_altered"))
         if source_updated:
-            attrs["sourceUpdatedAt"] = source_updated
+            asset.source_updated_at = source_updated
 
-        return {
-            "typeName": "Procedure",
-            "tenantId": TENANT_ID,
-            "status": "ACTIVE",
-            "attributes": attrs,
-            "customAttributes": {},
-        }
+        return _asset_to_dict(asset)
 
     async def run(  # type: ignore[override]
         self, input: ExtractionInput

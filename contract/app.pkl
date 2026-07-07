@@ -1,6 +1,6 @@
 amends "@app-contract-toolkit/App.pkl"
 
-import "@app-contract-toolkit/Connectors.pkl"
+import "@app-contract-toolkit/Connectors.pkl"  // conformance: ignore[K002] verified via pkl eval that App.pkl@0.18.0 does not re-export Connectors.* to amending contracts; removing this import breaks the build with "Cannot find property Connectors"
 
 name = "mysql"
 displayName = "MySQL Assets"
@@ -20,34 +20,37 @@ metadata {
   ["release_model"] = "semver"
 }
 
-deploy {
+deploy = new DeployConfig {
   dapr {
     objectstore = true
     secretstore = true
   }
-  env {
-    ["ATLAN_HEARTBEAT_TIMEOUT_SECONDS"] = "7200"
-    ["ATLAN_START_TO_CLOSE_TIMEOUT_SECONDS"] = "7200"
-    ["ATLAN_TENANT_ID"] = "default"
-  }
-}
-
-// Progressive canary rollout for all-channel releases.
-// Stages auto-progress based on workflow success rate on selected tenants.
-// Pattern ported from atlan-teradata-app.
-deployOverrides {
-  ["canary_enabled"] = true
-  ["canary_mode"] = "auto"
-  ["stages"] = new Mapping {
-    ["stage1"] = new Mapping {
-      ["cap"] = 5
-      ["stage_timeout"] = 6
-      ["multi_cloud"] = true
+  pools {
+    ["default"] = new Pool {
+      env {
+        ["ATLAN_HEARTBEAT_TIMEOUT_SECONDS"] = "7200"
+        ["ATLAN_START_TO_CLOSE_TIMEOUT_SECONDS"] = "7200"
+        ["ATLAN_TENANT_ID"] = "default"
+      }
     }
-    ["stage2"] = new Mapping {
-      ["cap"] = 50
-      ["stage_timeout"] = 18
-      ["multi_cloud"] = true
+  }
+  // Progressive canary rollout for all-channel releases.
+  // Stages auto-progress based on workflow success rate on selected tenants.
+  // Pattern ported from atlan-teradata-app.
+  overrides {
+    ["canary_enabled"] = true
+    ["canary_mode"] = "auto"
+    ["stages"] = new Mapping {
+      ["stage1"] = new Mapping {
+        ["cap"] = 5
+        ["stage_timeout"] = 6
+        ["multi_cloud"] = true
+      }
+      ["stage2"] = new Mapping {
+        ["cap"] = 50
+        ["stage_timeout"] = 18
+        ["multi_cloud"] = true
+      }
     }
   }
 }
