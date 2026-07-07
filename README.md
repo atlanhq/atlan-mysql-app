@@ -179,15 +179,12 @@ tests/
 | **Tests** | All PRs, push to main | Unit + integration (testcontainers); `e2e` label runs the full DAG against a real tenant |
 | **Build & Publish** | Push to main, releases | Docker build + push to GHCR + marketplace publish |
 | **Vulnerability Scan** | All PRs | Dependency + image CVE scan |
-| **Dep Cooldown** | All PRs | Blocks dep bumps younger than the org threshold |
 | **Docstring Coverage** | All PRs | Enforces docstring coverage of `app/` |
 | **Conventional Commits** | All PRs | Validates PR title format |
-| **Autolabel** | All PRs | Labels PRs from conventional-commit prefix |
 | **Release Gate** | Release-bump PRs | Requires `e2e` label before merge |
 | **Release Version Bump** | Merge to main | Opens a version-bump PR |
 | **Release and Publish** | Merge of release-labeled PR | Tags + creates GitHub release |
 | **Update Security Dashboard** | After scans | Pushes results to security dashboard |
-| **Weekly Dependency Update** | Mon 07:00 UTC | Opens a dep-upgrade PR if anything changed |
 
 ## Common Commands
 
