@@ -73,8 +73,11 @@
     ],
     "table_only_attributes": [
       "rowCount",
-      "subType"
-    ]
+      "subType",
+      "isPartitioned",
+      "partitionCount"
+    ],
+    "_note": "All four table_only_attributes are set together in the same 'if isinstance(asset, Table)' branch in map_table — equally exclusive to Table, not just rowCount/subType. This is a documentation cross-reference (what the sibling 'view' spec entry can never have), not an independent check; required_attributes above is what assert_structure() actually validates."
   },
   "view": {
     "top_level_keys": [
