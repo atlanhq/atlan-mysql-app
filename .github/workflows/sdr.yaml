@@ -51,8 +51,12 @@ jobs:
 
       - name: Run connector SDR tests
         id: sdr
-        uses: atlanhq/application-sdk/.github/actions/sdr-e2e@main
+        uses: atlanhq/application-sdk/.github/actions/sdr-e2e@adityachoudhury/sdr-guards-in-action
         with:
           app-name: mysql
           app-image-name: atlan-mysql-app
           secrets-script: .github/e2e/make-secrets.py
+          # NO application-sdk-ref: runs against MySQL's committed SDK (3.21.0),
+          # which does NOT contain the #2552 guards — proving the host-side guard
+          # works with no SDK bump.
+          container-health-timeout-seconds: "240"
