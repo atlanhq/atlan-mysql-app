@@ -89,4 +89,14 @@ jobs:
       run-e2e: ${{ inputs.run_e2e }}
       base-image-ref: ${{ inputs.base_image_ref }}
       agent-name-override: ${{ inputs.agent_name_override }}
+      # ADR-0014 two-store SDR posture (docs/adr/0014-two-store-storage-
+      # architecture.md in application-sdk): the e2e job's `objectstore`
+      # is forced to the SDK-default CI-local binding and
+      # ENABLE_ATLAN_UPLOAD=true is set on the worker, so a connector
+      # code path that forgets to bridge an artifact via App.upload()
+      # from `objectstore` to `atlan-objectstore` shows up as zero
+      # downstream assets/lineage in Atlas. Mysql is the first adopter —
+      # requires application-sdk's tests-reusable.yaml `two-store` input
+      # (added alongside this change).
+      two-store: true
     secrets: inherit
