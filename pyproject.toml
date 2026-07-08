@@ -11,11 +11,6 @@ dependencies = [
     "aiomysql>=0.3.0",  # conformance: ignore[D003] loaded dynamically by SQLAlchemy via the "mysql+aiomysql" dialect string, not a direct Python import
     "cryptography>=46.0.5",  # conformance: ignore[D003] required by aiomysql/PyMySQL's caching_sha2_password auth plugin for RSA key exchange with MySQL 8 servers; loaded by the driver
     "poethepoet>=0.34.0",  # conformance: ignore[D003] provides the poe CLI entrypoint used by [tool.poe.tasks] (generate, start-dapr, etc.); invoked as a console script, never imported
-    "aiohttp>=3.13.3",  # conformance: ignore[D002,D003] pinned above the SDK's transitive floor (>=3.10.0) for a security fix; consumed transitively, not imported directly
-    "protobuf>=6.33.5",  # conformance: ignore[D003] transitive dependency pinned above its floor for a security fix; consumed by lower layers, not imported directly
-    "python-multipart>=0.0.22",  # conformance: ignore[D003] transitive dependency pinned above its floor for a security fix; loaded dynamically by Starlette's multipart form parser
-    "starlette>=0.49.1",  # conformance: ignore[D003] transitive dependency pinned above its floor for a security fix; used internally by the SDK's HTTP server layer, not imported directly
-    "urllib3>=2.6.0",  # conformance: ignore[D003] transitive dependency pinned above its floor for a security fix; consumed internally by requests/httpx, not imported directly
 ]
 
 # Optional dependencies for specific functionality - Install using: uv sync --extra dev
