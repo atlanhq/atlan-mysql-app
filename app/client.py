@@ -258,6 +258,7 @@ class SQLClient(AsyncBaseSQLClient):
         old_env = {}
         if aws_access_key_id and aws_secret_access_key:
             old_env["AWS_ACCESS_KEY_ID"] = os.environ.get("AWS_ACCESS_KEY_ID")
+            # conformance: ignore[S002] saving pre-existing env value to restore in `finally`; the real secret comes from credentials["extra"]["aws_secret_access_key"], staged into env only because generate_aws_rds_token_with_iam_role has no explicit-credentials param and relies on boto3's default env chain
             old_env["AWS_SECRET_ACCESS_KEY"] = os.environ.get("AWS_SECRET_ACCESS_KEY")
             os.environ["AWS_ACCESS_KEY_ID"] = aws_access_key_id
             os.environ["AWS_SECRET_ACCESS_KEY"] = aws_secret_access_key
@@ -310,6 +311,7 @@ class SQLClient(AsyncBaseSQLClient):
                 if old_secret_key is not None:
                     os.environ["AWS_SECRET_ACCESS_KEY"] = old_secret_key
                 else:
+                    # conformance: ignore[S002] restoring/clearing the transient env var set above; same missing-seam justification
                     os.environ.pop("AWS_SECRET_ACCESS_KEY", None)
 
     async def load(self, credentials: Dict[str, Any]) -> None:
