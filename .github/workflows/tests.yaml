@@ -70,7 +70,9 @@ on:
 
 jobs:
   tests:
-    uses: atlanhq/application-sdk/.github/workflows/tests-reusable.yaml@main
+    # A/B validation of application-sdk#2605 (inline e2e + uv fix). TEMP ref —
+    # revert to @main before merge. DO NOT MERGE this PR.
+    uses: atlanhq/application-sdk/.github/workflows/tests-reusable.yaml@adityachoudhury/e2e-full-setup-uv
     with:
       app-name: "mysql"
       app-image-name: "atlan-mysql-app"
