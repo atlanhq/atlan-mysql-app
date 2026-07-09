@@ -121,6 +121,11 @@ credentialAuthOptions {
 // ---------------------------------------------------------------------------
 
 pipeline {
+  extract = new ExtractStep {
+    errorHandling = new ErrorHandlingConfig {
+      startToCloseTimeoutSeconds = 86400
+    }
+  }
   parseQueries = new ParseQueriesStep {
     displayName = "Parse View & Procedure Lineage"
     vendorName = "mysql"
@@ -132,10 +137,16 @@ pipeline {
     parsingMode = "competitive"
     inputPrefix = "$.extract.outputs.transformed_data_prefix"
     outputPrefix = "$.extract.outputs.view_lineage_output_prefix"
+    errorHandling = new ErrorHandlingConfig {
+      startToCloseTimeoutSeconds = 86400
+    }
   }
   publish = new PublishStep {
     lineagePublish = new LineagePublishStep {
       waitForAssetPublish = false
+      errorHandling = new ErrorHandlingConfig {
+        startToCloseTimeoutSeconds = 259200
+      }
     }
   }
   lineage = new LineageStep {
@@ -148,6 +159,9 @@ pipeline {
         new DependencyCondition { nodeId = "qi"; tag = "success" }
         new DependencyCondition { nodeId = "publish"; tag = "success" }
       }
+    }
+    errorHandling = new ErrorHandlingConfig {
+      startToCloseTimeoutSeconds = 86400
     }
   }
 }
