@@ -272,13 +272,13 @@ dependencies = [
     { name = "aiomysql" },
     { name = "atlan-application-sdk", extra = ["iam-auth", "pandas", "sql", "workflows"] },
     { name = "cryptography" },
-    { name = "poethepoet" },
 ]
 
 [package.optional-dependencies]
 dev = [
     { name = "atlan-application-sdk-conformance" },
     { name = "isort" },
+    { name = "poethepoet" },
     { name = "pre-commit" },
     { name = "requests" },
     { name = "watchdog" },
@@ -300,14 +300,14 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "aiomysql", specifier = ">=0.3.0" },
-    { name = "atlan-application-sdk", extras = ["daft", "iam-auth", "sql", "workflows", "pandas"], specifier = ">=3.13.2,<4" },
+    { name = "atlan-application-sdk", extras = ["iam-auth", "sql", "workflows", "pandas"], specifier = ">=3.13.2,<4" },
     { name = "atlan-application-sdk-conformance", marker = "extra == 'dev'", specifier = "<=1.0.0" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.6.1" },
     { name = "cryptography", specifier = ">=46.0.5" },
     { name = "docker", marker = "extra == 'test'", specifier = ">=7.0.0" },
     { name = "isort", marker = "extra == 'dev'", specifier = ">=5.13.2" },
     { name = "pandas", marker = "extra == 'test'", specifier = ">=2.0.0" },
-    { name = "poethepoet", specifier = ">=0.34.0" },
+    { name = "poethepoet", marker = "extra == 'dev'", specifier = ">=0.34.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.8.0" },
     { name = "pymysql", marker = "extra == 'test'", specifier = ">=1.1.0" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.3.3" },

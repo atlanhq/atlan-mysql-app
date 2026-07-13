@@ -7,10 +7,9 @@ requires-python = ">=3.11"
 license = "Apache-2.0"
 readme = "README.md"
 dependencies = [
-    "atlan-application-sdk[daft,iam-auth,sql,workflows,pandas]>=3.13.2,<4",
+    "atlan-application-sdk[iam-auth,sql,workflows,pandas]>=3.13.2,<4",
     "aiomysql>=0.3.0",  # conformance: ignore[D003] loaded dynamically by SQLAlchemy via the "mysql+aiomysql" dialect string, not a direct Python import
     "cryptography>=46.0.5",  # conformance: ignore[D003] required by aiomysql/PyMySQL's caching_sha2_password auth plugin for RSA key exchange with MySQL 8 servers; loaded by the driver
-    "poethepoet>=0.34.0",  # conformance: ignore[D003] provides the poe CLI entrypoint used by [tool.poe.tasks] (generate, start-dapr, etc.); invoked as a console script, never imported
 ]
 
 # Optional dependencies for specific functionality - Install using: uv sync --extra dev
@@ -21,6 +20,10 @@ dev = [
     "isort>=5.13.2",
     "watchdog>=6.0.0",
     "requests",
+    # poe CLI drives [tool.poe.tasks] (generate, start-deps, download-components).
+    # A build/dev tool, not a runtime dependency — kept out of the production
+    # image (the Dockerfile inlines the component copy instead of calling poe).
+    "poethepoet>=0.34.0",
 ]
 test = [
     "pytest>=8.3.3",
