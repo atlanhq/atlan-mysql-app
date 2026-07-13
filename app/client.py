@@ -12,6 +12,7 @@ from application_sdk.common.aws_utils import (
 )
 from application_sdk.common.aws_utils_errors import AwsAssumeRoleError
 from application_sdk.credentials.utils import parse_credentials_extra
+from application_sdk.execution.heartbeat import run_in_thread
 from application_sdk.observability.logger_adaptor import get_logger
 from app.failures import (
     CredentialFieldMissingError,
@@ -390,11 +391,13 @@ class SQLClient(AsyncBaseSQLClient):
         ``IamTokenGenerationError`` before they leave the mysql app
         boundary.
         """
-        # Get raw IAM token (not URL-encoded)
+        # Get raw IAM token (not URL-encoded). boto3 (in get_iam_*_token) is
+        # synchronous, so run it in the SDK's blocking-thread pool to keep the
+        # activity's auto-heartbeat alive while STS/RDS is contacted.
         if auth_type == "iam_user":
-            raw_token = self.get_iam_user_token()
+            raw_token = await run_in_thread(self.get_iam_user_token)
         else:  # iam_role
-            raw_token = self.get_iam_role_token()
+            raw_token = await run_in_thread(self.get_iam_role_token)
 
         # Determine username based on auth type
         extra = parse_credentials_extra(credentials)

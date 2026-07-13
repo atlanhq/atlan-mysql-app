@@ -28,8 +28,10 @@ deploy = new DeployConfig {
   pools {
     ["default"] = new Pool {
       env {
-        ["ATLAN_HEARTBEAT_TIMEOUT_SECONDS"] = "7200"
-        ["ATLAN_START_TO_CLOSE_TIMEOUT_SECONDS"] = "7200"
+        // NOTE: heartbeat / start-to-close timeouts are intentionally NOT set here.
+        // The SqlApp template hardcodes per-activity timeouts (start-to-close 1800s,
+        // heartbeat 120s, auto-heartbeat 30s) and the DAG nodes get their own from the
+        // generated manifest, so ATLAN_*_TIMEOUT_SECONDS overrides were dead config.
         ["ATLAN_TENANT_ID"] = "default"
       }
     }

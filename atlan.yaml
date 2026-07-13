@@ -26,8 +26,6 @@ deploy:
     temporal:
       targetQueueSize: 5
   env:
-    ATLAN_HEARTBEAT_TIMEOUT_SECONDS: '7200'
-    ATLAN_START_TO_CLOSE_TIMEOUT_SECONDS: '7200'
     ATLAN_TENANT_ID: default
   canary_enabled: true
   canary_mode: auto
@@ -48,8 +46,6 @@ pools:
       temporal:
         targetQueueSize: 5
     env:
-      ATLAN_HEARTBEAT_TIMEOUT_SECONDS: '7200'
-      ATLAN_START_TO_CLOSE_TIMEOUT_SECONDS: '7200'
       ATLAN_TENANT_ID: default
 argo_package_names:
 - '@atlan/mysql'
