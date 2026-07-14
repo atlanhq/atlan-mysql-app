@@ -11,7 +11,9 @@ Run::
     # or, via the thin entry-point shim:
     uv run python main.py
 
-The server comes up on http://localhost:8000.
+The server comes up on http://localhost:8000 and the embedded Temporal Web
+UI on http://localhost:8233 (watch the workflow timeline — the first activity
+is the injected ``mysql:preflight`` gate).
 
 Trigger the metadata-extraction entrypoint::
 
@@ -62,6 +64,7 @@ async def main() -> None:
     """
     await run_dev_combined(
         MySQLApp,
+        temporal_ui=True,
         example_input={
             "credentials": [
                 {"key": "host", "value": "localhost"},
