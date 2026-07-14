@@ -90,8 +90,10 @@ def _epoch_ms(value: Any) -> int | None:
         if pd.isna(ts):  # type: ignore[arg-type]
             return None
         return int(ts.timestamp() * 1000)  # type: ignore[union-attr]
-    # conformance: ignore[E004] best-effort value coercion; pd.Timestamp can raise several distinct exception types on malformed input; already logged with exc_info=True and falls back to None
-    except Exception:
+    # pd.Timestamp raises ValueError (incl. DateParseError / OutOfBoundsDatetime),
+    # TypeError, or OverflowError on malformed input — catch exactly those so a
+    # genuine bug (e.g. an AttributeError) still surfaces instead of coercing to None.
+    except (ValueError, TypeError, OverflowError):
         logger.debug("Could not coerce value to epoch ms", exc_info=True)
         return None
 

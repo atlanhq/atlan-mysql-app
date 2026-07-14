@@ -591,3 +591,31 @@ class TestMySQLAppRun:
         )
         result = self._run(app, ExtractionInput(connection=conn, output_path=""), info)
         assert result.connection_qualified_name == "default/mysql/123"
+
+
+class TestEpochMs:
+    """`_epoch_ms` best-effort coercion — malformed input returns None; genuine
+    non-coercion bugs are not swallowed."""
+
+    def test_none_returns_none(self):
+        from app.mysql import _epoch_ms
+
+        assert _epoch_ms(None) is None
+
+    def test_int_passthrough(self):
+        from app.mysql import _epoch_ms
+
+        assert _epoch_ms(1_700_000_000_000) == 1_700_000_000_000
+
+    def test_valid_timestamp_string(self):
+        from app.mysql import _epoch_ms
+
+        assert _epoch_ms("2021-01-01T00:00:00Z") == 1_609_459_200_000
+
+    @pytest.mark.parametrize("bad", ["not-a-date", object(), [1, 2], {}])
+    def test_malformed_input_returns_none(self, bad):
+        """ValueError (incl. DateParseError) / TypeError from pd.Timestamp -> None.
+        (Ints/floats take the passthrough branch and never reach pd.Timestamp.)"""
+        from app.mysql import _epoch_ms
+
+        assert _epoch_ms(bad) is None
