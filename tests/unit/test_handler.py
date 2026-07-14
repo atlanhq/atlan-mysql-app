@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, patch
 
 import pandas as pd
 import pytest
+from application_sdk.errors import FailureCategory
 from application_sdk.handler import (
     AuthInput,
     AuthStatus,
@@ -135,9 +136,9 @@ class TestMySQLHandlerPreflight:
         assert all(c.passed for c in result.checks)
 
     @pytest.mark.asyncio
-    async def test_preflight_auth_failure(self, handler, valid_creds):
+    async def test_preflight_auth_failure_short_circuits(self, handler, valid_creds):
         mock_client = AsyncMock()
-        mock_client.load = AsyncMock(side_effect=Exception("Auth failed"))
+        mock_client.load = AsyncMock(side_effect=Exception("Connection refused"))
         mock_client.close = AsyncMock()
 
         with patch("app.handler.SQLClient", return_value=mock_client):
@@ -146,6 +147,35 @@ class TestMySQLHandlerPreflight:
             )
 
         assert result.status == PreflightStatus.NOT_READY
+        # short-circuit: the advisory tables check never runs
+        assert len(result.checks) == 1
+        auth_check = result.checks[0]
+        assert auth_check.name == "auth"
+        assert auth_check.passed is False
+        # the typed error rides on the check as a FailureDetails
+        assert auth_check.error is not None
+        assert auth_check.error.category == FailureCategory.AUTH
+        assert auth_check.error.suggested_action
+
+    @pytest.mark.asyncio
+    async def test_preflight_auth_ok_tables_fail_is_partial(self, handler, valid_creds):
+        mock_client = AsyncMock()
+        # auth query succeeds; the advisory tables query fails
+        mock_client.get_results = AsyncMock(
+            side_effect=[pd.DataFrame({"1": [1]}), Exception("no SELECT grant")]
+        )
+        mock_client.close = AsyncMock()
+
+        with patch("app.handler.SQLClient", return_value=mock_client):
+            result = await handler.preflight_check(
+                PreflightInput(credentials=valid_creds)
+            )
+
+        assert result.status == PreflightStatus.PARTIAL
+        assert len(result.checks) == 2
+        assert next(c for c in result.checks if c.name == "auth").passed is True
+        tables_check = next(c for c in result.checks if c.name == "connectivity")
+        assert tables_check.passed is False
 
 
 class TestMySQLHandlerMetadata:
