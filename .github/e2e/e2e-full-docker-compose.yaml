@@ -5,12 +5,12 @@
 #
 #   1. Sibling mysql:8.0 with the SAME .github/e2e/seed.sql so the
 #      hermetic dataset is reused for deterministic asset counts.
-#   2. ATLAN_DEPLOYMENT_NAME=e2e-full-ci-<run_id> so the worker
-#      registers on Temporal queue atlan-mysql-e2e-full-ci-<run_id>.
-#      The test class' agent_spec() produces a matching agent_name
-#      = mysql-e2e-full-ci-<run_id>, so AE dispatches extract
-#      activities to the same queue this worker listens on. Every
-#      CI run has a clearly-labeled unique queue + workflow lineage
+#   2. ATLAN_DEPLOYMENT_NAME inherited from the sdr-e2e action's
+#      per-leg derivation (e2e-full-ci-<run_id>[-<leg>]) so the worker
+#      registers on Temporal queue atlan-mysql-<deployment_name>.
+#      The test class' agent_spec() reads the SAME env, so AE dispatches
+#      extract activities to the exact queue this worker listens on.
+#      Every CI run has a clearly-labeled unique queue + workflow lineage
 #      for grep-driven traceability across systems.
 #
 # The S3/blobstorage objectstore component and ATLAN_AUTH_CLIENT_ID/
@@ -45,7 +45,18 @@ services:
       # Unique per-run deployment name embedding the test identifier.
       # The SDK derives the Temporal task queue as
       #   queue = atlan-{connector}-{deployment_name}
-      #         = atlan-mysql-e2e-full-ci-<run_id>
       # which matches what the AE workflow's agent_json + Argo template
       # build for routing. Nobody else picks up from this queue.
-      - ATLAN_DEPLOYMENT_NAME=e2e-full-ci-${GITHUB_RUN_ID}
+      #
+      # INHERIT the value sdr-e2e's `derive_deployment_name.py` writes to
+      # $GITHUB_ENV — it appends the matrix leg name (the suite slug), e.g.
+      #   e2e-full-ci-<run_id>-mysql-full-dag
+      # for per-leg queue isolation. The harness reads the SAME env in
+      # BaseE2ETest.agent_spec(), so worker + harness stay in lock-step.
+      # Hard-coding e2e-full-ci-<run_id> here (dropping the leg suffix)
+      # made the worker poll atlan-mysql-e2e-full-ci-<run_id> while the
+      # harness dispatched to atlan-mysql-e2e-full-ci-<run_id>-<leg> —
+      # "No Workers Running" until the run timed out. Fall back to the
+      # bare shape for local `docker compose` runs where the CI action
+      # hasn't exported the derived name.
+      - ATLAN_DEPLOYMENT_NAME=${ATLAN_DEPLOYMENT_NAME:-e2e-full-ci-${GITHUB_RUN_ID}}
