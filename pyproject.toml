@@ -9,7 +9,6 @@ readme = "README.md"
 dependencies = [
     "atlan-application-sdk[iam-auth,sql,workflows,pandas]>=3.13.2,<4",
     "aiomysql>=0.3.0",  # conformance: ignore[D003] loaded dynamically by SQLAlchemy via the "mysql+aiomysql" dialect string, not a direct Python import
-    "cryptography>=46.0.5",  # conformance: ignore[D003] required by aiomysql/PyMySQL's caching_sha2_password auth plugin for RSA key exchange with MySQL 8 servers; loaded by the driver
 ]
 
 # Optional dependencies for specific functionality - Install using: uv sync --extra dev
