@@ -88,10 +88,13 @@ class MySQLAppHandler(Handler):
             await client.close()
 
     async def preflight_check(self, input: PreflightInput) -> PreflightOutput:
-        """Auth (required, short-circuits the run) + tables (advisory).
+        """Auth (blocking, short-circuits) + tables (advisory).
 
-        NOT_READY only when auth fails; PARTIAL when auth passes but the
-        advisory tables check fails; READY when both pass.
+        Observation window (CNCT-81): blocking intent is recorded per-check
+        (auth failure -> check status NOT_READY) but the overall verdict is
+        softened to PARTIAL so the gate lets the run proceed while the check
+        matrix is collected. Hard-fail flip = return NOT_READY again on auth
+        failure; the per-check statuses stay as they are.
         """
         checks: list[PreflightCheck] = []
         client = SQLClient()
@@ -106,6 +109,7 @@ class MySQLAppHandler(Handler):
                     PreflightCheck(
                         name="auth",
                         passed=False,
+                        status=PreflightStatus.NOT_READY,
                         error=AuthError(  # type: ignore[arg-type]
                             message="Could not authenticate to the MySQL source.",
                             suggested_action=(
@@ -116,14 +120,19 @@ class MySQLAppHandler(Handler):
                         ),
                     )
                 )
-                return PreflightOutput(status=PreflightStatus.NOT_READY, checks=checks)
+                return PreflightOutput(status=PreflightStatus.PARTIAL, checks=checks)
             checks.append(
                 PreflightCheck(name="auth", passed=True, message="Authenticated")
             )
 
             try:
                 result = await client.get_results(_TABLES_CHECK_SQL)
-                count = len(result) if result is not None else 0
+                # the query returns one aggregate row; read the count cell
+                count = (
+                    int(result.iloc[0]["count"])
+                    if result is not None and len(result) > 0
+                    else 0
+                )
                 checks.append(
                     PreflightCheck(
                         name="connectivity",
@@ -138,6 +147,7 @@ class MySQLAppHandler(Handler):
                     PreflightCheck(
                         name="connectivity",
                         passed=False,
+                        status=PreflightStatus.PARTIAL,
                         message="Table check failed",
                     )
                 )
