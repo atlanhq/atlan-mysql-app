@@ -21,7 +21,6 @@ Run tests with: uv run pytest tests/integration/ -v
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import shutil
@@ -48,12 +47,7 @@ import pymysql.constants.CLIENT
 import pytest
 import pytest_asyncio
 from application_sdk.app.context import AppContext
-from application_sdk.dev import embedded_runtime
-from application_sdk.dev._dapr import (  # conformance: ignore[P005] no public twin: embedded_dapr()'s component templates use nestedSeparator mode, not the multiValued mode this fixture deliberately tests
-    _ensure_daprd_binary,
-    _pick_free_port,
-    _wait_for_dapr_ready,
-)
+from application_sdk.dev import embedded_dapr, embedded_runtime
 from application_sdk.execution import (
     TemporalClient,
     TemporalExecutorBackend,
@@ -351,16 +345,15 @@ async def embedded_dapr_sidecar(
 ):
     """Start a daprd sidecar with secretstores.local.file for credential resolution.
 
-    Uses the SDK's cached daprd binary (downloaded once to ~/.cache/atlan-sdk/dapr/).
-    Configures secretstores.local.file (multiValued=true) so DaprCredentialVault
-    can call GetSecret(guid) through the full Dapr API — no SDK short-circuit.
-    Sets DAPR_HTTP_PORT, DAPR_GRPC_PORT, and DAPR_COMPONENTS_PATH so
-    AsyncDaprClient() (instantiated inside DaprCredentialVault) connects here.
+    Writes custom component YAMLs — secretstores.local.file in multiValued=true
+    mode (so DaprCredentialVault can call GetSecret(guid) through the full Dapr
+    API, which the SDK's default embedded_dapr components don't cover) — then
+    hands them to the SDK's public ``embedded_dapr(components_dir=...)`` seam.
+    embedded_dapr owns the daprd lifecycle: cached-binary download, free-port
+    allocation, DAPR_HTTP_PORT/DAPR_GRPC_PORT/DAPR_COMPONENTS_PATH save+restore,
+    readiness wait, and teardown — so AsyncDaprClient() (inside
+    DaprCredentialVault) connects here without any private-internal imports.
     """
-    binary = _ensure_daprd_binary()
-    http_port = _pick_free_port()
-    grpc_port = _pick_free_port()
-
     components_dir = Path(tempfile.mkdtemp(prefix="atlan-dapr-components-"))
     eventstore_dir = Path(tempfile.mkdtemp(prefix="atlan-dapr-events-"))
 
@@ -389,52 +382,19 @@ async def embedded_dapr_sidecar(
         )
     )
 
-    prev_env = {
-        k: os.environ.get(k)
-        for k in ("DAPR_HTTP_PORT", "DAPR_GRPC_PORT", "DAPR_COMPONENTS_PATH")
-    }
-    os.environ["DAPR_HTTP_PORT"] = str(http_port)
-    os.environ["DAPR_GRPC_PORT"] = str(grpc_port)
-    os.environ["DAPR_COMPONENTS_PATH"] = str(components_dir)
-
-    logger.info("Starting embedded daprd (http=%d grpc=%d)", http_port, grpc_port)
-    proc = await asyncio.create_subprocess_exec(
-        str(binary),
-        "--app-id",
-        "mysql",
-        "--dapr-http-port",
-        str(http_port),
-        "--dapr-grpc-port",
-        str(grpc_port),
-        "--resources-path",
-        str(components_dir),
-        "--log-level",
-        "error",
-        "--enable-metrics=false",
-        stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.DEVNULL,
-    )
-
     try:
-        await _wait_for_dapr_ready(http_port)
-        logger.info("Embedded daprd ready at http://127.0.0.1:%d", http_port)
-        yield
+        async with embedded_dapr(
+            app_id="mysql",
+            components_dir=str(components_dir),
+            log_level="error",
+        ):
+            logger.info("Embedded daprd ready via SDK embedded_dapr")
+            yield
     finally:
-        logger.info("Shutting down embedded daprd")
-        if proc.returncode is None:
-            proc.terminate()
-            try:
-                await asyncio.wait_for(proc.wait(), timeout=5.0)
-            except TimeoutError:
-                proc.kill()
-                await proc.wait()
+        # embedded_dapr owns the daprd process + DAPR_* env; we still own the
+        # component/eventstore temp dirs we created.
         shutil.rmtree(components_dir, ignore_errors=True)
         shutil.rmtree(eventstore_dir, ignore_errors=True)
-        for k, v in prev_env.items():
-            if v is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = v
 
 
 # ---------------------------------------------------------------------------
