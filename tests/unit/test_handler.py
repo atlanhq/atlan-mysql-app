@@ -187,6 +187,9 @@ class TestMySQLHandlerPreflight:
         assert tables_check.passed is False
         # advisory by design: stays PARTIAL forever, not just during the window
         assert tables_check.status == PreflightStatus.PARTIAL
+        # typed error so the check matrix carries category/code, not just text
+        assert tables_check.error is not None
+        assert tables_check.error.code == "PRECONDITION"
 
     @pytest.mark.asyncio
     async def test_preflight_never_returns_overall_not_ready(

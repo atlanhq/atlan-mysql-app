@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from application_sdk.errors import AppError, AuthError
+from application_sdk.errors import AppError, AuthError, PreconditionError
 from application_sdk.handler import (
     AuthInput,
     AuthOutput,
@@ -141,14 +141,21 @@ class MySQLAppHandler(Handler):
                     )
                 )
                 status = PreflightStatus.READY
-            except Exception:
+            except Exception as e:
                 logger.warning("Connectivity preflight check failed", exc_info=True)
                 checks.append(
                     PreflightCheck(
                         name="connectivity",
                         passed=False,
                         status=PreflightStatus.PARTIAL,
-                        message="Table check failed",
+                        error=PreconditionError(  # type: ignore[arg-type]
+                            message="Could not count the accessible tables.",
+                            suggested_action=(
+                                "Verify the database user has SELECT visibility "
+                                "on the tables to be extracted."
+                            ),
+                            cause=e,
+                        ),
                     )
                 )
                 status = PreflightStatus.PARTIAL
