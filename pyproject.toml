@@ -136,4 +136,6 @@ ignore = ["G002"]
 ".github/**/*.py" = ["T201"]  # CLI scripts — print() is intentional stdout
 
 [tool.uv.sources]
-# atlan-application-sdk = { path = "../application-sdk", editable = true }
+# Temporary (CNCT-81): pin to the SDK branch for tenant verification; revert to a
+# released version before merge.
+atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk.git", branch = "cnct-81-preflight-per-check-status" }
