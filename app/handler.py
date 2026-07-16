@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from application_sdk.errors import AppError
+from application_sdk.errors import AppError, AuthError
 from application_sdk.handler import (
     AuthInput,
     AuthOutput,
@@ -88,37 +88,39 @@ class MySQLAppHandler(Handler):
             await client.close()
 
     async def preflight_check(self, input: PreflightInput) -> PreflightOutput:
-        """Run preflight checks: auth + connectivity."""
-        checks: list[PreflightCheck] = []
+        """Auth (required, short-circuits the run) + tables (advisory).
 
+        NOT_READY only when auth fails; PARTIAL when auth passes but the
+        advisory tables check fails; READY when both pass.
+        """
+        checks: list[PreflightCheck] = []
         client = SQLClient()
         try:
             creds = _creds_to_dict(input.credentials)
             try:
                 await client.load(credentials=creds)
-            except Exception:
+                await client.get_results(_TEST_AUTH_SQL)
+            except Exception as e:
                 logger.warning("Auth preflight check failed", exc_info=True)
                 checks.append(
                     PreflightCheck(
-                        name="auth", passed=False, message="Connection failed"
+                        name="auth",
+                        passed=False,
+                        error=AuthError(  # type: ignore[arg-type]
+                            message="Could not authenticate to the MySQL source.",
+                            suggested_action=(
+                                "Verify the host, port, and credentials, and that "
+                                "the database is reachable from Atlan."
+                            ),
+                            cause=e,
+                        ),
                     )
                 )
                 return PreflightOutput(status=PreflightStatus.NOT_READY, checks=checks)
+            checks.append(
+                PreflightCheck(name="auth", passed=True, message="Authenticated")
+            )
 
-            # Auth check
-            try:
-                await client.get_results(_TEST_AUTH_SQL)
-                checks.append(
-                    PreflightCheck(name="auth", passed=True, message="Authenticated")
-                )
-            except Exception:
-                logger.warning("Auth preflight check failed", exc_info=True)
-                checks.append(
-                    PreflightCheck(name="auth", passed=False, message="Auth failed")
-                )
-                return PreflightOutput(status=PreflightStatus.NOT_READY, checks=checks)
-
-            # Connectivity check — can we list tables?
             try:
                 result = await client.get_results(_TABLES_CHECK_SQL)
                 count = len(result) if result is not None else 0
@@ -129,6 +131,7 @@ class MySQLAppHandler(Handler):
                         message=f"Found {count} accessible tables",
                     )
                 )
+                status = PreflightStatus.READY
             except Exception:
                 logger.warning("Connectivity preflight check failed", exc_info=True)
                 checks.append(
@@ -138,14 +141,8 @@ class MySQLAppHandler(Handler):
                         message="Table check failed",
                     )
                 )
-
-            all_passed = all(c.passed for c in checks)
-            return PreflightOutput(
-                status=PreflightStatus.READY
-                if all_passed
-                else PreflightStatus.NOT_READY,
-                checks=checks,
-            )
+                status = PreflightStatus.PARTIAL
+            return PreflightOutput(status=status, checks=checks)
         finally:
             await client.close()
 

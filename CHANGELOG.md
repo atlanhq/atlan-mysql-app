@@ -1,5 +1,16 @@
 # Changelog
 
+## v2.0.2 (July 14, 2026)
+
+Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.0.1...v2.0.2
+
+### Bug Fixes
+
+- regenerate manifest for app-contract-toolkit 0.14.2 (#333) (by @vaibhavatlan in [efafc03](https://github.com/atlanhq/atlan-mysql-app/commit/efafc03))
+- align imports with PKL-generated class names (#341) (by @cmgrote in [85340a4](https://github.com/atlanhq/atlan-mysql-app/commit/85340a4))
+- remediate conformance findings + migrate asset mappers to pyatlan_v9 (#368) (by @cmgrote in [c45c902](https://github.com/atlanhq/atlan-mysql-app/commit/c45c902))
+
+
 ## v2.0.1 (June 22, 2026)
 
 Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.0.0...v2.0.1
