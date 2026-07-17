@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from application_sdk.errors import AppError, AuthError, PreconditionError
+from application_sdk.errors import AppError, AuthError
 from application_sdk.handler import (
     AuthInput,
     AuthOutput,
@@ -91,9 +91,7 @@ class MySQLAppHandler(Handler):
         """Auth (required, short-circuits the run) + tables (advisory).
 
         NOT_READY only when auth fails; PARTIAL when auth passes but the
-        advisory tables check fails; READY when both pass. Enforcement of
-        NOT_READY is the gate's concern (App.preflight_gate_mode), not ours —
-        this handler always reports the honest verdict.
+        advisory tables check fails; READY when both pass.
         """
         checks: list[PreflightCheck] = []
         client = SQLClient()
@@ -125,12 +123,7 @@ class MySQLAppHandler(Handler):
 
             try:
                 result = await client.get_results(_TABLES_CHECK_SQL)
-                # the query returns one aggregate row; read the count cell
-                count = (
-                    int(result.iloc[0]["count"])
-                    if result is not None and len(result) > 0
-                    else 0
-                )
+                count = len(result) if result is not None else 0
                 checks.append(
                     PreflightCheck(
                         name="connectivity",
@@ -139,20 +132,13 @@ class MySQLAppHandler(Handler):
                     )
                 )
                 status = PreflightStatus.READY
-            except Exception as e:
+            except Exception:
                 logger.warning("Connectivity preflight check failed", exc_info=True)
                 checks.append(
                     PreflightCheck(
                         name="connectivity",
                         passed=False,
-                        error=PreconditionError(  # type: ignore[arg-type]
-                            message="Could not count the accessible tables.",
-                            suggested_action=(
-                                "Verify the database user has SELECT visibility "
-                                "on the tables to be extracted."
-                            ),
-                            cause=e,
-                        ),
+                        message="Table check failed",
                     )
                 )
                 status = PreflightStatus.PARTIAL
