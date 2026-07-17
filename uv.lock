@@ -203,7 +203,7 @@ wheels = [
 [[package]]
 name = "atlan-application-sdk"
 version = "3.22.1"
-source = { git = "https://github.com/atlanhq/application-sdk.git?branch=cnct-81-preflight-per-check-status#2e28f0cf934ec2958e1af061c6805a6c1a77477f" }
+source = { git = "https://github.com/atlanhq/application-sdk.git?branch=cnct-81-preflight-per-check-status#8467ba5cb9fe301a0eeb0ed592abb13a778ddf2f" }
 dependencies = [
     { name = "aiohttp" },
     { name = "azure-identity" },

@@ -88,13 +88,12 @@ class MySQLAppHandler(Handler):
             await client.close()
 
     async def preflight_check(self, input: PreflightInput) -> PreflightOutput:
-        """Auth (blocking, short-circuits) + tables (advisory).
+        """Auth (required, short-circuits the run) + tables (advisory).
 
-        Observation window (CNCT-81): blocking intent is recorded per-check
-        (auth failure -> check status NOT_READY) but the overall verdict is
-        softened to PARTIAL so the gate lets the run proceed while the check
-        matrix is collected. Hard-fail flip = return NOT_READY again on auth
-        failure; the per-check statuses stay as they are.
+        NOT_READY only when auth fails; PARTIAL when auth passes but the
+        advisory tables check fails; READY when both pass. Enforcement of
+        NOT_READY is the gate's concern (App.preflight_gate_mode), not ours —
+        this handler always reports the honest verdict.
         """
         checks: list[PreflightCheck] = []
         client = SQLClient()
@@ -109,7 +108,6 @@ class MySQLAppHandler(Handler):
                     PreflightCheck(
                         name="auth",
                         passed=False,
-                        status=PreflightStatus.NOT_READY,
                         error=AuthError(  # type: ignore[arg-type]
                             message="Could not authenticate to the MySQL source.",
                             suggested_action=(
@@ -120,7 +118,7 @@ class MySQLAppHandler(Handler):
                         ),
                     )
                 )
-                return PreflightOutput(status=PreflightStatus.PARTIAL, checks=checks)
+                return PreflightOutput(status=PreflightStatus.NOT_READY, checks=checks)
             checks.append(
                 PreflightCheck(name="auth", passed=True, message="Authenticated")
             )
@@ -147,7 +145,6 @@ class MySQLAppHandler(Handler):
                     PreflightCheck(
                         name="connectivity",
                         passed=False,
-                        status=PreflightStatus.PARTIAL,
                         error=PreconditionError(  # type: ignore[arg-type]
                             message="Could not count the accessible tables.",
                             suggested_action=(

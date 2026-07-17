@@ -134,8 +134,6 @@ class TestMySQLHandlerPreflight:
         assert result.status == PreflightStatus.READY
         assert len(result.checks) == 2
         assert all(c.passed for c in result.checks)
-        # every check carries its own verdict (soft-fail contract)
-        assert all(c.status == PreflightStatus.READY for c in result.checks)
         # the message reports the actual aggregate count, not the row count
         tables_check = next(c for c in result.checks if c.name == "connectivity")
         assert tables_check.message == "Found 42 accessible tables"
@@ -151,16 +149,14 @@ class TestMySQLHandlerPreflight:
                 PreflightInput(credentials=valid_creds)
             )
 
-        # Observation window (CNCT-81): a blocking failure returns overall
-        # PARTIAL so the run proceeds; the check itself records the blocking
-        # intent as NOT_READY. Revert to overall NOT_READY at hard-fail flip.
-        assert result.status == PreflightStatus.PARTIAL
+        # Honest verdict: auth failure blocks. Whether the gate enforces the
+        # block is the gate's per-app posture (CNCT-81), not the handler's.
+        assert result.status == PreflightStatus.NOT_READY
         # short-circuit: the advisory tables check never runs
         assert len(result.checks) == 1
         auth_check = result.checks[0]
         assert auth_check.name == "auth"
         assert auth_check.passed is False
-        assert auth_check.status == PreflightStatus.NOT_READY
         # the typed error rides on the check as a FailureDetails
         assert auth_check.error is not None
         assert auth_check.error.category == FailureCategory.AUTH
@@ -185,28 +181,9 @@ class TestMySQLHandlerPreflight:
         assert next(c for c in result.checks if c.name == "auth").passed is True
         tables_check = next(c for c in result.checks if c.name == "connectivity")
         assert tables_check.passed is False
-        # advisory by design: stays PARTIAL forever, not just during the window
-        assert tables_check.status == PreflightStatus.PARTIAL
         # typed error so the check matrix carries category/code, not just text
         assert tables_check.error is not None
         assert tables_check.error.code == "PRECONDITION"
-
-    @pytest.mark.asyncio
-    async def test_preflight_never_returns_overall_not_ready(
-        self, handler, valid_creds
-    ):
-        # Observation-window invariant: whatever fails, the aggregate must not
-        # block the gate. Both checks failing is the worst case.
-        mock_client = AsyncMock()
-        mock_client.load = AsyncMock(side_effect=Exception("Connection refused"))
-        mock_client.close = AsyncMock()
-
-        with patch("app.handler.SQLClient", return_value=mock_client):
-            result = await handler.preflight_check(
-                PreflightInput(credentials=valid_creds)
-            )
-
-        assert result.status != PreflightStatus.NOT_READY
 
 
 class TestMySQLHandlerMetadata:

@@ -93,12 +93,9 @@ class TestHandlerPreflight:
         result = await MySQLAppHandler().preflight_check(
             PreflightInput(credentials=_creds(password="definitelywrong"))
         )
-        # Observation window (CNCT-81): overall softened to PARTIAL; the check
-        # records the blocking intent. Flip back to NOT_READY at hard-fail.
-        assert result.status == PreflightStatus.PARTIAL
+        assert result.status == PreflightStatus.NOT_READY
         auth_check = next(c for c in result.checks if c.name == "auth")
         assert not auth_check.passed
-        assert auth_check.status == PreflightStatus.NOT_READY
 
 
 class TestHandlerMetadata:
