@@ -198,6 +198,12 @@ class MySQLApp(SqlApp):
 
     name: ClassVar[str] = "mysql"
 
+    # First hard opt-in of the fleet (CNCT-81): a NOT_READY preflight verdict
+    # aborts the run before extraction. Earned — the auth check's verdict was
+    # validated live against real extraction failures (matching AUTH category).
+    # The SDK default is soft (report-only); delete this line to fall back.
+    preflight_gate_mode: ClassVar[str] = "hard"
+
     sql_client_class: ClassVar = SQLClient  # type: ignore[assignment]
 
     # SQL templates from app/sql/ files
