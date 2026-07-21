@@ -8,3 +8,4 @@ class MysqlGeneratedE2EBase(SQLAppE2ETest):
     argo_package_name = "@atlan/mysql"
     argo_template_name = "atlan-mysql"
     app_service_url = "http://mysql.mysql-app.svc.cluster.local"
+    connection_type = "mysql"

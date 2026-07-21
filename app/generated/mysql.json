@@ -171,7 +171,8 @@
           "hidden": false,
           "help": "",
           "placeholder": "Connection Name",
-          "grid": 8
+          "grid": 8,
+          "connector": "mysql"
         }
       },
       "include-filter": {
