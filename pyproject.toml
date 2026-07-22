@@ -78,6 +78,11 @@ packages = [
 requires = ["hatchling"]
 build-backend = "hatchling.build"
 
+[dependency-groups]
+mutation = [
+    "mutmut>=3.6.0,<4.0.0",
+]
+
 [tool.pyright]
 venvPath = "."
 venv = ".venv"
@@ -137,3 +142,18 @@ ignore = ["G002"]
 
 [tool.uv.sources]
 # atlan-application-sdk = { path = "../application-sdk", editable = true }
+
+# Mutation testing lane (advisory measurement — see application-sdk PR #2642,
+# atlan-openapi-app PR #270, ticket BLDX-1562).
+[tool.mutmut]
+source_paths = ["app"]
+do_not_mutate = ["app/generated/*"]
+do_not_mutate_patterns = ['__file__']
+pytest_add_cli_args_test_selection = ["tests/unit"]
+also_copy = [
+    "contract/",
+    "main.py",
+    "app.yaml",
+    "atlan.yaml",
+    "contract_schema.lock.json",
+]

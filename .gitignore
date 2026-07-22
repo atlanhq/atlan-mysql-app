@@ -55,3 +55,6 @@ remediation/
 .ruff_cache/
 .claude/worktrees/
 
+
+# mutmut mutation-testing working directory
+mutants/

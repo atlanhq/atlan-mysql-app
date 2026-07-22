@@ -1,0 +1,53 @@
+name: Mutation tests (scheduled)
+
+# Weekly full-repo mutation testing (see application-sdk PR #2642 for the
+# diff-scoped PR variant; ticket BLDX-1562 for the program).
+#
+# mutmut seeds small faults ("mutants") into app/ and checks the unit suite
+# catches them. The run publishes a per-module scorecard to the job summary
+# and maintains ONE open issue (label: mutation-testing) holding the current
+# survivor work-list:
+#   - survivors found -> issue created / body refreshed
+#   - zero survivors  -> issue closed
+# Killing a survivor = adding a test that fails on the mutated code; the
+# next scheduled run verifies it and shrinks the list. Advisory: this lane
+# never fails the build.
+#
+# Config lives in [tool.mutmut] in pyproject.toml; the sandbox-compat
+# workaround lives in tests/conftest.py (guarded by MUTANT_UNDER_TEST).
+# All branching lives in .github/scripts/mutation_report.py so the run
+# block below stays straight-line.
+
+on:
+  schedule:
+    - cron: "0 3 * * 1" # Mondays 03:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: mutation-tests
+  cancel-in-progress: false
+
+jobs:
+  mutation:
+    name: Full-repo mutation testing
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: astral-sh/setup-uv@11f9893b081a58869d3b5fccaea48c9e9e46f990 # v8.3.2
+
+      - name: Install dependencies
+        run: uv sync --all-extras --all-groups
+
+      - name: Run full mutation suite
+        run: uv run --all-extras --all-groups mutmut run
+
+      - name: Publish scorecard and survivor work-list
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: uv run --all-extras --all-groups python .github/scripts/mutation_report.py
