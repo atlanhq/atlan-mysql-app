@@ -26,7 +26,9 @@ from application_sdk.templates.sql_app import SqlApp
 from pyatlan_v9.model.assets import Column, Database, Procedure, Schema, Table, View
 
 from app.client import SQLClient
+from app.completeness import find_incomplete_levels, transformed_level_presence
 from app.constants import DATABASE_PLACEHOLDER, TENANT_ID
+from app.failures import IncompleteExtractionError
 from app.handler import (  # noqa: F401 — SDK discovers {AppClass}Handler by convention
     MySQLAppHandler,
 )
@@ -474,6 +476,59 @@ class MySQLApp(SqlApp):
 
         return _asset_to_dict(asset)
 
+    def _guard_complete_extraction(
+        self, base_result: Any, transformed_dir: str | None = None
+    ) -> None:
+        """Fail fast if extraction produced a per-asset-type-partial artifact.
+
+        A child asset type (column) must never reach publish without its parent
+        structural types (database/schema/table); otherwise Atlas rejects every
+        orphaned child with ATLAS-404-00-00A and the publish batch fails.
+
+        Checks two views of the run and raises ``IncompleteExtractionError``
+        (naming the missing parents) if either flags an orphaned descendant:
+
+        * the per-type record counts on the SDK ``ExtractionOutput`` — catches a
+          parent whose extraction produced no rows; and
+        * when ``transformed_dir`` is given, the ``transformed/<type>/entities.json``
+          files actually on disk — catches the case where a parent *was*
+          extracted (non-zero count) but its transformed output never landed in
+          the prefix that publish consumes.
+
+        See ``completeness.py``.
+        """
+        counts = {
+            "database": getattr(base_result, "databases_extracted", 0) or 0,
+            "schema": getattr(base_result, "schemas_extracted", 0) or 0,
+            "table": getattr(base_result, "tables_extracted", 0) or 0,
+            "column": getattr(base_result, "columns_extracted", 0) or 0,
+        }
+        missing = find_incomplete_levels(counts)
+        artifact = None
+        if transformed_dir is not None:
+            artifact = transformed_level_presence(transformed_dir)
+            # Union both violation lists, preserving hierarchy order.
+            missing = list(dict.fromkeys(missing + find_incomplete_levels(artifact)))
+        if not missing:
+            return
+        logger.error(
+            "Incomplete extraction artifact — missing parent types %s while a "
+            "descendant type was extracted (counts=%s, artifact=%s). Refusing to "
+            "publish a partial artifact that would orphan children in Atlas "
+            "(ATLAS-404).",
+            missing,
+            counts,
+            artifact,
+        )
+        raise IncompleteExtractionError(
+            message=(
+                "Extraction produced a partial artifact: missing parent asset "
+                f"types {missing} while a descendant type was extracted "
+                f"(counts={counts}, artifact_present={artifact}); refusing to "
+                "publish to avoid orphaned entities (ATLAS-404)."
+            )
+        )
+
     async def run(  # type: ignore[override]
         self, input: ExtractionInput
     ) -> MySQLExtractionOutput:
@@ -515,6 +570,22 @@ class MySQLApp(SqlApp):
         # subclasses can derive additional prefixes without re-calling workflow.info().
         base = base_result.output_path
         connection_qn = base_result.connection_qualified_name
+
+        # ATLAS-404 guard (RCA northwesternmutual-prod, 2026-07-15). The
+        # extract→transform→publish handoff must never ship a per-asset-type
+        # partial artifact: the failed run's transformed/ prefix held only
+        # column/entities.json (1142 columns) with NO database/schema/table, so
+        # every column 404'd in Atlas (typeName='Table' … not found) and the
+        # whole publish batch failed. (Both failed onboarding runs were on
+        # scale-to-zero cold-started pods and self-healed on a warm-pod retry
+        # that re-extracted the complete set — cold-start is the observed
+        # context; the exact write-loss mechanism is not yet confirmed.) Verify
+        # completeness against both the extraction counts and the transformed/
+        # artifact actually on disk, and fail loudly so Temporal retries with a
+        # complete re-extract instead of shipping a doomed columns-only publish.
+        self._guard_complete_extraction(
+            base_result, transformed_dir=os.path.join(base, "transformed")
+        )
 
         # Explicit upload to Atlan's upstream object store (atlan-objectstore / S3).
         # The activity interceptor persists FileReferences to infra.storage
