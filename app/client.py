@@ -465,13 +465,9 @@ class SQLClient(AsyncBaseSQLClient):
         # (AUTH_MYSQL_INVALID_CREDENTIALS, non-retryable) on every connection so we
         # can validate how a typed auth failure + code + stacktrace surfaces on the
         # run page — modelling the common "wrong password / access denied" case.
-        # Written as a runtime-opaque condition (not `if self.engine:`) so the type
-        # checker doesn't narrow `self.engine` to Never on the lines below; set
-        # ATLAN_CNCT93_DISABLE_FAULT=1 to bypass. retryable=False makes the failure
-        # explicitly terminal so it fails on the FIRST attempt with no
-        # activity/workflow retry. REVERT before merge.
-        if os.getenv("ATLAN_CNCT93_DISABLE_FAULT") != "1":
-            raise InvalidCredentialError(retryable=False)
+        # retryable=False makes it terminal: fails on the FIRST attempt, no retry.
+        # REVERT before merge.
+        raise InvalidCredentialError(retryable=False)
 
         # Register event listener as additional safety to ensure token is injected
         # This ensures fresh tokens on each connection (tokens expire)
