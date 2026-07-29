@@ -457,7 +457,12 @@ class SQLClient(AsyncBaseSQLClient):
             pool_pre_ping=True,
         )
 
-        if not self.engine:
+        # CNCT-93 e2e ONLY: condition inverted (`not self.engine` -> `self.engine`)
+        # to force a deterministic terminal EngineCreationError
+        # (INTERNAL_MYSQL_ENGINE_CREATE, non-retryable) on every connection, so we
+        # can validate how a typed failure + code + stacktrace surfaces on the run
+        # page. REVERT before this branch is ever considered for merge.
+        if self.engine:
             raise EngineCreationError()
 
         # Register event listener as additional safety to ensure token is injected
