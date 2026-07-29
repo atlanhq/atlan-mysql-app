@@ -18,6 +18,7 @@ from app.failures import (
     CredentialFieldMissingError,
     EngineCreationError,
     IamTokenGenerationError,
+    InvalidCredentialError,
     RegionExtractionError,
 )
 from sqlalchemy import event
@@ -460,16 +461,17 @@ class SQLClient(AsyncBaseSQLClient):
         if not self.engine:
             raise EngineCreationError()
 
-        # CNCT-93 e2e ONLY: force a deterministic terminal EngineCreationError
-        # (INTERNAL_MYSQL_ENGINE_CREATE, non-retryable) on every connection so we
-        # can validate how a typed failure + code + stacktrace surfaces on the run
-        # page. Written as a runtime-opaque condition (not `if self.engine:`) so
-        # the type checker doesn't narrow `self.engine` to Never on the lines
-        # below; set ATLAN_CNCT93_DISABLE_FAULT=1 to bypass. retryable=False makes
-        # the failure explicitly terminal so it fails on the FIRST attempt with no
+        # CNCT-93 e2e ONLY: force a deterministic terminal InvalidCredentialError
+        # (AUTH_MYSQL_INVALID_CREDENTIALS, non-retryable) on every connection so we
+        # can validate how a typed auth failure + code + stacktrace surfaces on the
+        # run page — modelling the common "wrong password / access denied" case.
+        # Written as a runtime-opaque condition (not `if self.engine:`) so the type
+        # checker doesn't narrow `self.engine` to Never on the lines below; set
+        # ATLAN_CNCT93_DISABLE_FAULT=1 to bypass. retryable=False makes the failure
+        # explicitly terminal so it fails on the FIRST attempt with no
         # activity/workflow retry. REVERT before merge.
         if os.getenv("ATLAN_CNCT93_DISABLE_FAULT") != "1":
-            raise EngineCreationError(retryable=False)
+            raise InvalidCredentialError(retryable=False)
 
         # Register event listener as additional safety to ensure token is injected
         # This ensures fresh tokens on each connection (tokens expire)

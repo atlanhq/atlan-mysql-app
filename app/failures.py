@@ -29,6 +29,12 @@ class IamTokenGenerationError(AuthError):
 
 
 @dataclass(kw_only=True)
+class InvalidCredentialError(AuthError):
+    code: ClassVar[str] = "AUTH_MYSQL_INVALID_CREDENTIALS"
+    message: str = "Invalid credentials: access denied for the configured MySQL user"
+
+
+@dataclass(kw_only=True)
 class EngineCreationError(InternalError):
     code: ClassVar[str] = "INTERNAL_MYSQL_ENGINE_CREATE"
     message: str = "Failed to create async SQLAlchemy engine"
