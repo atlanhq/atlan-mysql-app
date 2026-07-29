@@ -137,3 +137,7 @@ ignore = ["G002"]
 
 [tool.uv.sources]
 # atlan-application-sdk = { path = "../application-sdk", editable = true }
+# DO NOT MERGE: temporary pin to an unreleased SDK branch for CNCT-93 e2e log
+# validation (application-sdk PR #2900). Revert by removing this entry and
+# running `uv lock`.
+atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk.git", rev = "vaibhavchopra/cnct-104" }
