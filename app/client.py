@@ -457,12 +457,17 @@ class SQLClient(AsyncBaseSQLClient):
             pool_pre_ping=True,
         )
 
-        # CNCT-93 e2e ONLY: condition inverted (`not self.engine` -> `self.engine`)
-        # to force a deterministic terminal EngineCreationError
-        # (INTERNAL_MYSQL_ENGINE_CREATE, non-retryable) on every connection, so we
+        if not self.engine:
+            raise EngineCreationError()
+
+        # CNCT-93 e2e ONLY: env-gated fault injection. When ATLAN_CNCT93_FORCE_FAIL
+        # is set, force a deterministic terminal EngineCreationError
+        # (INTERNAL_MYSQL_ENGINE_CREATE, non-retryable) on every connection so we
         # can validate how a typed failure + code + stacktrace surfaces on the run
-        # page. REVERT before this branch is ever considered for merge.
-        if self.engine:
+        # page. Gated on an env var (default off) so unit tests / the CI "Certify"
+        # step stay green and the image builds + auto-deploys; flip the env on the
+        # tenant to activate the failure. REVERT before any merge consideration.
+        if os.getenv("ATLAN_CNCT93_FORCE_FAIL"):
             raise EngineCreationError()
 
         # Register event listener as additional safety to ensure token is injected
