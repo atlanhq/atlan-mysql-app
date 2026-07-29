@@ -465,9 +465,11 @@ class SQLClient(AsyncBaseSQLClient):
         # can validate how a typed failure + code + stacktrace surfaces on the run
         # page. Written as a runtime-opaque condition (not `if self.engine:`) so
         # the type checker doesn't narrow `self.engine` to Never on the lines
-        # below; set ATLAN_CNCT93_DISABLE_FAULT=1 to bypass. REVERT before merge.
+        # below; set ATLAN_CNCT93_DISABLE_FAULT=1 to bypass. retryable=False makes
+        # the failure explicitly terminal so it fails on the FIRST attempt with no
+        # activity/workflow retry. REVERT before merge.
         if os.getenv("ATLAN_CNCT93_DISABLE_FAULT") != "1":
-            raise EngineCreationError()
+            raise EngineCreationError(retryable=False)
 
         # Register event listener as additional safety to ensure token is injected
         # This ensures fresh tokens on each connection (tokens expire)
