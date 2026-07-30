@@ -1,5 +1,14 @@
 # Changelog
 
+## v2.0.3 (July 30, 2026)
+
+Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.0.2...v2.0.3
+
+### Bug Fixes
+
+- inherit sdr-e2e per-leg ATLAN_DEPLOYMENT_NAME in full-DAG overlay (#407) (by @cmgrote in [c3ec5c5](https://github.com/atlanhq/atlan-mysql-app/commit/c3ec5c5))
+
+
 ## v2.0.2 (July 14, 2026)
 
 Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.0.1...v2.0.2
