@@ -46,7 +46,7 @@
           "timestamp_key": "",
           "mine_output_type": "json",
           "parsing_mode": "competitive",
-          "vendor_name": "mysql",
+          "vendor_key": "attributes.sqlDialect",
           "app_name": "query-intelligence"
         }
       },

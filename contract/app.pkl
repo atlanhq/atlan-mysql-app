@@ -125,7 +125,7 @@ credentialAuthOptions {
 pipeline {
   parseQueries = new ParseQueriesStep {
     displayName = "Parse View & Procedure Lineage"
-    vendorName = "mysql"
+    vendorKey = "attributes.sqlDialect"
     sqlKey = "attributes.definition"
     catalogKey = "attributes.databaseName"
     schemaKey = "attributes.schemaName"
