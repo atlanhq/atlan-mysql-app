@@ -342,11 +342,6 @@ class MySQLApp(SqlApp):
         if is_view:
             entity["defaultCatalogName"] = db_name
             entity["defaultSchemaName"] = schema_name
-            # QI's view-lineage node keys the SQL dialect off each record via
-            # vendorKey=attributes.sqlDialect. Stamp it on the same records that
-            # carry attributes.definition (views) so the parser picks the dialect
-            # per-record instead of a static manifest vendorName. Additive — Atlas
-            # tolerates the extra attribute on Publish.
             entity["attributes"]["sqlDialect"] = "mysql"
 
         return entity
@@ -479,11 +474,6 @@ class MySQLApp(SqlApp):
             asset.source_updated_at = source_updated
 
         entity = _asset_to_dict(asset)
-        # QI's view-lineage node keys the SQL dialect off each record via
-        # vendorKey=attributes.sqlDialect. Stamp it on the same records that carry
-        # attributes.definition (procedures) so the parser picks the dialect
-        # per-record instead of a static manifest vendorName. Additive — Atlas
-        # tolerates the extra attribute on Publish.
         entity["attributes"]["sqlDialect"] = "mysql"
         return entity
 
