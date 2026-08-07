@@ -201,3 +201,5 @@ uv run poe generate                                 # Regenerate PKL contract ar
 uv run poe download-components                      # Download Dapr components (production parity)
 docker build -t atlan-mysql-app:latest .            # Build image
 ```
+
+<!-- reviewer-trigger probe for ENGOPS-1104 — no functional change; this PR will be closed. -->
