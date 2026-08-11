@@ -67,6 +67,15 @@ on:
         required: false
         default: ""
         type: string
+      e2e_clouds:
+        description: |
+          Cloud providers to run the e2e suites against, comma-separated
+          (default aws,azure,gcp — every suite runs once per CSP tenant).
+          Narrow it to re-run a single cloud, e.g. when one tenant was down.
+          Empty here means "use the SDK default", not "no clouds".
+        required: false
+        default: ""
+        type: string
 
 jobs:
   tests:
@@ -90,6 +99,13 @@ jobs:
       run-e2e: ${{ inputs.run_e2e }}
       base-image-ref: ${{ inputs.base_image_ref }}
       agent-name-override: ${{ inputs.agent_name_override }}
+      # Cross-CSP e2e matrix (FND-6): every e2e suite runs once per cloud
+      # provider, against that cloud's tenant. Forwarded empty on every
+      # non-dispatch event, which the SDK reads as "use the current default
+      # cloud list" — so the list stays defined in application-sdk and this
+      # file never needs an edit when a fourth CSP is added. Pass "none" on a
+      # dispatch to fall back to the single legacy tenant.
+      e2e-clouds: ${{ inputs.e2e_clouds }}
       # ADR-0014 two-store SDR posture (docs/adr/0014-two-store-storage-
       # architecture.md in application-sdk): the e2e job's `objectstore`
       # is forced to the SDK-default CI-local binding and
@@ -100,4 +116,19 @@ jobs:
       # the first adopter + confirmed end-to-end proof of the boundary
       # crossing.
       two-store: true
+
+      # FND-128, closing FND-31. Deploys the PR-built image onto each cloud's
+      # e2e tenant before the legs run, so the DAG they exercise is the one
+      # under test rather than whatever was last hand-deployed there. Heracles
+      # re-fetches the manifest from the tenant-deployed pod at AE submit and
+      # THAT graph executes, so without this the full-DAG suite tests two
+      # versions at once — and on the tenants where mysql is absent entirely,
+      # every leg dies on a DNS lookup for
+      # mysql.mysql-app.svc.cluster.local (FND-6's first cross-CSP run).
+      #
+      # The trade this accepts: tenant health becomes a gate. A tenant that
+      # cannot be installed to now reds the leg instead of quietly testing the
+      # wrong version. Piloted on atlan-openapi-app#320 (run 31196955525, both
+      # suites green against the Azure tenant); this is the fleet adoption.
+      install-app-to-tenant: true
     secrets: inherit
