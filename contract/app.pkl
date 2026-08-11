@@ -54,6 +54,40 @@ deploy = new DeployConfig {
         ["multi_cloud"] = true
       }
     }
+    // Memory floor raised from the platform default (500Mi request / 750Mi
+    // limit) after a production OOMKill: App.upload()'s asset-validation hook
+    // (BLDX-1555) spawns up to min(4, cpu_count) child processes in parallel to
+    // scan transformed output, each re-importing the pyatlan/msgspec decode
+    // stack. Measured against a real ~274-column batch, 3 concurrent uploads
+    // (the normal case for a tenant running several MySQL connections on the
+    // same cron schedule, sharing this pool) already peak at ~746MB RSS from
+    // that alone -- right at the old 750Mi limit, before this process's own
+    // event-loop/Temporal-SDK/obstore baseline is added on top. 2Gi gives
+    // headroom for the documented worst case (4 parallel children) plus that
+    // baseline; CPU is left unchanged (unrelated to this failure -- the pod
+    // was OOMKilled, not CPU-throttled to death). Pattern ported from
+    // atlan-teradata-app, which raised its own floor for the same
+    // VPA-minAllowed-OOM reason (see its contract/app.pkl).
+    // maxAllowed mirrors workerResources.limits so VPA can still scale up to
+    // the same ceiling if it recommends more.
+    ["vpa"] = new Mapping {
+      ["enabled"] = true
+      ["updateMode"] = "Auto"
+      ["maxAllowed"] = new Mapping {
+        ["cpu"] = "1"
+        ["memory"] = "2Gi"
+      }
+    }
+    ["workerResources"] = new Mapping {
+      ["requests"] = new Mapping {
+        ["cpu"] = "100m"
+        ["memory"] = "1Gi"
+      }
+      ["limits"] = new Mapping {
+        ["cpu"] = "1"
+        ["memory"] = "2Gi"
+      }
+    }
   }
 }
 

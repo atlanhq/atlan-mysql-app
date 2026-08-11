@@ -38,6 +38,19 @@ deploy:
       cap: 50
       stage_timeout: 18
       multi_cloud: true
+  vpa:
+    enabled: true
+    updateMode: Auto
+    maxAllowed:
+      cpu: '1'
+      memory: 2Gi
+  workerResources:
+    requests:
+      cpu: 100m
+      memory: 1Gi
+    limits:
+      cpu: '1'
+      memory: 2Gi
 pools:
   default:
     keda:
