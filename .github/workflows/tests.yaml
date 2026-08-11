@@ -72,6 +72,7 @@ jobs:
   tests:
     uses: atlanhq/application-sdk/.github/workflows/tests-reusable.yaml@main
     with:
+      unit-coverage-fail-under: "90"
       app-name: "mysql"
       app-image-name: "atlan-mysql-app"
 

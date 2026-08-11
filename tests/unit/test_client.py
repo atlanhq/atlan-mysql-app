@@ -96,6 +96,13 @@ class TestMySQLClient:
 
             assert client.credentials == basic_credentials
             mock_create_engine.assert_called_once()
+            # Basic-auth path must enable SSL (matches legacy JDBC driver
+            # behavior) — connect_args carries the ssl context through to
+            # the base class's engine creation.
+            assert client.DB_CONFIG is not None
+            ssl_arg = client.DB_CONFIG.connect_args.get("ssl")
+            assert isinstance(ssl_arg, ssl.SSLContext)
+            assert ssl_arg.verify_mode is ssl.CERT_NONE
 
     @pytest.mark.parametrize("succeed_on_attempt", [1, 2, 3, 4, 5])
     @pytest.mark.asyncio
@@ -506,6 +513,9 @@ class TestMySQLClient:
         ctx = client._create_ssl_context()
         assert isinstance(ctx, ssl.SSLContext)
         assert ctx.check_hostname is False
+        # RDS/self-signed compatibility: verification must be disabled (not
+        # just hostname checking) or connections still traverse TLS.
+        assert ctx.verify_mode is ssl.CERT_NONE
 
     def test_get_iam_user_token_success(self):
         """Test successful IAM user token generation."""
@@ -519,13 +529,22 @@ class TestMySQLClient:
             "authType": "iam_user",
         }
 
-        with patch(
-            "app.client.generate_aws_rds_token_with_iam_user",
-            return_value="mock_iam_token",
-        ) as mock_gen:
+        with (
+            patch(
+                "app.client.generate_aws_rds_token_with_iam_user",
+                return_value="mock_iam_token",
+            ) as mock_gen,
+            patch("app.client.logger") as mock_logger,
+        ):
             token = client.get_iam_user_token()
             assert token == "mock_iam_token"
             mock_gen.assert_called_once()
+            # Secret hygiene: the auth log line must truncate the AWS access
+            # key id (via %.10s), never interpolate it in full.
+            auth_log_call = mock_logger.info.call_args_list[0]
+            rendered = auth_log_call[0][0] % auth_log_call[0][1:]
+            assert "aws_access_key" not in rendered
+            assert rendered.split("access_key_id=")[1].startswith("aws_access")
 
     def test_get_iam_user_token_missing_extra_username(self):
         """Test IAM user token generation when extra.username is missing."""
