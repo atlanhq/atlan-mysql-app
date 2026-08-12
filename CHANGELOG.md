@@ -1,5 +1,19 @@
 # Changelog
 
+## v2.1.0 (August 12, 2026)
+
+Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.0.5...v2.1.0
+
+### Features
+
+- enforce hard gate mode and bump application-sdk to 3.27.1 (#495) (by @fyzanshaik-atlan in [b2a4d0e](https://github.com/atlanhq/atlan-mysql-app/commit/b2a4d0e))
+
+### Bug Fixes
+
+- resolve Pkl lockfile to app-contract-toolkit 0.20.0 (#481) (by @vaibhavatlan in [e7414b7](https://github.com/atlanhq/atlan-mysql-app/commit/e7414b7))
+- raise worker memory limit to prevent OOMKill under concurrent uploads (#488) (by @zaman-atlan in [abfa03b](https://github.com/atlanhq/atlan-mysql-app/commit/abfa03b))
+
+
 ## v2.0.5 (August 05, 2026)
 
 Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.0.4...v2.0.5
