@@ -300,7 +300,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "aiomysql", specifier = ">=0.3.0" },
-    { name = "atlan-application-sdk", extras = ["iam-auth", "sql", "workflows", "pandas"], specifier = ">=3.13.2,<4" },
+    { name = "atlan-application-sdk", extras = ["iam-auth", "sql", "workflows", "pandas"], specifier = ">=3.27.1,<4.0.0" },
     { name = "atlan-application-sdk-conformance", marker = "extra == 'dev'", specifier = "<=1.0.0" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.6.1" },
     { name = "docker", marker = "extra == 'test'", specifier = ">=7.0.0" },
