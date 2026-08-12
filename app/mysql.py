@@ -196,6 +196,10 @@ class MySQLApp(SqlApp):
     - SQLClient with basic + IAM user + IAM role authentication
     """
 
+    # Preflight gate posture. Hard: the checks are trusted to block real runs, so a
+    # NOT_READY verdict aborts the workflow instead of only being reported.
+    preflight_gate_mode = "hard"
+
     name: ClassVar[str] = "mysql"
 
     sql_client_class: ClassVar = SQLClient  # type: ignore[assignment]
