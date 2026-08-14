@@ -14,6 +14,7 @@ from typing import Any, ClassVar
 
 import orjson
 import pandas as pd
+from application_sdk.constants import ENABLE_ATLAN_UPLOAD
 from application_sdk.contracts.base import Output
 from application_sdk.contracts.storage import UploadInput
 from application_sdk.execution import get_object_store_prefix
@@ -196,9 +197,23 @@ class MySQLApp(SqlApp):
     - SQLClient with basic + IAM user + IAM role authentication
     """
 
-    # Preflight gate posture. Hard: the checks are trusted to block real runs, so a
-    # NOT_READY verdict aborts the workflow instead of only being reported.
-    preflight_gate_mode = "hard"
+    # Preflight gate posture, derived from the run mode.
+    #
+    # Self-deployed (ENABLE_ATLAN_UPLOAD=false): hard — the checks are trusted to
+    # block real runs, so a NOT_READY verdict aborts the workflow instead of only
+    # being reported.
+    #
+    # SDR/agent mode (ENABLE_ATLAN_UPLOAD=true): soft — config resolves through the
+    # customer's secret store, which rightly mirrors only *secrets*. Non-secret
+    # values a preflight check depends on (a database name for the schema-existence
+    # check) are often absent there, so the check reports NOT_READY for a run that
+    # would have succeeded; a hard gate turns that spurious verdict into an aborted
+    # workflow. Soft still runs every check and emits `would_block`.
+    #
+    # ATLAN_PREFLIGHT_GATE_MODE overrides this per deployment (resolved SDK-side in
+    # `_resolve_gate_enforcement`, which reads the env var ahead of this attribute).
+    # Interim posture until the SDK differentiates gate enforcement by run mode.
+    preflight_gate_mode = "soft" if ENABLE_ATLAN_UPLOAD else "hard"
 
     name: ClassVar[str] = "mysql"
 
