@@ -1,0 +1,13 @@
+name: Security Review
+
+on:
+  pull_request:
+    branches: [main, master]
+    types: [opened, synchronize, reopened]
+
+jobs:
+  security-review:
+    uses: atlanhq/mothership/.github/workflows/security-review-reusable.yml@beta
+    with:
+      globalprotect-portal-url: ${{ vars.GLOBALPROTECT_PORTAL_URL }}
+    secrets: inherit
