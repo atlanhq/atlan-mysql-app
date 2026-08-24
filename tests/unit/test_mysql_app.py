@@ -11,6 +11,15 @@ from app.mysql import MySQLApp
 class TestMySQLAppClassAttrs:
     """Verify class-level configuration."""
 
+    def test_preflight_gate_is_hard_on_every_run_mode(self):
+        """The gate enforces on every path, SDR included.
+
+        Pinned because `_resolve_gate_enforcement` falls back to soft on any
+        value it does not recognise, so a revert or a malformed literal here
+        stops the gate blocking without failing a single other test.
+        """
+        assert MySQLApp.preflight_gate_mode == "hard"
+
     def test_sql_client_class_set(self):
         from app.client import SQLClient
 
