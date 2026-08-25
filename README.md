@@ -112,7 +112,7 @@ source .env && uv run pytest tests/integration/ -v --timeout=600
 
 Validates handler endpoints, full workflow start → poll → COMPLETED, extracted parquet artifacts, transformed JSONL (correct `typeName`, `qualifiedName`, `connectorName`), and the extraction report.
 
-### Full-DAG E2E (`tests/e2e/`)
+### E2E (`tests/e2e/`)
 
 End-to-end run of the full system-apps DAG (extract → qi → publish → lineage) against a real Atlan tenant. Gated behind the `e2e` PR label or `workflow_dispatch`:
 
@@ -167,8 +167,8 @@ tests/
 │   ├── test_mysql_handler.py
 │   ├── test_mysql_workflow.py
 │   └── test_credential_resolution.py
-└── e2e/                        # Full-DAG against a real tenant
-    └── test_mysql_full_dag.py
+└── e2e/                        # Full system-apps DAG against a real tenant
+    └── test_mysql_e2e.py
 ```
 
 ## CI/CD
@@ -193,7 +193,7 @@ uv sync --all-extras                                # Install deps
 uv run python -m app.run_dev                        # Run app locally (embedded Temporal + in-process backends)
 uv run pytest tests/unit/ -v                        # Unit tests
 uv run pytest tests/integration/ -v --timeout=600   # Integration tests (testcontainers)
-uv run pytest tests/e2e/ -v --timeout=600           # Full-DAG E2E (requires tenant creds)
+uv run pytest tests/e2e/ -v --timeout=600           # E2E (requires tenant creds)
 uv run ruff check app/ tests/                       # Lint
 uv run ruff format app/ tests/                      # Format
 uv run pre-commit run --all-files                   # All pre-commit hooks

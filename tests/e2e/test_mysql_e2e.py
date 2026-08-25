@@ -1,13 +1,13 @@
-"""Full-DAG e2e test for the MySQL connector.
+"""End-to-end test for the MySQL connector.
 
 Runs against the tenant's full system-apps DAG (extract → qi → publish
 → lineage-app → lineage-publish). The connector code under test runs
 in a CI-side docker compose worker (registered on a unique Temporal
-queue named ``atlan-mysql-e2e-full-ci-<run_id>``); the AE workflow's
-extract activity dispatches to that queue via ``agent-json.agent-name``
-routing. Worker writes raw + transformed artifacts to the shared tenant
-S3 bucket (via the object-store OAuth proxy in CI); the in-cluster
-publish app reads from the same bucket.
+queue named ``atlan-mysql-e2e-full-ci-<run_id>-mysql-e2e``); the AE
+workflow's extract activity dispatches to that queue via
+``agent-json.agent-name`` routing. Worker writes raw + transformed
+artifacts to the shared tenant S3 bucket (via the object-store OAuth
+proxy in CI); the in-cluster publish app reads from the same bucket.
 
 To run locally::
 
@@ -29,13 +29,13 @@ import pytest
 
 if not os.environ.get("ATLAN_BASE_URL") or not os.environ.get("ATLAN_API_KEY"):
     pytest.skip(
-        "Full-DAG e2e harness needs ATLAN_BASE_URL + ATLAN_API_KEY",
+        "e2e harness needs ATLAN_BASE_URL + ATLAN_API_KEY",
         allow_module_level=True,
     )
 
 try:
     from application_sdk.testing.e2e import RunMode  # noqa: E402
-    from application_sdk.testing.e2e.payload import DatabaseSpec, build_ae_payload  # noqa: E402
+    from application_sdk.testing.e2e.payload import DatabaseSpec  # noqa: E402
     from app.generated._e2e_base import MysqlGeneratedE2EBase  # noqa: E402
     from app.generated._e2e_credential import MysqlAgentCredentialBody  # noqa: E402
 except ImportError as _exc:
@@ -44,16 +44,28 @@ except ImportError as _exc:
     )
 
 
-class TestMySQLFullDAG(MysqlGeneratedE2EBase):
+class TestMySQLE2E(MysqlGeneratedE2EBase):
     """Submit an AE workflow targeting our CI-side worker + assert in Atlas.
 
     Inherits identity attrs, connection_spec (with $admin role ACL), and
     _mustache_substitutions from MysqlGeneratedE2EBase / SQLAppE2ETest.
     The base harness builds the connection QN as default/mysql/{epoch}
-    automatically — no override needed.
+    automatically — no override needed. ``SQLAppE2ETest.agent_json()``
+    derives the agent-mode routing block from ``database_spec()`` +
+    ``agent_spec()``, so the flat ``agent-json.*`` / ``credential-guid.*``
+    parameter rows are emitted by the SDK — this class appends none by hand.
     """
 
     mode = RunMode.AGENT
+
+    # Credential-config name carried by the ``credential-guid.credential-type``
+    # routing row. This ClassVar — not ``DatabaseSpec.connector_config_name``,
+    # which the ``testing.e2e`` payload builder never reads — is what
+    # ``BaseE2ETest._build_ae_payload`` passes as ``credential_type``. The SDK
+    # falls back to ``atlan-connectors-{connector_short_name}`` when it is blank,
+    # which is the same value for mysql; pinned explicitly so the row stays
+    # correct if the short name and the config name ever diverge.
+    connector_config_name = "atlan-connectors-mysql"
 
     # MySQL's SQL templates substitute include-filter into a literal
     # MySQL ``REGEXP '…'`` clause, so it expects an anchored regex
@@ -96,7 +108,7 @@ class TestMySQLFullDAG(MysqlGeneratedE2EBase):
             port=3306,
             username="e2e_user",
             password="e2e_pass",
-            connector_config_name="atlan-connectors-mysql",
+            connector_config_name=self.connector_config_name,
         )
 
     def _credential_body(self) -> MysqlAgentCredentialBody:
@@ -114,58 +126,3 @@ class TestMySQLFullDAG(MysqlGeneratedE2EBase):
         return MysqlAgentCredentialBody(
             name=f"default-{self.connector_short_name}-{self.run_id}-{attempt}",
         )
-
-    def _build_ae_payload(self, slug: str) -> dict:
-        # The new build_ae_payload emits only the {{...}} mustache params and
-        # connection.* attrs. The Argo cluster template additionally reads flat
-        # credential-guid.* and agent-json.* params that the old harness sent.
-        # Inject them here so the template sees the same shape it expects.
-        payload = build_ae_payload(
-            run_id=self.run_id,
-            mode=self.mode,
-            connector_short_name=self.connector_short_name,
-            argo_package_name=self.argo_package_name,
-            argo_template_name=self.argo_template_name,
-            app_service_url=self.app_service_url,
-            connection=self.connection_spec(),
-            mustache_subs=self._mustache_substitutions(),
-            credential_body=self._credential_body(),
-            ae_workflow_slug=slug,
-        )
-        db = self.database_spec()
-        agent = self.agent_spec()
-        extra_params = [
-            {
-                "name": "credential-guid.credential-type",
-                "value": db.connector_config_name
-                or f"atlan-connectors-{self.connector_short_name}",
-            },
-            {"name": "credential-guid.port", "value": db.port},
-            {"name": "credential-guid.auth-type", "value": db.auth_type},
-        ]
-        if agent is not None:
-            extra_params.extend([
-                {"name": "agent-json.host", "value": db.host},
-                {"name": "agent-json.port", "value": db.port},
-                {"name": "agent-json.auth-type", "value": db.auth_type},
-                {"name": "agent-json.agent-name", "value": agent.agent_name},
-                {"name": "agent-json.agent-type", "value": agent.agent_type},
-                {"name": "agent-json.key-type", "value": agent.key_type},
-                {"name": "agent-json.aws-auth-method", "value": agent.aws_auth_method},
-                {
-                    "name": "agent-json.azure-auth-method",
-                    "value": agent.azure_auth_method,
-                },
-                {
-                    "name": "agent-json.basic.username",
-                    "value": f"SDR_{self.connector_short_name.upper()}_USERNAME",
-                },
-                {
-                    "name": "agent-json.basic.password",
-                    "value": f"SDR_{self.connector_short_name.upper()}_PASSWORD",
-                },
-            ])
-        payload["spec"]["templates"][0]["dag"]["tasks"][0]["arguments"][
-            "parameters"
-        ].extend(extra_params)
-        return payload

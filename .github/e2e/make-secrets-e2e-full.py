@@ -1,6 +1,6 @@
 """e2e-full test secrets bundle for the MySQL connector.
 
-The SDK's :func:`application_sdk.testing.full_dag.payload.build_ae_payload`
+The SDK's :func:`application_sdk.testing.e2e.payload.build_ae_payload`
 emits ``agent-json.basic.username = "SDR_MYSQL_USERNAME"`` and
 ``agent-json.basic.password = "SDR_MYSQL_PASSWORD"``. The CI worker resolves
 those keys against the local.file Dapr secret store, which reads this JSON.

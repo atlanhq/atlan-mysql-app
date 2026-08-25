@@ -50,7 +50,7 @@ services:
       #
       # INHERIT the value sdr-e2e's `derive_deployment_name.py` writes to
       # $GITHUB_ENV — it appends the matrix leg name (the suite slug), e.g.
-      #   e2e-full-ci-<run_id>-mysql-full-dag
+      #   e2e-full-ci-<run_id>-mysql-e2e
       # for per-leg queue isolation. The harness reads the SAME env in
       # BaseE2ETest.agent_spec(), so worker + harness stay in lock-step.
       # Hard-coding e2e-full-ci-<run_id> here (dropping the leg suffix)
