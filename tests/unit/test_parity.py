@@ -596,3 +596,61 @@ class TestCrossEntityConsistency:
             assert "customAttributes" in entity, (
                 f"{entity['typeName']} missing customAttributes"
             )
+
+
+class TestCustomAttributesAreStrings:
+    """FND-802 — customAttributes is map<string,string> in the Atlas typedef.
+
+    map_column used to assign raw record values (ints, floats) and a literal
+    None for three keys. The SDK's transformed-asset validator decodes strictly
+    against that typedef, so almost every Column came back undeserializable —
+    columns dominate a SQL extract, and map_table (which has always used
+    _safe_str) was the only mapper decoding cleanly.
+    """
+
+    def _column(self, app, **overrides):
+        record = {
+            "table_catalog": "def",
+            "table_schema": "s",
+            "table_name": "t",
+            "column_name": "c",
+            "table_type": "BASE TABLE",
+            "data_type": "int4",
+            "ordinal_position": 1,
+            "numeric_precision": 10,
+            **overrides,
+        }
+        return app.map_column(record, CONNECTION_QN)["customAttributes"]
+
+    def test_every_value_is_a_string(self, app):
+        custom = self._column(app)
+
+        assert custom, "fixture must produce custom attributes"
+        non_strings = {k: v for k, v in custom.items() if not isinstance(v, str)}
+        assert non_strings == {}, f"off-contract values: {non_strings}"
+
+    def test_numeric_values_are_stringified_not_dropped(self, app):
+        custom = self._column(app, ordinal_position=7)
+
+        assert custom["ordinal_position"] == "7"
+
+    def test_absent_values_are_empty_string_never_none(self, app):
+        """numeric_precision and column_size used to emit a literal None, which
+        is not a string at all — the same decode failure by a different route.
+
+        (ordinal_position is the third key that behaved this way, but it also
+        feeds the required ``asset.order``, so it can never actually be absent
+        here — covered by test_numeric_values_are_stringified_not_dropped.)
+        """
+        custom = self._column(app, numeric_precision=None)
+
+        for key in ("numeric_precision", "column_size"):
+            assert custom[key] == "", (
+                f"{key} should be '' when absent, got {custom[key]!r}"
+            )
+
+    def test_float_and_bool_do_not_leak_through(self, app):
+        custom = self._column(app, character_octet_length=-1.0, is_generatedcolumn=True)
+
+        assert isinstance(custom["character_octet_length"], str)
+        assert isinstance(custom["is_generatedcolumn"], str)

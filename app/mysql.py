@@ -432,16 +432,19 @@ class MySQLApp(SqlApp):
             "identity_cycle",
             "character_octet_length",
         ):
-            val = record.get(key)
-            if val is not None:
-                custom[key] = val
-            else:
-                custom[key] = (
-                    ""
-                    if key
-                    not in ("ordinal_position", "numeric_precision", "column_size")
-                    else None
-                )
+            # _safe_str, not the raw value: customAttributes is map<string,string>
+            # in the Atlas typedef (pyatlan models it Dict[str, str]), so an int
+            # or float here is off-contract. It also made the SDK's
+            # transformed-asset validator count ~96% of this connector's assets
+            # `undeserializable` — decode is strict, and columns dominate a SQL
+            # extract, so almost every asset carried one. map_table has always
+            # gone through _safe_str; this is map_column catching up. FND-802.
+            #
+            # The absent case collapses to "" for every key. It used to emit a
+            # literal None for three of them, which is not a string at all —
+            # the same decode failure by a different route, and not a value the
+            # producer meant to publish.
+            custom[key] = _safe_str(record.get(key))
         # Ensure type_name from data_type
         custom["type_name"] = (record.get("data_type") or "").lower()
         asset.custom_attributes = custom
