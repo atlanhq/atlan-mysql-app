@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": ".claude/hooks/review-rules-freshness.sh", "timeout": 10 } ] }
+    ],
+    "PreToolUse": [
+      { "matcher": "Bash", "hooks": [ { "type": "command", "command": ".claude/hooks/check-review-before-commit.sh", "timeout": 10 } ] }
+    ]
+  }
+}
