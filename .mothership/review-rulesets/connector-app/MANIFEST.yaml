@@ -1,0 +1,3 @@
+schema: 2
+rules:
+  - rules/mysql-repo-001.md
