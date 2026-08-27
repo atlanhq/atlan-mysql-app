@@ -14,7 +14,13 @@ dependencies = [
 # Optional dependencies for specific functionality - Install using: uv sync --extra dev
 [project.optional-dependencies]
 dev = [
-    "atlan-application-sdk-conformance<=1.0.0",
+    # Floor + 1.0.0 major boundary, NOT the bare `<=1.0.0` this used to carry.
+    # The D-series CI leg resolves the conformance suite from this repo's
+    # uv.lock, so a one-sided or exact specifier freezes the ruleset that grades
+    # the repo; D011 fails the Dependencies leg on any PR that touches this
+    # file. Renovate keeps the resolved version current (0.24.0 today) — widen
+    # the ceiling only when the suite ships a 1.x.
+    "atlan-application-sdk-conformance>=0.17.0,<1.0.0",
     "pre-commit>=3.8.0",
     "isort>=5.13.2",
     "watchdog>=6.0.0",
