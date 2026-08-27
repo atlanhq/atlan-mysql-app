@@ -98,9 +98,15 @@ markers = [
     "asyncio: marks tests as async (deselect with '-m \"not asyncio\"')",
     "integration: marks tests requiring external services (deselect with '-m \"not integration\"')",
 ]
-log_cli = true
-log_cli_level = "INFO"
-log_cli_format = "%(levelname)-8s %(name)s — %(message)s"
+# No log_cli, matching atlan-openapi-app / atlan-metabase-app. The SDK logs
+# through loguru's own stdout/stderr sinks (logger_adaptor.py), which the e2e
+# action's `-s` already streams — so log_cli added no SDK output, only a
+# duplicate of every line. It also attached a handler to the *stdlib* root
+# logger, which is where the SDK's non-loguru `logging.warning()` calls land,
+# and that surfaced a repeating StorageBindingNotFoundError traceback from the
+# e2e harness's observability sink into every job log. The sink itself is fixed
+# separately, in application-sdk's sdr-e2e action (FND-964); dropping log_cli
+# here is only about keeping the console tier consistent with the fleet.
 
 [tool.coverage.run]
 omit = [
