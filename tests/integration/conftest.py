@@ -1,9 +1,23 @@
-"""Fixtures for integration tests.
+"""Integration conftest: the SDK's shared fixture kit plus mysql's real-Dapr leg.
 
-Tests run entirely in-process: Temporal starts as an embedded dev server via
-the SDK's ``embedded_runtime()``, and a Dapr sidecar starts as a subprocess
-via the SDK's cached daprd binary — no externally-installed Dapr or Temporal
-required.
+Everything the kit owns — embedded Temporal, client, in-process worker,
+executor shim, task-queue derivation, artifact preservation — comes from the
+star-import of ``application_sdk.testing.integration.fixtures``. This file
+keeps only what is genuinely mysql's:
+
+* ``integration_source`` — a seeded MySQL testcontainer, with the MYSQL_HOST
+  escape hatch (external database) and the no-Docker skip path preserved.
+* The real ``DaprCredentialVault`` credential path. Workflow inputs here route
+  by legacy ``credential_guid``, which resolves over a live daprd and never
+  reads the kit's ``MockSecretStore``, so ``infrastructure`` is overridden: it
+  writes component YAMLs (secretstores.local.file in multiValued mode plus a
+  localstorage objectstore), starts the SDK's ``embedded_dapr`` sidecar, and
+  wraps the kit's own body via ``kit_infrastructure`` so the mocked
+  state/secret/object stores and the observability-store swap stay intact.
+  The override is async because ``embedded_dapr`` is an async contextmanager;
+  the kit's async fixtures already pin ``loop_scope="session"``, and this one
+  matches. ``worker`` depends on ``infrastructure``, so daprd is up and
+  DAPR_HTTP_PORT is set before any workflow attempts credential resolution.
 
 Credential resolution follows the identical code path as production:
   DaprCredentialVault
@@ -14,7 +28,8 @@ Credential resolution follows the identical code path as production:
 full Dapr API for both legs, bypassing the LOCAL_ENVIRONMENT short-circuit in
 ``_get_secret()`` that would otherwise read the secrets file directly.
 
-The MySQL testcontainers fixture still requires Docker to be available.
+``mysql_database`` and ``mysql_executor`` are aliases so the test files keep
+their existing fixture names.
 
 Run tests with: uv run pytest tests/integration/ -v
 """
@@ -25,70 +40,30 @@ import json
 import os
 import shutil
 import tempfile
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
 
-# ---------------------------------------------------------------------------
-# SDK-affecting env vars MUST be set before any application_sdk import so that
-# module-level constants (APPLICATION_NAME, DEPLOYMENT_NAME) read correctly.
-#
-# ATLAN_DEPLOYMENT_NAME=ci  — any value other than "local" causes
-#   DaprCredentialVault._get_secret() to call the Dapr secret store API
-#   instead of reading ./local/dapr/secrets/secrets.json directly.
-#   With secretstores.local.file + multiValued=true we get the full
-#   production code path without any short-circuit.
-# ---------------------------------------------------------------------------
 os.environ.setdefault("ATLAN_APPLICATION_NAME", "mysql")
 os.environ.setdefault("ATLAN_DEPLOYMENT_NAME", "ci")
 
-import docker
-import pymysql
-import pymysql.constants.CLIENT
-import pytest
-import pytest_asyncio
-from application_sdk.app.context import AppContext
-from application_sdk.dev import embedded_dapr, embedded_runtime
-from application_sdk.execution import (
-    TemporalClient,
-    TemporalExecutorBackend,
-    create_data_converter_for_app,
-    create_temporal_client,
-    create_worker,
-)
-from application_sdk.execution.retry import RetryPolicy
-from application_sdk.infrastructure.context import (
-    InfrastructureContext,
-    set_infrastructure,
-)
-from application_sdk.observability.logger_adaptor import get_logger
-from application_sdk.observability.observability import AtlanObservability
-from application_sdk.storage import create_local_store, create_memory_store
-from application_sdk.testing.mocks import MockSecretStore, MockStateStore
-from testcontainers.mysql import MySqlContainer
+import docker  # noqa: E402
+import pymysql  # noqa: E402
+import pymysql.constants.CLIENT  # noqa: E402
+import pytest  # noqa: E402
+import pytest_asyncio  # noqa: E402
+from application_sdk.dev import embedded_dapr  # noqa: E402
+from application_sdk.observability.logger_adaptor import get_logger  # noqa: E402
+from application_sdk.testing.integration.fixtures import *  # noqa: E402, F403
+from testcontainers.mysql import MySqlContainer  # noqa: E402
 
-# Trigger MySQLApp registration before create_worker is called.
-from app.mysql import MySQLApp  # noqa: F401
+from app.mysql import MySQLApp  # noqa: E402
 
-# Pre-wire a memory store so the periodic observability flush does not keep
-# retrying and spamming warnings in tests.
-AtlanObservability._deployment_store = create_memory_store()
-
-# Preserve workflow artifacts for integration test validation.
-# Without this, the SDK's cleanup interceptor deletes FileReference-tracked
-# files after each workflow completes, making artifact assertions impossible.
-os.environ.setdefault("APPLICATION_SDK_ENABLE_CLEANUP_INTERCEPTOR", "false")
-
-_TASK_QUEUE = "mysql-queue"
 _TEST_CREDENTIAL_GUID = "test-mysql-cred"
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 SEED_SQL = PROJECT_ROOT / "tests" / "integration" / "fixtures" / "seed.sql"
 
 logger = get_logger("integration")
-
-# ---------------------------------------------------------------------------
-# Dapr component YAML templates
-# ---------------------------------------------------------------------------
 
 _COMPONENT_STATESTORE = """\
 apiVersion: dapr.io/v1alpha1
@@ -130,36 +105,9 @@ spec:
 """
 
 
-class AppExecutor:
-    """Compatibility shim wrapping TemporalExecutorBackend for integration tests."""
-
-    def __init__(self, backend: TemporalExecutorBackend) -> None:
-        self._backend = backend
-
-    async def execute_app(
-        self,
-        app_cls: Any,
-        input_data: Any,
-        *,
-        execution_id_prefix: str = "",
-    ) -> Any:
-        app_name = getattr(app_cls, "_app_name", execution_id_prefix or "app")
-        context = AppContext(
-            app_name=app_name,
-            app_version="0.0.0",
-            run_id=execution_id_prefix or app_name,
-        )
-        return await self._backend.execute(
-            app_cls,
-            input_data,
-            context=context,
-            retry_policy=RetryPolicy(),
-        )
-
-
-# ---------------------------------------------------------------------------
-# MySQL database fixture (testcontainers or external)
-# ---------------------------------------------------------------------------
+@pytest.fixture(scope="session")
+def integration_app_cls() -> type[MySQLApp]:
+    return MySQLApp
 
 
 def _mysql_host_preconfigured() -> bool:
@@ -177,8 +125,8 @@ def _docker_available() -> bool:
         return False
 
 
-@pytest.fixture(scope="session", autouse=True)
-def mysql_database():
+@pytest.fixture(scope="session")
+def integration_source():
     """Provide a MySQL database for integration tests.
 
     Priority:
@@ -226,6 +174,12 @@ def mysql_database():
             os.environ.pop(key, None)
 
 
+@pytest.fixture(scope="session")
+def mysql_database(integration_source):
+    """Alias preserving the fixture name the test files request."""
+    return integration_source
+
+
 def _seed_database(host: str, port: int, root_password: str = "rootpass"):
     """Execute seed SQL against the testcontainers MySQL instance."""
     logger.info("Seeding database from %s...", SEED_SQL.name)
@@ -256,11 +210,6 @@ def _seed_database(host: str, port: int, root_password: str = "rootpass"):
     logger.info("Seeding complete")
 
 
-# ---------------------------------------------------------------------------
-# Embedded Dapr sidecar with secretstores.local.file
-# ---------------------------------------------------------------------------
-
-
 @pytest.fixture(scope="session")
 def dapr_secrets_file(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """Temp JSON file used as the secretstores.local.file secrets source.
@@ -286,13 +235,15 @@ def dapr_objectstore_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 @pytest.fixture(scope="session")
 def mysql_credentials_files(
-    mysql_database,  # noqa: ARG001 — ensures MYSQL_HOST/PORT/USER/PASSWORD are set
+    integration_source,
     dapr_secrets_file: Path,
     dapr_objectstore_dir: Path,
 ) -> str:
     """Write MySQL credential files for DaprCredentialVault resolution.
 
-    Replicates what ``POST /workflows/v1/dev/local-vault`` does, directly:
+    The ``integration_source`` dependency orders this after the database is up,
+    so MYSQL_HOST/PORT/USER/PASSWORD are set. Replicates what
+    ``POST /workflows/v1/dev/local-vault`` does, directly:
 
     Objectstore (non-sensitive: host, port, authType) →
         ``{dapr_objectstore_dir}/persistent-artifacts/apps/mysql/
@@ -303,9 +254,9 @@ def mysql_credentials_files(
         ``{dapr_secrets_file}`` as ``{"<guid>": {"username": ..., "password": ...}}``
         served by Dapr's secretstores.local.file on GetSecret("<guid>").
     """
+    del integration_source
     guid = _TEST_CREDENTIAL_GUID
 
-    # Write non-sensitive config to the objectstore directory.
     config = {
         "host": os.environ.get("MYSQL_HOST", "localhost"),
         "port": os.environ.get("MYSQL_PORT", "3306"),
@@ -324,8 +275,6 @@ def mysql_credentials_files(
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(json.dumps(config))
 
-    # Write sensitive fields to the secrets JSON file.
-    # With multiValued=true, GetSecret(guid) returns the nested object directly.
     secrets = {
         guid: {
             "username": os.environ.get("MYSQL_USER", "root"),
@@ -337,23 +286,38 @@ def mysql_credentials_files(
     return guid
 
 
-@pytest_asyncio.fixture(scope="session")
-async def embedded_dapr_sidecar(
-    mysql_credentials_files: str,  # noqa: ARG001 — ensures files are written before daprd starts
+@pytest_asyncio.fixture(scope="session", loop_scope="session")
+async def infrastructure(
+    store_root: Path,
+    integration_secrets: Mapping[str, str],
+    mysql_credentials_files: str,
     dapr_secrets_file: Path,
     dapr_objectstore_dir: Path,
 ):
-    """Start a daprd sidecar with secretstores.local.file for credential resolution.
+    """Kit infrastructure wrapped in a live daprd sidecar.
 
-    Writes custom component YAMLs — secretstores.local.file in multiValued=true
-    mode (so DaprCredentialVault can call GetSecret(guid) through the full Dapr
-    API, which the SDK's default embedded_dapr components don't cover) — then
-    hands them to the SDK's public ``embedded_dapr(components_dir=...)`` seam.
-    embedded_dapr owns the daprd lifecycle: cached-binary download, free-port
-    allocation, DAPR_HTTP_PORT/DAPR_GRPC_PORT/DAPR_COMPONENTS_PATH save+restore,
-    readiness wait, and teardown — so AsyncDaprClient() (inside
-    DaprCredentialVault) connects here without any private-internal imports.
+    Replaces the kit's ``infrastructure`` (star-imported fixtures replace, they
+    do not wrap) but reuses its body through ``kit_infrastructure`` so the
+    mocked state/secret stores, the session LocalStore, and the observability
+    deployment-store swap+restore all behave exactly as the kit's own.
+
+    The daprd leg exists because this suite exercises production
+    ``DaprCredentialVault`` resolution for ``credential_guid`` inputs, which
+    the kit's ``MockSecretStore`` cannot serve. Writes component YAMLs —
+    secretstores.local.file in multiValued=true mode (so the vault can call
+    GetSecret(guid) through the full Dapr API, which the SDK's default
+    embedded_dapr components don't cover) plus a localstorage objectstore —
+    then hands them to the SDK's public ``embedded_dapr(components_dir=...)``
+    seam. embedded_dapr owns the daprd lifecycle: cached-binary download,
+    free-port allocation, DAPR_HTTP_PORT/DAPR_GRPC_PORT/DAPR_COMPONENTS_PATH
+    save+restore, readiness wait, and teardown. The ``mysql_credentials_files``
+    dependency orders the credential files before daprd starts.
+
+    Async because ``embedded_dapr`` is an async contextmanager; the kit's
+    fixtures module documents an async daprd lifecycle as out of scope for the
+    shipped ``infrastructure`` and names this suite as the reference shape.
     """
+    del mysql_credentials_files
     components_dir = Path(tempfile.mkdtemp(prefix="atlan-dapr-components-"))
     eventstore_dir = Path(tempfile.mkdtemp(prefix="atlan-dapr-events-"))
 
@@ -389,97 +353,14 @@ async def embedded_dapr_sidecar(
             log_level="error",
         ):
             logger.info("Embedded daprd ready via SDK embedded_dapr")
-            yield
+            with kit_infrastructure(store_root, integration_secrets) as ctx:  # noqa: F405
+                yield ctx
     finally:
-        # embedded_dapr owns the daprd process + DAPR_* env; we still own the
-        # component/eventstore temp dirs we created.
         shutil.rmtree(components_dir, ignore_errors=True)
         shutil.rmtree(eventstore_dir, ignore_errors=True)
 
 
-# ---------------------------------------------------------------------------
-# Infrastructure fixture — state store + object storage (not for credentials)
-# ---------------------------------------------------------------------------
-
-
 @pytest.fixture(scope="session")
-def store_root(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Root directory for the session-scoped LocalStore.
-
-    Files written by the workflow (raw JSONL, transformed JSONL) survive here
-    because APPLICATION_SDK_ENABLE_CLEANUP_INTERCEPTOR=false is set above.
-    Tests can locate artifacts by recursively searching this directory.
-    """
-    return tmp_path_factory.mktemp("sdk-store")
-
-
-@pytest.fixture(scope="session")
-def infrastructure(store_root: Path) -> InfrastructureContext:
-    """Wire mock infrastructure for the session using a LocalStore.
-
-    Sets the global InfrastructureContext so SDK internals (storage ops, state
-    store) use in-process stores. Credential resolution is handled separately
-    by DaprCredentialVault talking to the embedded Dapr sidecar.
-    """
-    ctx = InfrastructureContext(
-        state_store=MockStateStore(),
-        secret_store=MockSecretStore(),
-        storage=create_local_store(store_root),
-    )
-    set_infrastructure(ctx)
-    return ctx
-
-
-# ---------------------------------------------------------------------------
-# Embedded Temporal runtime
-# ---------------------------------------------------------------------------
-
-
-@pytest_asyncio.fixture(scope="session")
-async def embedded_temporal():
-    """Boot an in-process Temporal dev server for the test session."""
-    async with embedded_runtime(log_level="error") as rt:
-        yield rt
-
-
-# ---------------------------------------------------------------------------
-# Temporal client and in-process worker fixtures
-# ---------------------------------------------------------------------------
-
-
-@pytest_asyncio.fixture(scope="session")
-async def temporal_client(embedded_temporal) -> TemporalClient:
-    """Connect to the embedded Temporal dev server."""
-    data_converter = create_data_converter_for_app(MySQLApp)
-    return await create_temporal_client(
-        embedded_temporal.host, data_converter=data_converter
-    )
-
-
-@pytest_asyncio.fixture(scope="session")
-async def mysql_worker(
-    temporal_client: TemporalClient,
-    infrastructure: InfrastructureContext,  # noqa: ARG001 — ensures infra is wired first
-) -> Any:
-    """Start the MySQL connector worker in-process."""
-    w = create_worker(temporal_client, task_queue=_TASK_QUEUE)
-    async with w:
-        yield
-
-
-@pytest.fixture(scope="session")
-def mysql_executor(
-    temporal_client: TemporalClient,
-    mysql_worker: Any,  # noqa: ARG001 — ensures worker is running
-    embedded_dapr_sidecar: Any,  # noqa: ARG001 — ensures DAPR_HTTP_PORT is set
-) -> AppExecutor:
-    """Executor for MySQL connector integration tests.
-
-    Depends on embedded_dapr_sidecar so DAPR_HTTP_PORT is set before any
-    workflow attempts credential resolution via DaprCredentialVault.
-    """
-    backend = TemporalExecutorBackend(
-        client=temporal_client,
-        task_queue=_TASK_QUEUE,
-    )
-    return AppExecutor(backend=backend)
+def mysql_executor(executor):  # noqa: F405
+    """Alias preserving the fixture name the test files request."""
+    return executor
