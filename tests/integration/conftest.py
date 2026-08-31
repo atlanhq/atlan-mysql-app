@@ -1,32 +1,20 @@
-"""Integration conftest: the SDK's shared fixture kit plus mysql's real-Dapr leg.
+"""Integration conftest: the SDK's shared fixture kit, mysql-specific source only.
 
 Everything the kit owns — embedded Temporal, client, in-process worker,
-executor shim, task-queue derivation, artifact preservation — comes from the
-star-import of ``application_sdk.testing.integration.fixtures``. This file
-keeps only what is genuinely mysql's:
+executor shim, task-queue derivation, mocked infrastructure, artifact
+preservation — comes from the star-import of
+``application_sdk.testing.integration.fixtures``. This file keeps only what is
+genuinely mysql's:
 
 * ``integration_source`` — a seeded MySQL testcontainer, with the MYSQL_HOST
   escape hatch (external database) and the no-Docker skip path preserved.
-* The real ``DaprCredentialVault`` credential path. Workflow inputs here route
-  by legacy ``credential_guid``, which resolves over a live daprd and never
-  reads the kit's ``MockSecretStore``, so ``infrastructure`` is overridden: it
-  writes component YAMLs (secretstores.local.file in multiValued mode plus a
-  localstorage objectstore), starts the SDK's ``embedded_dapr`` sidecar, and
-  wraps the kit's own body via ``kit_infrastructure`` so the mocked
-  state/secret/object stores and the observability-store swap stay intact.
-  The override is async because ``embedded_dapr`` is an async contextmanager;
-  the kit's async fixtures already pin ``loop_scope="session"``, and this one
-  matches. ``worker`` depends on ``infrastructure``, so daprd is up and
-  DAPR_HTTP_PORT is set before any workflow attempts credential resolution.
-
-Credential resolution follows the identical code path as production:
-  DaprCredentialVault
-    ├── objectstore GET  →  bindings.localstorage (temp dir)
-    └── GetSecret        →  secretstores.local.file (temp JSON file, multiValued)
-
-``ATLAN_DEPLOYMENT_NAME=ci`` (set before SDK imports) tells the SDK to use the
-full Dapr API for both legs, bypassing the LOCAL_ENVIRONMENT short-circuit in
-``_get_secret()`` that would otherwise read the secrets file directly.
+* ``integration_secrets`` — seeds the kit's ``MockSecretStore`` with the
+  container's connection credential under a named key. Workflow inputs route
+  by ``credential_ref`` (named path), which ``CredentialResolver`` serves from
+  the injected secret store — no daprd sidecar needed. The secret value is the
+  full raw credential JSON (host/port/authType plus username/password), the
+  same merged shape ``DaprCredentialVault`` produces in production, handed
+  verbatim to ``BaseSQLClient.load()``.
 
 ``mysql_database`` and ``mysql_executor`` are aliases so the test files keep
 their existing fixture names.
@@ -38,8 +26,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
-import tempfile
 from collections.abc import Mapping
 from pathlib import Path
 
@@ -50,59 +36,19 @@ import docker  # noqa: E402
 import pymysql  # noqa: E402
 import pymysql.constants.CLIENT  # noqa: E402
 import pytest  # noqa: E402
-import pytest_asyncio  # noqa: E402
-from application_sdk.dev import embedded_dapr  # noqa: E402
+from application_sdk.credentials.ref import CredentialRef, basic_ref  # noqa: E402
 from application_sdk.observability.logger_adaptor import get_logger  # noqa: E402
 from application_sdk.testing.integration.fixtures import *  # noqa: E402, F403
 from testcontainers.mysql import MySqlContainer  # noqa: E402
 
 from app.mysql import MySQLApp  # noqa: E402
 
-_TEST_CREDENTIAL_GUID = "test-mysql-cred"
+_TEST_CREDENTIAL_NAME = "test-mysql-cred"
 
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 SEED_SQL = PROJECT_ROOT / "tests" / "integration" / "fixtures" / "seed.sql"
 
 logger = get_logger("integration")
-
-_COMPONENT_STATESTORE = """\
-apiVersion: dapr.io/v1alpha1
-kind: Component
-metadata:
-  name: statestore
-spec:
-  type: state.in-memory
-  version: v1
-  metadata: []
-"""
-
-_COMPONENT_SECRETSTORE_TMPL = """\
-apiVersion: dapr.io/v1alpha1
-kind: Component
-metadata:
-  name: {name}
-spec:
-  type: secretstores.local.file
-  version: v1
-  metadata:
-    - name: secretsFile
-      value: {secrets_file}
-    - name: multiValued
-      value: "true"
-"""
-
-_COMPONENT_LOCALSTORAGE_TMPL = """\
-apiVersion: dapr.io/v1alpha1
-kind: Component
-metadata:
-  name: {name}
-spec:
-  type: bindings.localstorage
-  version: v1
-  metadata:
-    - name: rootPath
-      value: {root_path}
-"""
 
 
 @pytest.fixture(scope="session")
@@ -211,153 +157,31 @@ def _seed_database(host: str, port: int, root_password: str = "rootpass"):
 
 
 @pytest.fixture(scope="session")
-def dapr_secrets_file(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Temp JSON file used as the secretstores.local.file secrets source.
-
-    The file path is passed to the Dapr component YAML so daprd serves
-    its contents via the GetSecret API. Structured as:
-        {"<guid>": {"username": "...", "password": "..."}}
-    With multiValued=true, GetSecret("<guid>") returns the nested object.
-    """
-    return tmp_path_factory.mktemp("dapr-secrets") / "secrets.json"
-
-
-@pytest.fixture(scope="session")
-def dapr_objectstore_dir(tmp_path_factory: pytest.TempPathFactory) -> Path:
-    """Temp directory used as the objectstore root for the embedded Dapr sidecar.
-
-    Credential config files (non-sensitive fields: host, port, authType) are
-    written here; the localstorage binding serves them on GET requests from
-    DaprCredentialVault._fetch_credential_config().
-    """
-    return tmp_path_factory.mktemp("dapr-objectstore")
-
-
-@pytest.fixture(scope="session")
-def mysql_credentials_files(
-    integration_source,
-    dapr_secrets_file: Path,
-    dapr_objectstore_dir: Path,
-) -> str:
-    """Write MySQL credential files for DaprCredentialVault resolution.
+def integration_secrets(integration_source) -> Mapping[str, str]:
+    """Seed the kit's MockSecretStore with the live database's credential.
 
     The ``integration_source`` dependency orders this after the database is up,
-    so MYSQL_HOST/PORT/USER/PASSWORD are set. Replicates what
-    ``POST /workflows/v1/dev/local-vault`` does, directly:
-
-    Objectstore (non-sensitive: host, port, authType) →
-        ``{dapr_objectstore_dir}/persistent-artifacts/apps/mysql/
-          credentials/{guid}/config.json``
-        served by Dapr's bindings.localstorage on GET.
-
-    Secrets file (sensitive: username, password) →
-        ``{dapr_secrets_file}`` as ``{"<guid>": {"username": ..., "password": ...}}``
-        served by Dapr's secretstores.local.file on GetSecret("<guid>").
+    so MYSQL_HOST/PORT/USER/PASSWORD are set. The value is the raw credential
+    JSON that ``CredentialResolver.resolve_raw`` returns for the named ref and
+    ``SqlApp._init_sql_client`` passes to ``BaseSQLClient.load()``.
     """
     del integration_source
-    guid = _TEST_CREDENTIAL_GUID
-
-    config = {
-        "host": os.environ.get("MYSQL_HOST", "localhost"),
-        "port": os.environ.get("MYSQL_PORT", "3306"),
-        "authType": "basic",
-        "credentialSource": "direct",
-    }
-    config_path = (
-        dapr_objectstore_dir
-        / "persistent-artifacts"
-        / "apps"
-        / "mysql"
-        / "credentials"
-        / guid
-        / "config.json"
-    )
-    config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.write_text(json.dumps(config))
-
-    secrets = {
-        guid: {
+    return {
+        _TEST_CREDENTIAL_NAME: json.dumps({
+            "host": os.environ.get("MYSQL_HOST", "localhost"),
+            "port": os.environ.get("MYSQL_PORT", "3306"),
+            "authType": "basic",
+            "credentialSource": "direct",
             "username": os.environ.get("MYSQL_USER", "root"),
             "password": os.environ.get("MYSQL_PASSWORD", ""),
-        }
+        })
     }
-    dapr_secrets_file.write_text(json.dumps(secrets, indent=2))
-
-    return guid
 
 
-@pytest_asyncio.fixture(scope="session", loop_scope="session")
-async def infrastructure(
-    store_root: Path,
-    integration_secrets: Mapping[str, str],
-    mysql_credentials_files: str,
-    dapr_secrets_file: Path,
-    dapr_objectstore_dir: Path,
-):
-    """Kit infrastructure wrapped in a live daprd sidecar.
-
-    Replaces the kit's ``infrastructure`` (star-imported fixtures replace, they
-    do not wrap) but reuses its body through ``kit_infrastructure`` so the
-    mocked state/secret stores, the session LocalStore, and the observability
-    deployment-store swap+restore all behave exactly as the kit's own.
-
-    The daprd leg exists because this suite exercises production
-    ``DaprCredentialVault`` resolution for ``credential_guid`` inputs, which
-    the kit's ``MockSecretStore`` cannot serve. Writes component YAMLs —
-    secretstores.local.file in multiValued=true mode (so the vault can call
-    GetSecret(guid) through the full Dapr API, which the SDK's default
-    embedded_dapr components don't cover) plus a localstorage objectstore —
-    then hands them to the SDK's public ``embedded_dapr(components_dir=...)``
-    seam. embedded_dapr owns the daprd lifecycle: cached-binary download,
-    free-port allocation, DAPR_HTTP_PORT/DAPR_GRPC_PORT/DAPR_COMPONENTS_PATH
-    save+restore, readiness wait, and teardown. The ``mysql_credentials_files``
-    dependency orders the credential files before daprd starts.
-
-    Async because ``embedded_dapr`` is an async contextmanager; the kit's
-    fixtures module documents an async daprd lifecycle as out of scope for the
-    shipped ``infrastructure`` and names this suite as the reference shape.
-    """
-    del mysql_credentials_files
-    components_dir = Path(tempfile.mkdtemp(prefix="atlan-dapr-components-"))
-    eventstore_dir = Path(tempfile.mkdtemp(prefix="atlan-dapr-events-"))
-
-    secrets_file_abs = str(dapr_secrets_file.resolve())
-    objectstore_root_abs = str(dapr_objectstore_dir.resolve())
-
-    (components_dir / "statestore.yaml").write_text(_COMPONENT_STATESTORE)
-    (components_dir / "secretstore.yaml").write_text(
-        _COMPONENT_SECRETSTORE_TMPL.format(
-            name="secretstore", secrets_file=secrets_file_abs
-        )
-    )
-    (components_dir / "deployment-secret-store.yaml").write_text(
-        _COMPONENT_SECRETSTORE_TMPL.format(
-            name="deployment-secret-store", secrets_file=secrets_file_abs
-        )
-    )
-    (components_dir / "objectstore.yaml").write_text(
-        _COMPONENT_LOCALSTORAGE_TMPL.format(
-            name="objectstore", root_path=objectstore_root_abs
-        )
-    )
-    (components_dir / "eventstore.yaml").write_text(
-        _COMPONENT_LOCALSTORAGE_TMPL.format(
-            name="eventstore", root_path=str(eventstore_dir)
-        )
-    )
-
-    try:
-        async with embedded_dapr(
-            app_id="mysql",
-            components_dir=str(components_dir),
-            log_level="error",
-        ):
-            logger.info("Embedded daprd ready via SDK embedded_dapr")
-            with kit_infrastructure(store_root, integration_secrets) as ctx:  # noqa: F405
-                yield ctx
-    finally:
-        shutil.rmtree(components_dir, ignore_errors=True)
-        shutil.rmtree(eventstore_dir, ignore_errors=True)
+@pytest.fixture(scope="session")
+def mysql_credential_ref() -> CredentialRef:
+    """Named ref matching the ``integration_secrets`` seed."""
+    return basic_ref(_TEST_CREDENTIAL_NAME)
 
 
 @pytest.fixture(scope="session")
