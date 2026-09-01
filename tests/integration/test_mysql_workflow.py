@@ -1,8 +1,8 @@
-"""Integration tests for MySQLApp — embedded Temporal + embedded Dapr.
+"""Integration tests for MySQLApp — embedded Temporal, mocked infrastructure.
 
 Tests the full extraction workflow through an in-process Temporal worker.
-Credential resolution uses the real DaprCredentialVault path (same as
-production), backed by an embedded Dapr sidecar with local-file storage.
+Credential resolution routes by ``credential_ref`` (named path) served from
+the SDK kit's MockSecretStore, seeded in conftest from the live database.
 
 No externally-installed Dapr or Temporal required. MySQL is provided via
 testcontainers (or MYSQL_HOST env var).
@@ -27,6 +27,8 @@ from pyatlan.model.enums import AtlanConnectorType
 from app.mysql import MySQLApp, MySQLExtractionOutput
 
 if TYPE_CHECKING:
+    from application_sdk.credentials.ref import CredentialRef
+
     from tests.integration.conftest import AppExecutor
 
 logger = get_logger("integration.workflow")
@@ -40,7 +42,7 @@ _CONNECTION_QN = AtlanConnectorType.MYSQL.to_qualified_name()
 
 
 class TestMySQLExtraction:
-    """Full extraction workflow via embedded Temporal + embedded Dapr.
+    """Full extraction workflow via embedded Temporal.
 
     Executes one workflow and shares the result across all tests in the class
     via a class-scoped fixture, avoiding the cost of re-running the extraction.
@@ -50,7 +52,7 @@ class TestMySQLExtraction:
     async def extraction_result(
         self,
         mysql_executor: "AppExecutor",
-        mysql_credentials_files: str,
+        mysql_credential_ref: "CredentialRef",
         store_root: Path,  # noqa: ARG002 — ensures store root is created
     ) -> MySQLExtractionOutput:
         """Execute a full extraction workflow, skip if no MySQL is available."""
@@ -62,7 +64,7 @@ class TestMySQLExtraction:
             await mysql_executor.execute_app(
                 MySQLApp,
                 ExtractionInput(
-                    credential_guid=mysql_credentials_files,
+                    credential_ref=mysql_credential_ref,
                     connection=ConnectionRef.model_validate({
                         "typeName": "Connection",
                         "attributes": {
@@ -104,13 +106,13 @@ class TestMySQLExtraction:
     ) -> None:
         """Raw JSONL files should exist for all four entity types.
 
-        Files are preserved because APPLICATION_SDK_ENABLE_CLEANUP_INTERCEPTOR=false
-        is set in conftest at load time.
+        Files are preserved because the SDK fixture kit's default
+        KitOptions.preserve_artifacts disables the cleanup interceptor.
         """
         raw_files = list(store_root.rglob("raw/database/records.json"))
         assert raw_files, (
             f"No raw/database/records.json found under {store_root}. "
-            "Check that APPLICATION_SDK_ENABLE_CLEANUP_INTERCEPTOR=false."
+            "Check that KitOptions.preserve_artifacts is enabled."
         )
         run_dir = raw_files[0].parent.parent.parent  # .../raw/database/records.json
 
