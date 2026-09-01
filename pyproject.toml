@@ -150,4 +150,3 @@ ignore = ["G002"]
 
 [tool.uv.sources]
 # atlan-application-sdk = { path = "../application-sdk", editable = true }
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "41bc051f04912f50c6f7737e3454c5e9d8df06d2" }
