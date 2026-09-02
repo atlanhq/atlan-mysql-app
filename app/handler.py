@@ -100,8 +100,19 @@ class MySQLAppHandler(Handler):
             try:
                 await client.load(credentials=creds)
                 await client.get_results(_TEST_AUTH_SQL)
+            # Suppression owner: @cmgrote. Review by 2027-03-02, or sooner if the
+            # suite resolves the conflict — either E004 accepting DEBUG+exc_info
+            # inside a preflight_check, or P047 exempting a broad-catch probe.
+            # Delete this suppression when it does; it is not a standing exemption.
+            # conformance: ignore[E004] a preflight probe must report a verdict, never crash, so the broad catch is deliberate; E004's sanctioned exc_info WARNING is banned inside preflight_check by P047
             except Exception as e:
-                logger.warning("Auth preflight check failed", exc_info=True)
+                # DEBUG, not WARNING: the preflight gate owns the customer-facing
+                # outcome row and levels it from the verdict — ERROR when the run is
+                # blocked, as it is here. A handler-authored WARNING is both a
+                # duplicate of that row and invisible under the customer's default
+                # ERROR filter (P047 / FND-901). DEBUG keeps the traceback for
+                # engineers without adding a second customer-visible record.
+                logger.debug("Auth preflight check failed", exc_info=True)
                 checks.append(
                     PreflightCheck(
                         name="auth",
@@ -132,8 +143,17 @@ class MySQLAppHandler(Handler):
                     )
                 )
                 status = PreflightStatus.READY
+            # Suppression owner: @cmgrote. Review by 2027-03-02, or sooner if the
+            # suite resolves the conflict — either E004 accepting DEBUG+exc_info
+            # inside a preflight_check, or P047 exempting a broad-catch probe.
+            # Delete this suppression when it does; it is not a standing exemption.
+            # conformance: ignore[E004] a preflight probe must report a verdict, never crash, so the broad catch is deliberate; E004's sanctioned exc_info WARNING is banned inside preflight_check by P047
             except Exception:
-                logger.warning("Connectivity preflight check failed", exc_info=True)
+                # DEBUG, not WARNING: this check is advisory, so the gate emits the
+                # single WARNING outcome row itself (keyed on any failed check) —
+                # P047 bans the handler from logging it. DEBUG keeps the traceback
+                # for engineers without duplicating the gate's record.
+                logger.debug("Connectivity preflight check failed", exc_info=True)
                 checks.append(
                     PreflightCheck(
                         name="connectivity",

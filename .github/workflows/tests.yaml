@@ -16,8 +16,20 @@ name: Tests
 #                 services-script below only if that pattern doesn't fit.
 #   e2e         — full-DAG tests against a real tenant via e2e-full-reusable.
 #                 Triggered by the 'e2e' PR label or workflow_dispatch.
-#   Tests Gate  — aggregator gate; the single required check for branch
-#                 protection.  tests must pass; e2e can be skipped.
+#   Tests Gate  — aggregator gate; the check INTENDED to be the required one
+#                 for branch protection.  tests must pass; e2e can be skipped.
+#
+#                 It is NOT required just because this file exists. Bootstrap
+#                 cannot change branch protection, so adopting this workflow
+#                 makes the check RUN, not BLOCK. Do not assume — read it
+#                 (FND-981, FND-1150):
+#                   gh api repos/<owner>/<repo>/branches/main \
+#                     --jq '.protection.required_status_checks.contexts'
+#                 The admin-only .../branches/main/protection endpoint 404s for
+#                 non-admins, but /branches/main exposes required_status_checks
+#                 to any pusher. Several connector repos today require only
+#                 `scan / Security Gate`, so no test check blocks their merges.
+#
 #                 Make it required as soon as this file is merged — it does not
 #                 wait on a coverage target or on every tier being wired up.
 #                 The exact context string to require is:
@@ -95,12 +107,40 @@ on:
 
 jobs:
   tests:
+    # Declared rather than inherited from the repository default, because a
+    # called workflow's permissions can only EQUAL or NARROW its caller's. Every
+    # scope below is one the reusable workflow's own jobs declare; leaving this
+    # block out makes the whole set depend on `default_workflow_permissions`
+    # being `write`, so tightening that setting — an ordinary hardening step —
+    # would silently strip `contents: write` from the tenant lease and red the
+    # e2e install in every adopted connector at once (FND-702).
+    #
+    # A `permissions:` block is EXHAUSTIVE, not additive: every scope it omits
+    # becomes `none`. So this cannot be trimmed to "the ones this repo looks like
+    # it needs" — narrowing any line here clamps the reusable's job that uses it.
+    # If you are tempted to cut one, cut the job that needs it in
+    # application-sdk instead.
+    permissions:
+      # The (app, cloud) tenant lease: creates and deletes the lease ref that
+      # serialises e2e runs against a shared tenant. Held only by application-
+      # sdk's lease/release jobs, never by a job that runs connector test code.
+      contents: write
+      # Tells a live lease holder from a dead one, so a cancelled run's
+      # abandoned lease is self-healing rather than blocking the tenant.
+      actions: read
+      # Pushes and pulls the per-run e2e image from GHCR.
+      packages: write
+      # The unit tier's coverage-delta comment and the e2e tier's PR reporting.
+      pull-requests: write
+      # The e2e tier's commit status on the SDK commit that dispatched it.
+      statuses: write
+      # Mints the run's OIDC token for the dataforge source-credential exchange
+      # (no stored dataforge secret). Never granted by a repository default at
+      # any setting, so it only works when declared here. Inert — the fetch
+      # chain self-skips — in a repo that does not use dataforge.
+      id-token: write
     uses: atlanhq/application-sdk/.github/workflows/tests-reusable.yaml@main
     with:
-      # Per-repo value, NOT one of the values `bootstrap --resync` reads back off
-      # this file — a resync drops it and the SDK reusable then falls through to
-      # its own default of "0", silently removing the floor. Re-add it after any
-      # resync that reports tests.yaml as updated.
       unit-coverage-fail-under: "90"
       app-name: "mysql"
       app-image-name: "atlan-mysql-app"
