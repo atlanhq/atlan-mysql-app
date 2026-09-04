@@ -1,5 +1,20 @@
 # Changelog
 
+## v2.2.0 (September 04, 2026)
+
+Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.1.0...v2.2.0
+
+### Features
+
+- onboard ai-connector-review + local Claude Code review kit (L1-L4) (#546) (by @chetanchoudhary-atlan in [1242f4f](https://github.com/atlanhq/atlan-mysql-app/commit/1242f4f))
+
+### Bug Fixes
+
+- unpin the yanked pytest-timeout 2.5.0 (FND-379) (#526) (by @cmgrote in [b1dfaf6](https://github.com/atlanhq/atlan-mysql-app/commit/b1dfaf6))
+- report Release Gate on merge-queue branches (FND-851) (#539) (by @cmgrote in [53a4214](https://github.com/atlanhq/atlan-mysql-app/commit/53a4214))
+- surface preflight failures at the customer-visible log level (#595) (by @cmgrote in [8785ef1](https://github.com/atlanhq/atlan-mysql-app/commit/8785ef1))
+
+
 ## v2.1.0 (August 12, 2026)
 
 Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.0.5...v2.1.0
