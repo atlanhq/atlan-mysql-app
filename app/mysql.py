@@ -16,12 +16,13 @@ import orjson
 import pandas as pd
 from application_sdk.constants import ENABLE_ATLAN_UPLOAD
 from application_sdk.contracts.base import Output
-from application_sdk.contracts.storage import UploadInput
+from application_sdk.contracts.storage import DeclaredFile, UploadRefsInput
 from application_sdk.execution import get_object_store_prefix
 from application_sdk.observability.logger_adaptor import get_logger
 from application_sdk.templates.contracts.sql_metadata import (
     ExtractionInput,
     ExtractionTaskInput,
+    TransformOutput,
 )
 from application_sdk.templates.sql_app import SqlApp
 from pyatlan_v9.model.assets import Column, Database, Procedure, Schema, Table, View
@@ -507,8 +508,13 @@ class MySQLApp(SqlApp):
         """
         base_result = await super().run(input)
 
+        # Transforms this override drives itself, folded into the base run's
+        # declaration by finalize_extraction() below. Empty when this connector
+        # has no procedure SQL.
+        extra_transforms: list[TransformOutput] = []
+
         if self.fetch_procedure_sql:
-            cred_ref = self._resolve_credential_ref(input)
+            cred_ref = self.resolve_credential_ref(input)
             proc_input = self.build_task_input(
                 ExtractionTaskInput, input, cred_ref=cred_ref
             )
@@ -522,35 +528,66 @@ class MySQLApp(SqlApp):
             #
             # The activity interceptor persists these FileReferences to
             # infra.storage (objectstore) for task-to-task durability.
-            # The explicit App.upload() below handles the final hand-off
-            # of the full transformed/ directory to upstream_storage (S3).
+            # The explicit App.upload_refs() below handles the final hand-off
+            # of the declared transformed files to upstream_storage (S3).
             proc_extract_result = await self.extract_procedures(proc_input)
-            proc_transform_input = self._build_transform_input(
+            proc_transform_input = self.build_transform_input(
                 proc_input, proc_extract_result.raw_file
             )
-            await self.transform_procedures(proc_transform_input)
+            proc_transform_result = await self.transform_procedures(
+                proc_transform_input
+            )
+            extra_transforms.append(proc_transform_result)
+
+        # The procedure transform runs *here*, not inside SqlApp.run(), so its
+        # ref is absent from base_result.transformed_files — and super().run()
+        # has already verified and returned by this point, so a ref appended
+        # afterwards would never be asserted at all.
+        #
+        # finalize_extraction() is the whole tail of a run() override that adds
+        # an entity: it folds the extra refs in, asserts the *concatenated*
+        # declaration against transformed_data_prefix, and returns the updated
+        # output. Concatenating by hand and returning a model_copy instead would
+        # hand on one unverified entity while reading, here at the call site, as
+        # though everything had been checked — the FND-1790 shortfall one layer
+        # up. SqlApp.run() calls the same method, so the default path and this
+        # override cannot drift.
+        base_result = await self.finalize_extraction(base_result, extra_transforms)
 
         # SqlApp.run() exposes its resolved local base path via output_path so
         # subclasses can derive additional prefixes without re-calling workflow.info().
         base = base_result.output_path
         connection_qn = base_result.connection_qualified_name
 
-        # Explicit upload to Atlan's upstream object store (atlan-objectstore / S3).
-        # The activity interceptor persists FileReferences to infra.storage
+        # Explicit hand-off to Atlan's upstream object store (atlan-objectstore /
+        # S3). The activity interceptor persists FileReferences to infra.storage
         # (objectstore / deployment store) for task-to-task durability only.
-        # System apps (publish, qi, lineage-app) read from upstream_storage, so the
-        # final hand-off must be an explicit App.upload() that routes through it.
-        await self.upload(
-            UploadInput(
-                local_path=os.path.join(base, "transformed"),
-                storage_path=base_result.transformed_data_prefix,
-                raise_on_empty=True,
+        # System apps (publish, qi, lineage-app) read from upstream_storage, so
+        # the final hand-off must be explicit and route through it.
+        #
+        # By reference, not by directory scan (FND-1790): the transform
+        # activities fan out, so os.path.join(base, "transformed") on *this* pod
+        # holds only whichever transforms happened to run locally — on a fully
+        # distributed run, nothing. A short tree is indistinguishable from a
+        # small one to publish, which then archives the entities it never saw.
+        # upload_refs() lands each declared ref instead, raise_on_empty per file,
+        # and verifies the delivery against the declaration before returning.
+        #
+        # source_prefix == prefix: the refs already carry
+        # <run>/transformed/<entity>/entities.json, so stripping the prefix
+        # yields <entity>/entities.json and the destination keeps the exact key
+        # shape publish expects.
+        delivered = await self.upload_refs(
+            UploadRefsInput(
+                files=[DeclaredFile(ref=ref) for ref in base_result.transformed_files],
+                source_prefix=base_result.transformed_data_prefix,
+                prefix=base_result.transformed_data_prefix,
             )
         )
 
         return MySQLExtractionOutput(
             connection_qualified_name=connection_qn,
-            transformed_data_prefix=base_result.transformed_data_prefix,
+            transformed_data_prefix=delivered.prefix,
             publish_state_prefix=base_result.publish_state_prefix,
             current_state_prefix=base_result.current_state_prefix,
             view_lineage_output_prefix=get_object_store_prefix(

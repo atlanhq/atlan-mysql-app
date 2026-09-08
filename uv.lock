@@ -211,7 +211,7 @@ wheels = [
 
 [[package]]
 name = "atlan-application-sdk"
-version = "3.33.1"
+version = "3.33.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -235,9 +235,9 @@ dependencies = [
     { name = "temporalio" },
     { name = "uvloop", marker = "sys_platform != 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/32/55/47db90c7d0a046fc9ff162503d1c9afccb1e83ead145ef949710f7a9a90c/atlan_application_sdk-3.33.1.tar.gz", hash = "sha256:ee9228e4df212fa0183d531f4a79245399dc732cc16e27e18935fb8fc9196e37", size = 8106602, upload-time = "2026-09-07T16:15:42.549Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/2a/4b/2059d1b50956c4dcd781ac746f6d68b1447c87ac3dd135c1ac92e58b51d2/atlan_application_sdk-3.33.2.tar.gz", hash = "sha256:d968a2e707867549f28ab396b44a005241d8973705ab693eeac6407d6df31de3", size = 8142722, upload-time = "2026-09-08T16:11:24.752Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ce/7a/1b1a44b4131e0aa7bc7fe834af85a2b75f2384fa46804b016ab8882f40cf/atlan_application_sdk-3.33.1-py3-none-any.whl", hash = "sha256:ca49274a908e967779f0ab89c5517d8691b0614ffe188fa2381e80183eefdc05", size = 1749014, upload-time = "2026-09-07T16:15:40.531Z" },
+    { url = "https://files.pythonhosted.org/packages/5c/ac/85c34ed3fe9c8aaff1d80773e1aa080172b8429b9b923f6ceee5d399a0ce/atlan_application_sdk-3.33.2-py3-none-any.whl", hash = "sha256:80b2b5ddbc6a8a1aa437c3afaa4c74603deb36c41e11fef2d08474c6e3262691", size = 1764964, upload-time = "2026-09-08T16:11:22.605Z" },
 ]
 
 [package.optional-dependencies]
@@ -310,7 +310,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "aiomysql", specifier = ">=0.3.0" },
-    { name = "atlan-application-sdk", extras = ["iam-auth", "sql", "workflows", "pandas"], specifier = ">=3.27.1,<4.0.0" },
+    { name = "atlan-application-sdk", extras = ["iam-auth", "pandas", "sql", "workflows"], specifier = ">=3.33.2,<4.0.0" },
     { name = "atlan-application-sdk-conformance", marker = "extra == 'dev'", specifier = ">=0.17.0,<1.0.0" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.6.1" },
     { name = "docker", marker = "extra == 'test'", specifier = ">=7.0.0" },
