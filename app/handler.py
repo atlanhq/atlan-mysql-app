@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from application_sdk.errors import AppError, AuthError
+from application_sdk.errors import AppError
 from application_sdk.handler import (
     AuthInput,
     AuthOutput,
@@ -24,7 +24,13 @@ from application_sdk.observability.logger_adaptor import get_logger
 
 from app.client import SQLClient
 from app.constants import DATABASE_PLACEHOLDER
-from app.failures import MetadataFetchError, MetadataHostMissingError
+from app.failures import (
+    MetadataFetchError,
+    MetadataHostMissingError,
+    PreflightAuthError,
+    TableListingError,
+    transient_failure,
+)
 
 logger = get_logger(__name__)
 
@@ -90,8 +96,10 @@ class MySQLAppHandler(Handler):
     async def preflight_check(self, input: PreflightInput) -> PreflightOutput:
         """Auth (required, short-circuits the run) + tables (advisory).
 
-        NOT_READY only when auth fails; PARTIAL when auth passes but the
-        advisory tables check fails; READY when both pass.
+        NOT_READY only when auth fails for a definitive reason; PARTIAL when a
+        transient blip hid the verdict, or when auth passes but the advisory
+        tables check fails; READY when both pass. A blip never reaches NOT_READY
+        because a hard gate would abort the run on it.
         """
         checks: list[PreflightCheck] = []
         client = SQLClient()
@@ -113,21 +121,21 @@ class MySQLAppHandler(Handler):
                 # ERROR filter (P047 / FND-901). DEBUG keeps the traceback for
                 # engineers without adding a second customer-visible record.
                 logger.debug("Auth preflight check failed", exc_info=True)
+                transient = transient_failure(e)
+                auth_failure = (
+                    transient if transient is not None else PreflightAuthError(cause=e)
+                )
                 checks.append(
                     PreflightCheck(
                         name="auth",
                         passed=False,
-                        error=AuthError(  # type: ignore[arg-type]
-                            message="Could not authenticate to the MySQL source.",
-                            suggested_action=(
-                                "Verify the host, port, and credentials, and that "
-                                "the database is reachable from Atlan."
-                            ),
-                            cause=e,
-                        ),
+                        error=auth_failure.to_failure_details(),
                     )
                 )
-                return PreflightOutput(status=PreflightStatus.NOT_READY, checks=checks)
+                status = (
+                    PreflightStatus.PARTIAL if transient else PreflightStatus.NOT_READY
+                )
+                return PreflightOutput(status=status, checks=checks)
             checks.append(
                 PreflightCheck(name="auth", passed=True, message="Authenticated")
             )
@@ -148,17 +156,21 @@ class MySQLAppHandler(Handler):
             # inside a preflight_check, or P047 exempting a broad-catch probe.
             # Delete this suppression when it does; it is not a standing exemption.
             # conformance: ignore[E004] a preflight probe must report a verdict, never crash, so the broad catch is deliberate; E004's sanctioned exc_info WARNING is banned inside preflight_check by P047
-            except Exception:
+            except Exception as e:
                 # DEBUG, not WARNING: this check is advisory, so the gate emits the
                 # single WARNING outcome row itself (keyed on any failed check) —
                 # P047 bans the handler from logging it. DEBUG keeps the traceback
                 # for engineers without duplicating the gate's record.
                 logger.debug("Connectivity preflight check failed", exc_info=True)
+                blip = transient_failure(e)
+                listing_failure = (
+                    blip if blip is not None else TableListingError(cause=e)
+                )
                 checks.append(
                     PreflightCheck(
                         name="connectivity",
                         passed=False,
-                        message="Table check failed",
+                        error=listing_failure.to_failure_details(),
                     )
                 )
                 status = PreflightStatus.PARTIAL
