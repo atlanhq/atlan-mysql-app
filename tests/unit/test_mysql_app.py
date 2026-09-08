@@ -416,20 +416,32 @@ class TestMySQLAppRun:
         info.run_id = run_id
         return info
 
-    def _run(self, app, input_, wf_info):
-        """Run MySQLApp.run() with all SQL tasks mocked out."""
+    def _run(self, app, input_, wf_info, upload_refs_output=None):
+        """Run MySQLApp.run() with all SQL tasks mocked out.
+
+        ``upload_refs_output`` overrides what the mocked ``upload_refs`` returns,
+        so a test can drive the empty-delivery case — the one case where the
+        delivered prefix and ``base_result.transformed_data_prefix`` differ.
+        """
         import asyncio
         from unittest.mock import AsyncMock, MagicMock, patch
 
+        from application_sdk.contracts.storage import UploadRefsOutput
+        from application_sdk.contracts.types import FileReference
         from application_sdk.templates.contracts.sql_metadata import (
             ExtractionTaskOutput,
             PrimeAuthOutput,
+            TransformOutput,
+        )
+
+        run_prefix = (
+            f"artifacts/apps/mysql/workflows/{wf_info.workflow_id}/{wf_info.run_id}"
         )
 
         # SDK v3.12+: each extract_* returns
         # ``ExtractionTaskOutput`` with a ``raw_file: FileReference | None``
         # field. ``run()`` reads ``.raw_file`` and threads it into the
-        # matching transform via ``_build_transform_input``, which
+        # matching transform via ``build_transform_input``, which
         # Pydantic-validates the ref against ``FileReference`` —
         # MagicMock auto-attrs would fail that validation. Use real
         # ``ExtractionTaskOutput`` instances with ``raw_file=None``.
@@ -437,6 +449,28 @@ class TestMySQLAppRun:
             return ExtractionTaskOutput(
                 typename=entity, total_record_count=count, raw_file=None
             )
+
+        # FND-1790: SqlApp.run() collects each transform's ``transformed_file``
+        # and MySQLApp.run() hands the collected declaration to upload_refs().
+        # A MagicMock's auto-attr would sail through the ``is not None`` check
+        # and then fail FileReference validation inside VerifyRefsInput, so the
+        # transforms have to return real ``TransformOutput`` values here.
+        def _transform_result(entity: str, count: int) -> TransformOutput:
+            return TransformOutput(
+                typename=entity,
+                total_record_count=count,
+                transformed_file=FileReference(
+                    storage_path=f"{run_prefix}/transformed/{entity}/entities.json",
+                    file_count=1,
+                ),
+            )
+
+        upload_refs_mock = AsyncMock(
+            return_value=upload_refs_output
+            if upload_refs_output is not None
+            else UploadRefsOutput(prefix=f"{run_prefix}/transformed")
+        )
+        verify_refs_mock = AsyncMock(return_value=MagicMock())
 
         with (
             patch("temporalio.workflow.info", return_value=wf_info),
@@ -477,26 +511,43 @@ class TestMySQLAppRun:
                 new=AsyncMock(return_value=_extract_result("procedure", 1)),
             ),
             patch.object(
-                MySQLApp, "transform_databases", new=AsyncMock(return_value=MagicMock())
+                MySQLApp,
+                "transform_databases",
+                new=AsyncMock(return_value=_transform_result("database", 1)),
             ),
             patch.object(
-                MySQLApp, "transform_schemas", new=AsyncMock(return_value=MagicMock())
+                MySQLApp,
+                "transform_schemas",
+                new=AsyncMock(return_value=_transform_result("schema", 1)),
             ),
             patch.object(
-                MySQLApp, "transform_tables", new=AsyncMock(return_value=MagicMock())
+                MySQLApp,
+                "transform_tables",
+                new=AsyncMock(return_value=_transform_result("table", 2)),
             ),
             patch.object(
-                MySQLApp, "transform_columns", new=AsyncMock(return_value=MagicMock())
+                MySQLApp,
+                "transform_columns",
+                new=AsyncMock(return_value=_transform_result("column", 5)),
             ),
             patch.object(
                 MySQLApp,
                 "transform_procedures",
-                new=AsyncMock(return_value=MagicMock()),
+                new=AsyncMock(return_value=_transform_result("procedure", 1)),
             ),
-            patch.object(MySQLApp, "_resolve_credential_ref", return_value=None),
-            patch.object(MySQLApp, "upload", new=AsyncMock(return_value=MagicMock())),
+            patch.object(MySQLApp, "resolve_credential_ref", return_value=None),
+            # verify_refs is the framework task SqlApp.run() uses to assert its
+            # own declaration against the deployment store; upload_refs is the
+            # fan-in MySQLApp.run() uses to deliver that declaration upstream.
+            # Both are store round-trips — out of scope for these output-prefix
+            # tests, and both have dedicated coverage in application-sdk.
+            patch.object(MySQLApp, "verify_refs", new=verify_refs_mock),
+            patch.object(MySQLApp, "upload_refs", new=upload_refs_mock),
         ):
-            return asyncio.run(app.run(input_))
+            result = asyncio.run(app.run(input_))
+            self.last_upload_refs = upload_refs_mock
+            self.last_verify_refs = verify_refs_mock
+            return result
 
     def test_lineage_prefixes_use_workflow_id_and_run_id(self):
         """view_lineage_output_prefix and lineage_stage_prefix must contain the
@@ -591,6 +642,147 @@ class TestMySQLAppRun:
         )
         result = self._run(app, ExtractionInput(connection=conn, output_path=""), info)
         assert result.connection_qualified_name == "default/mysql/123"
+
+    # ── FND-1790: fan-in by declaration, not by directory scan ──────────
+
+    def test_upload_refs_declares_every_transform_including_procedures(self):
+        """The declaration handed to upload_refs covers all five entities.
+
+        The procedure transform runs in MySQLApp.run(), not SqlApp.run(), so its
+        ref is absent from base_result.transformed_files and has to be appended
+        explicitly. Dropping it would lose every procedure — silently, because
+        the ref-based upload has no directory to fall back on.
+        """
+        from application_sdk.templates.contracts.sql_metadata import ExtractionInput
+
+        app = self._make_app()
+        info = self._mock_workflow_info()
+        self._run(app, ExtractionInput(output_path=""), info)
+
+        sent = self.last_upload_refs.await_args.args[0]
+        leaves = {
+            declared.ref.storage_path.rsplit("/transformed/", 1)[-1]
+            for declared in sent.files
+        }
+        assert leaves == {
+            "database/entities.json",
+            "schema/entities.json",
+            "table/entities.json",
+            "column/entities.json",
+            "procedure/entities.json",
+        }
+
+    def test_procedure_ref_is_verified_not_just_declared(self):
+        """The procedure ref must appear in a verify_refs call, not only in the output.
+
+        super().run() verifies the four refs it drove and then returns, so a ref
+        appended afterwards is asserted by nobody. Concatenating by hand would
+        still put five entries in transformed_files — right data, absent proof —
+        which is why the entity count alone is not sufficient coverage here.
+        finalize_extraction() re-verifies the whole concatenated declaration.
+
+        This is the only run() test that binds an ``_context``. finalize_extraction
+        skips verification entirely when there is none — correctly, since without
+        a context there is no worker, no interceptor, and nothing persisted to
+        verify — so an unbound app would make this assertion unprovable. The other
+        run() tests stay context-less on purpose: that is the path that proves the
+        no-worker case still assembles and returns its declaration.
+        """
+        from application_sdk.app.context import AppContext
+        from application_sdk.templates.contracts.sql_metadata import ExtractionInput
+
+        app = self._make_app()
+        app._context = AppContext(
+            app_name="mysql",
+            app_version="1",
+            run_id="run-test-456",
+            # Non-None so the guard treats this as running under a worker;
+            # verify_refs itself is mocked, so the store is never touched.
+            _storage=object(),  # type: ignore[arg-type]
+        )
+        info = self._mock_workflow_info()
+        self._run(app, ExtractionInput(output_path=""), info)
+
+        verified = {
+            ref.storage_path
+            for call in self.last_verify_refs.await_args_list
+            for ref in call.args[0].refs
+        }
+        assert any("/transformed/procedure/" in path for path in verified), (
+            "the procedure ref was never passed to verify_refs — it is being "
+            "handed downstream on the strength of the declaration alone"
+        )
+
+    def test_upload_refs_preserves_publish_key_shape(self):
+        """source_prefix equals the destination prefix, so keys are unchanged.
+
+        The refs already carry <run>/transformed/<entity>/entities.json. Stripping
+        source_prefix yields <entity>/entities.json, which lands back under the
+        same prefix — publish reads the exact keys it read before the switch.
+        """
+        from application_sdk.templates.contracts.sql_metadata import ExtractionInput
+
+        app = self._make_app()
+        info = self._mock_workflow_info()
+        self._run(app, ExtractionInput(output_path=""), info)
+
+        sent = self.last_upload_refs.await_args.args[0]
+        assert sent.source_prefix == sent.prefix
+        assert sent.prefix.endswith("/transformed")
+
+    def test_empty_delivery_yields_an_empty_transformed_data_prefix(self):
+        """An empty delivery must propagate as "", not as the input prefix.
+
+        upload_refs answers an empty declaration with an empty prefix on purpose:
+        a prefix naming an empty tree reads to publish as "everything was deleted
+        at source", whereas an empty prefix is a no-op. Returning
+        base_result.transformed_data_prefix instead would defeat that.
+
+        Driving the empty case is what makes this test discriminate at all — on a
+        normal run upload_refs echoes back the prefix it was given, so the two
+        candidate expressions produce the same string and an assertion comparing
+        them would pass either way.
+        """
+        from application_sdk.contracts.storage import UploadRefsOutput
+        from application_sdk.templates.contracts.sql_metadata import ExtractionInput
+
+        app = self._make_app()
+        info = self._mock_workflow_info()
+        result = self._run(
+            app,
+            ExtractionInput(output_path=""),
+            info,
+            upload_refs_output=UploadRefsOutput(),
+        )
+
+        assert result.transformed_data_prefix == "", (
+            "run() returned a non-empty transformed_data_prefix for a delivery "
+            "that landed nothing — publish would diff against an empty tree and "
+            "archive every asset as removed from source"
+        )
+
+    def test_transformed_tree_is_never_uploaded_by_directory_scan(self):
+        """App.upload() must not be used for the transformed tree.
+
+        Guards the FND-1790 regression directly: a local-path upload walks only
+        the pod it runs on, so on a fanned-out run it hands publish a short tree
+        that is indistinguishable from a small one.
+        """
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from application_sdk.templates.contracts.sql_metadata import ExtractionInput
+
+        app = self._make_app()
+        info = self._mock_workflow_info()
+        upload_mock = AsyncMock(return_value=MagicMock())
+        with patch.object(MySQLApp, "upload", new=upload_mock):
+            self._run(app, ExtractionInput(output_path=""), info)
+
+        assert not upload_mock.await_args_list, (
+            "MySQLApp.run() uploaded by local path — the transformed hand-off "
+            "must go through upload_refs() so it works when the transform "
+            "activities ran on other pods"
+        )
 
 
 class TestEpochMs:
