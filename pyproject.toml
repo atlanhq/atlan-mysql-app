@@ -1,6 +1,6 @@
 [project]
 name = "atlan-mysql-app"
-version = "2.1.0"
+version = "2.2.0"
 description = "Atlan MySQL App: Built using Atlan Application SDK"
 authors = [{ name = "Atlan Apps Team" }]
 requires-python = ">=3.11"
