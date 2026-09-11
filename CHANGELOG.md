@@ -1,5 +1,10 @@
 # Changelog
 
+## v2.2.1 (September 11, 2026)
+
+Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.2.0...v2.2.1
+
+
 ## v2.2.0 (September 10, 2026)
 
 Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.1.0...v2.2.0
