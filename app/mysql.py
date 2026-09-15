@@ -24,15 +24,7 @@ from application_sdk.templates.contracts.sql_metadata import (
     TransformOutput,
 )
 from application_sdk.templates.sql_app import SqlApp
-from pyatlan_v9.model.assets import (
-    Asset,
-    Column,
-    Database,
-    Procedure,
-    Schema,
-    Table,
-    View,
-)
+from pyatlan_v9.model.assets import Column, Database, Procedure, Schema, Table, View
 
 from app.client import SQLClient
 from app.constants import DATABASE_PLACEHOLDER, TENANT_ID
@@ -218,7 +210,7 @@ class MySQLApp(SqlApp):
 
     # ── Asset mappers ───────────────────────────────────────────────────
 
-    def map_database(self, record: dict[str, Any], connection_qn: str) -> Asset:
+    def map_database(self, record: dict[str, Any], connection_qn: str) -> Database:
         """Map raw database record to Atlan Database entity.
 
         No ``description`` is set: the 'def' catalog isn't a real MySQL object
@@ -236,7 +228,7 @@ class MySQLApp(SqlApp):
         asset.status = "ACTIVE"
         return asset
 
-    def map_schema(self, record: dict[str, Any], connection_qn: str) -> Asset:
+    def map_schema(self, record: dict[str, Any], connection_qn: str) -> Schema:
         """Map raw schema record to Atlan Schema entity.
 
         No ``description`` is set: MySQL genuinely has no schema/database-level
@@ -264,7 +256,7 @@ class MySQLApp(SqlApp):
 
     def map_table(
         self, record: dict[str, Any], connection_qn: str
-    ) -> Asset | dict[str, Any]:
+    ) -> Table | dict[str, Any]:
         """Map raw table/view record to Atlan Table or View entity.
 
         MySQL extract_table.sql returns both tables and views in the same
@@ -338,7 +330,12 @@ class MySQLApp(SqlApp):
         custom["is_transient"] = ""
         asset.custom_attributes = custom
 
-        if not is_view:
+        # The non-view branch. Spelled as an ``isinstance`` rather than
+        # ``if not is_view`` so the narrowed ``Table`` return type is one the
+        # type checker verifies: ``asset_cls`` is exactly ``Table`` or ``View``,
+        # and ``View`` is a sibling of ``Table`` under ``Asset``, not a
+        # subclass, so the two branches are disjoint.
+        if isinstance(asset, Table):
             return asset
 
         # QI reads column_mapping.defaultCatalogName / defaultSchemaName from the
@@ -357,7 +354,7 @@ class MySQLApp(SqlApp):
         entity["defaultSchemaName"] = schema_name
         return entity
 
-    def map_column(self, record: dict[str, Any], connection_qn: str) -> Asset:
+    def map_column(self, record: dict[str, Any], connection_qn: str) -> Column:
         """Map raw column record to Atlan Column entity."""
         db_name = record.get(
             "table_catalog",
@@ -441,7 +438,7 @@ class MySQLApp(SqlApp):
 
         return asset
 
-    def map_procedure(self, record: dict[str, Any], connection_qn: str) -> Asset:
+    def map_procedure(self, record: dict[str, Any], connection_qn: str) -> Procedure:
         """Map raw procedure record to Atlan Procedure entity.
 
         The ``definition`` field contains the stored procedure SQL body. The

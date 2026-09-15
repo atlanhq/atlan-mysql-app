@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import pytest
 
+from pyatlan_v9.model.assets import Column, Database, Procedure, Schema, Table
+
 from app.constants import DATABASE_PLACEHOLDER
 from app.mysql import MySQLApp
 from tests.wire import wire
@@ -842,12 +844,13 @@ class TestMapperReturnShape:
         return "default/mysql/1234567890"
 
     @pytest.mark.parametrize(
-        ("mapper", "record"),
+        ("mapper", "expected_type", "record"),
         [
-            ("map_database", {"database_name": "def"}),
-            ("map_schema", {"catalog_name": "def", "schema_name": "mydb"}),
+            ("map_database", Database, {"database_name": "def"}),
+            ("map_schema", Schema, {"catalog_name": "def", "schema_name": "mydb"}),
             (
                 "map_table",
+                Table,
                 {
                     "table_catalog": "def",
                     "table_schema": "mydb",
@@ -857,6 +860,7 @@ class TestMapperReturnShape:
             ),
             (
                 "map_column",
+                Column,
                 {
                     "table_catalog": "def",
                     "table_schema": "mydb",
@@ -867,6 +871,7 @@ class TestMapperReturnShape:
             ),
             (
                 "map_procedure",
+                Procedure,
                 {
                     "procedure_catalog": "def",
                     "procedure_schema": "mydb",
@@ -876,16 +881,20 @@ class TestMapperReturnShape:
             ),
         ],
     )
-    def test_mapper_returns_an_asset_the_sdk_encodes_natively(
-        self, app, connection_qn, mapper, record
+    def test_mapper_returns_the_asset_type_it_declares(
+        self, app, connection_qn, mapper, expected_type, record
     ):
         from application_sdk.common.asset_serialization import NestedBytesAsset
-        from pyatlan_v9.model.assets import Asset
 
         result = getattr(app, mapper)(record, connection_qn)
 
-        assert isinstance(result, Asset), (
-            f"{mapper} returned {type(result).__name__}, not a pyatlan_v9 Asset"
+        # `type(...) is` rather than `isinstance`: each mapper's annotation
+        # names one concrete class, and every one of these is a direct sibling
+        # under `Asset`, so a subclass would be a different entity, not a
+        # refinement.
+        assert type(result) is expected_type, (
+            f"{mapper} returned {type(result).__name__}, "
+            f"but its signature declares {expected_type.__name__}"
         )
         assert isinstance(result, NestedBytesAsset), (
             f"{mapper}'s result does not satisfy the SDK's NestedBytesAsset "
