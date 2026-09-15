@@ -48,15 +48,20 @@ class MySQLExtractionOutput(Output):
     qi → lineage-app → lineage-publish nodes in the manifest DAG, mirroring
     the pattern used by the Athena native app.
 
-    Deliberately *not* a subclass of the SDK's ``ExtractionOutput``, despite
-    re-declaring four of its fields. ``ExtractionOutput`` carries
+    Must not become a subclass of the SDK's ``ExtractionOutput``, even though
+    the four fields above only mirror it by hand. ``ExtractionOutput`` carries
     ``PublishInputMixin``, whose model validator back-fills an empty
-    ``transformed_data_prefix`` from ``output_path``. This app returns an empty
-    prefix on purpose when ``upload_refs`` delivered nothing — the signal that
-    stops publish diffing against an empty tree and archiving every asset as
-    removed from source — and inheriting the mixin would silently repopulate it
-    (pinned by
-    ``test_empty_delivery_yields_an_empty_transformed_data_prefix``).
+    ``transformed_data_prefix`` from ``output_path`` — and since FND-1790 (#628)
+    this app returns an empty prefix on purpose when ``upload_refs`` delivered
+    nothing, as the signal that stops publish diffing against an empty tree and
+    archiving every asset as removed from source. Inheriting the mixin silently
+    repopulates it.
+
+    Recorded as a constraint rather than as the original intent: the hand-copied
+    fields predate that invariant by four months, so they are not evidence
+    anyone weighed the mixin. The inheritance was tried in FND-2092 and
+    ``test_empty_delivery_yields_an_empty_transformed_data_prefix`` is what
+    caught it.
     """
 
     # Standard publish inputs (match ExtractionOutput fields)
