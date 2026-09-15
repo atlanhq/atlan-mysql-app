@@ -349,7 +349,17 @@ class MySQLApp(SqlApp):
         # closed msgspec types, so there is nowhere to put them before serialisation.
         # The SDK's own ``entity_bytes`` still owns the wire shape — this only
         # decorates what it produced, rather than re-deriving it here.
-        entity: dict[str, Any] = orjson.loads(entity_bytes(asset, entity_type="view"))
+        #
+        # No ``entity_type``: it labels the SDK's *stream* (the
+        # ``transformed/<entity>/`` the line lands in), not the Atlas type, and
+        # this mapper cannot know which stream called it — the SDK passes that
+        # at its own call site. MySQL has no view stream at all: there is no
+        # ``fetch_view_sql``, ``SqlApp.run()`` never calls ``transform_views``,
+        # and extract_table.sql returns views alongside tables, so a view here
+        # is written by ``transform_tables`` into ``transformed/table/``.
+        # Passing ``"view"`` would point a failure at a path this app never
+        # writes; unset just drops the location clause.
+        entity: dict[str, Any] = orjson.loads(entity_bytes(asset))
         entity["defaultCatalogName"] = db_name
         entity["defaultSchemaName"] = schema_name
         return entity
