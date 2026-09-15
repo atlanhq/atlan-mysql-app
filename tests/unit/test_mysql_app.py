@@ -6,6 +6,7 @@ import pytest
 
 from app.constants import DATABASE_PLACEHOLDER
 from app.mysql import MySQLApp
+from tests.wire import wire
 
 
 class TestMySQLAppClassAttrs:
@@ -72,7 +73,7 @@ class TestMySQLAppMappers:
 
     def test_map_database(self, app, connection_qn):
         record = {"database_name": "def", "schema_count": 5}
-        result = app.map_database(record, connection_qn)
+        result = wire(app.map_database(record, connection_qn))
         assert result["typeName"] == "Database"
         assert result["attributes"]["name"] == "def"
         assert result["attributes"]["qualifiedName"] == f"{connection_qn}/def"
@@ -87,7 +88,7 @@ class TestMySQLAppMappers:
             "table_count": 10,
             "views_count": 3,
         }
-        result = app.map_schema(record, connection_qn)
+        result = wire(app.map_schema(record, connection_qn))
         assert result["typeName"] == "Schema"
         assert result["attributes"]["name"] == "mydb"
         assert result["attributes"]["qualifiedName"] == f"{connection_qn}/def/mydb"
@@ -105,7 +106,7 @@ class TestMySQLAppMappers:
             "column_count": 5,
             "row_count": 100,
         }
-        result = app.map_table(record, connection_qn)
+        result = wire(app.map_table(record, connection_qn))
         assert result["typeName"] == "Table"
         assert result["attributes"]["name"] == "users"
         assert (
@@ -126,7 +127,7 @@ class TestMySQLAppMappers:
             "view_definition": "SELECT * FROM users WHERE active=1",
             "remarks": "Currently active users",
         }
-        result = app.map_table(record, connection_qn)
+        result = wire(app.map_table(record, connection_qn))
         assert result["typeName"] == "View"
         assert result["attributes"]["name"] == "active_users_view"
         assert result["attributes"]["definition"] == (
@@ -150,7 +151,7 @@ class TestMySQLAppMappers:
             "table_name": "users",
             "table_kind": "BASE TABLE",
         }
-        result = app.map_table(record, connection_qn)
+        result = wire(app.map_table(record, connection_qn))
         assert "defaultCatalogName" not in result
         assert "defaultSchemaName" not in result
 
@@ -161,7 +162,7 @@ class TestMySQLAppMappers:
             "table_name": "sys_view",
             "table_kind": "SYSTEM VIEW",
         }
-        result = app.map_table(record, connection_qn)
+        result = wire(app.map_table(record, connection_qn))
         assert result["typeName"] == "View"
 
     def test_map_column(self, app, connection_qn):
@@ -178,7 +179,7 @@ class TestMySQLAppMappers:
             "column_default": None,
             "constraint_type": "",
         }
-        result = app.map_column(record, connection_qn)
+        result = wire(app.map_column(record, connection_qn))
         assert result["typeName"] == "Column"
         assert result["attributes"]["name"] == "email"
         assert (
@@ -201,7 +202,7 @@ class TestMySQLAppMappers:
             "table_type": "BASE TABLE",
             "is_nullable": "NO",
         }
-        result = app.map_column(record, connection_qn)
+        result = wire(app.map_column(record, connection_qn))
         assert result["attributes"]["isNullable"] is False
 
     def test_map_column_view(self, app, connection_qn):
@@ -213,7 +214,7 @@ class TestMySQLAppMappers:
             "column_name": "name",
             "table_type": "VIEW",
         }
-        result = app.map_column(record, connection_qn)
+        result = wire(app.map_column(record, connection_qn))
         assert "view" in result["relationshipAttributes"]
         assert result["relationshipAttributes"]["view"]["typeName"] == "View"
         assert "table" not in result["relationshipAttributes"]
@@ -255,28 +256,28 @@ class TestMapProcedure:
         }
 
     def test_type_name_is_procedure(self, app, basic_record, connection_qn):
-        result = app.map_procedure(basic_record, connection_qn)
+        result = wire(app.map_procedure(basic_record, connection_qn))
         assert result["typeName"] == "Procedure"
 
     def test_status_active(self, app, basic_record, connection_qn):
-        result = app.map_procedure(basic_record, connection_qn)
+        result = wire(app.map_procedure(basic_record, connection_qn))
         assert result["status"] == "ACTIVE"
 
     def test_qualified_name_format(self, app, basic_record, connection_qn):
-        result = app.map_procedure(basic_record, connection_qn)
+        result = wire(app.map_procedure(basic_record, connection_qn))
         # Must match legacy format: connection/db/schema/_procedures_/name
         assert result["attributes"]["qualifiedName"] == (
             "default/mysql/123/def/atlan/_procedures_/count_rows"
         )
 
     def test_definition_stored(self, app, basic_record, connection_qn):
-        result = app.map_procedure(basic_record, connection_qn)
+        result = wire(app.map_procedure(basic_record, connection_qn))
         assert result["attributes"]["definition"] == (
             "BEGIN SELECT COUNT(*) FROM bigtable; END"
         )
 
     def test_sub_type(self, app, basic_record, connection_qn):
-        result = app.map_procedure(basic_record, connection_qn)
+        result = wire(app.map_procedure(basic_record, connection_qn))
         assert result["attributes"]["subType"] == "PROCEDURE"
 
     def test_description_from_remarks(self, app, connection_qn):
@@ -289,15 +290,15 @@ class TestMapProcedure:
             "procedure_type": "PROCEDURE",
             "remarks": "Counts rows in the big table",
         }
-        result = app.map_procedure(record, connection_qn)
+        result = wire(app.map_procedure(record, connection_qn))
         assert result["attributes"]["description"] == "Counts rows in the big table"
 
     def test_description_empty_when_no_remarks(self, app, basic_record, connection_qn):
-        result = app.map_procedure(basic_record, connection_qn)
+        result = wire(app.map_procedure(basic_record, connection_qn))
         assert result["attributes"]["description"] == ""
 
     def test_schema_ref(self, app, basic_record, connection_qn):
-        result = app.map_procedure(basic_record, connection_qn)
+        result = wire(app.map_procedure(basic_record, connection_qn))
         schema_ref = result["relationshipAttributes"]["atlanSchema"]
         assert schema_ref["typeName"] == "Schema"
         assert schema_ref["uniqueAttributes"]["qualifiedName"] == (
@@ -305,17 +306,17 @@ class TestMapProcedure:
         )
 
     def test_connector_name(self, app, basic_record, connection_qn):
-        result = app.map_procedure(basic_record, connection_qn)
+        result = wire(app.map_procedure(basic_record, connection_qn))
         assert result["attributes"]["connectorName"] == "mysql"
 
     def test_tenant_id(self, app, basic_record, connection_qn):
         from app.constants import TENANT_ID
 
-        result = app.map_procedure(basic_record, connection_qn)
+        result = wire(app.map_procedure(basic_record, connection_qn))
         assert result["attributes"]["tenantId"] == TENANT_ID
 
     def test_hierarchy_qualified_names(self, app, basic_record, connection_qn):
-        result = app.map_procedure(basic_record, connection_qn)
+        result = wire(app.map_procedure(basic_record, connection_qn))
         attrs = result["attributes"]
         assert attrs["databaseQualifiedName"] == "default/mysql/123/def"
         assert attrs["schemaQualifiedName"] == "default/mysql/123/def/atlan"
@@ -332,14 +333,14 @@ class TestMapProcedure:
             "created": "2026-01-01 12:00:00",
             "last_altered": "2026-02-01 12:00:00",
         }
-        result = app.map_procedure(record, connection_qn)
+        result = wire(app.map_procedure(record, connection_qn))
         assert "sourceCreatedAt" in result["attributes"]
         assert "sourceUpdatedAt" in result["attributes"]
 
     def test_source_timestamps_absent_when_missing(
         self, app, basic_record, connection_qn
     ):
-        result = app.map_procedure(basic_record, connection_qn)
+        result = wire(app.map_procedure(basic_record, connection_qn))
         assert "sourceCreatedAt" not in result["attributes"]
         assert "sourceUpdatedAt" not in result["attributes"]
 
@@ -351,7 +352,7 @@ class TestMapProcedure:
             "procedure_definition": None,
             "procedure_type": "FUNCTION",
         }
-        result = app.map_procedure(record, connection_qn)
+        result = wire(app.map_procedure(record, connection_qn))
         assert result["attributes"]["definition"] == ""
         assert result["attributes"]["subType"] == "FUNCTION"
 
@@ -363,7 +364,7 @@ class TestMapProcedure:
             "procedure_name": "proc",
             "procedure_definition": "BEGIN END",
         }
-        result = app.map_procedure(record, connection_qn)
+        result = wire(app.map_procedure(record, connection_qn))
         assert result["attributes"]["databaseName"] == DATABASE_PLACEHOLDER
 
 
@@ -820,3 +821,103 @@ class TestEpochMs:
         from app.mysql import _epoch_ms
 
         assert _epoch_ms(bad) is None
+
+
+class TestMapperReturnShape:
+    """The mappers hand the SDK assets, not a hand-serialised dict.
+
+    ``SqlApp._transform_entity`` passes a mapper's return value straight to
+    ``entity_bytes``, whose first dispatch branch is ``to_nested_bytes()`` —
+    the ``pyatlan_v9`` encoder, no dict intermediate. A mapper that serialises
+    the asset itself does that encoding twice and owns a copy of the wire
+    format the SDK already owns. Pinned so the shim cannot come back unnoticed.
+    """
+
+    @pytest.fixture
+    def app(self):
+        return MySQLApp()
+
+    @pytest.fixture
+    def connection_qn(self):
+        return "default/mysql/1234567890"
+
+    @pytest.mark.parametrize(
+        ("mapper", "record"),
+        [
+            ("map_database", {"database_name": "def"}),
+            ("map_schema", {"catalog_name": "def", "schema_name": "mydb"}),
+            (
+                "map_table",
+                {
+                    "table_catalog": "def",
+                    "table_schema": "mydb",
+                    "table_name": "users",
+                    "table_kind": "BASE TABLE",
+                },
+            ),
+            (
+                "map_column",
+                {
+                    "table_catalog": "def",
+                    "table_schema": "mydb",
+                    "table_name": "users",
+                    "column_name": "email",
+                    "table_type": "BASE TABLE",
+                },
+            ),
+            (
+                "map_procedure",
+                {
+                    "procedure_catalog": "def",
+                    "procedure_schema": "mydb",
+                    "procedure_name": "count_rows",
+                    "procedure_definition": "BEGIN SELECT 1; END",
+                },
+            ),
+        ],
+    )
+    def test_mapper_returns_an_asset_the_sdk_encodes_natively(
+        self, app, connection_qn, mapper, record
+    ):
+        from application_sdk.common.asset_serialization import NestedBytesAsset
+        from pyatlan_v9.model.assets import Asset
+
+        result = getattr(app, mapper)(record, connection_qn)
+
+        assert isinstance(result, Asset), (
+            f"{mapper} returned {type(result).__name__}, not a pyatlan_v9 Asset"
+        )
+        assert isinstance(result, NestedBytesAsset), (
+            f"{mapper}'s result does not satisfy the SDK's NestedBytesAsset "
+            "protocol, so entity_bytes would fall through to a slower branch"
+        )
+
+    def test_view_is_the_one_dict_and_it_carries_the_qi_keys(self, app, connection_qn):
+        """A view is the documented exception: pyatlan_v9 cannot hold the QI keys."""
+        record = {
+            "table_catalog": "def",
+            "table_schema": "mydb",
+            "table_name": "active_users",
+            "table_kind": "VIEW",
+        }
+        result = app.map_table(record, connection_qn)
+
+        assert isinstance(result, dict)
+        assert result["defaultCatalogName"] == "def"
+        assert result["defaultSchemaName"] == "mydb"
+
+    def test_connection_name_is_injected_by_the_sdk_not_the_mapper(
+        self, app, connection_qn
+    ):
+        """The mapper never sees the connection's display name.
+
+        ``entity_bytes`` stamps it on, which only works while the mapper leaves
+        the field unset — so this pins that the app does not set it itself.
+        """
+        asset = app.map_database({"database_name": "def"}, connection_qn)
+
+        assert not asset.connection_name
+        assert (
+            wire(asset, connection_name="my-conn")["attributes"]["connectionName"]
+            == "my-conn"
+        )

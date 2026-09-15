@@ -7,13 +7,13 @@ from __future__ import annotations
 
 import math
 import os
-import time
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
 import orjson
 import pandas as pd
+from application_sdk.common.asset_serialization import entity_bytes
 from application_sdk.contracts.base import Output
 from application_sdk.contracts.storage import DeclaredFile, UploadRefsInput
 from application_sdk.execution import get_object_store_prefix
@@ -24,7 +24,15 @@ from application_sdk.templates.contracts.sql_metadata import (
     TransformOutput,
 )
 from application_sdk.templates.sql_app import SqlApp
-from pyatlan_v9.model.assets import Column, Database, Procedure, Schema, Table, View
+from pyatlan_v9.model.assets import (
+    Asset,
+    Column,
+    Database,
+    Procedure,
+    Schema,
+    Table,
+    View,
+)
 
 from app.client import SQLClient
 from app.constants import DATABASE_PLACEHOLDER, TENANT_ID
@@ -47,6 +55,16 @@ class MySQLExtractionOutput(Output):
     consumed by the publish node. The additional fields are consumed by the
     qi → lineage-app → lineage-publish nodes in the manifest DAG, mirroring
     the pattern used by the Athena native app.
+
+    Deliberately *not* a subclass of the SDK's ``ExtractionOutput``, despite
+    re-declaring four of its fields. ``ExtractionOutput`` carries
+    ``PublishInputMixin``, whose model validator back-fills an empty
+    ``transformed_data_prefix`` from ``output_path``. This app returns an empty
+    prefix on purpose when ``upload_refs`` delivered nothing — the signal that
+    stops publish diffing against an empty tree and archiving every asset as
+    removed from source — and inheriting the mixin would silently repopulate it
+    (pinned by
+    ``test_empty_delivery_yields_an_empty_transformed_data_prefix``).
     """
 
     # Standard publish inputs (match ExtractionOutput fields)
@@ -99,16 +117,6 @@ def _epoch_ms(value: Any) -> int | None:
         return None
 
 
-def _sync_attrs(connection_name: str, workflow_id: str, run_id: str) -> dict:
-    """Build lastSync* attributes from workflow context."""
-    return {
-        "connectionName": connection_name,
-        "lastSyncWorkflowName": workflow_id,
-        "lastSyncRun": run_id,
-        "lastSyncRunAt": int(time.time() * 1000),
-    }
-
-
 def _coerce_numeric(v: Any, default: int = 0) -> int | float:
     """Return v as-is, but convert None / NaN / Inf to default.
 
@@ -138,21 +146,6 @@ def _safe_str(v: Any) -> str:
         if v.is_integer():
             return str(int(v))
     return str(v) if not isinstance(v, str) else v
-
-
-def _asset_to_dict(asset: Any) -> dict[str, Any]:
-    """Serialize a pyatlan_v9 Asset via its canonical ``to_nested_bytes()`` wire shape.
-
-    Returned as a dict (not the raw ``Asset``) because the installed SDK's
-    ``SqlApp._transform_entity`` only recognises a mapper return value that
-    exposes ``to_nested_dict``/``model_dump``/``dict`` — none of which exist on
-    the msgspec-based ``Asset`` — and silently falls back to writing the
-    unmapped raw record otherwise. Parsing the same bytes it would itself
-    write keeps `.creator()` as the single owner of qualifiedName grammar and
-    attribute placement while staying on the dict branch the base class
-    already handles correctly.
-    """
-    return orjson.loads(asset.to_nested_bytes())
 
 
 @lru_cache(maxsize=4096)
@@ -225,7 +218,7 @@ class MySQLApp(SqlApp):
 
     # ── Asset mappers ───────────────────────────────────────────────────
 
-    def map_database(self, record: dict[str, Any], connection_qn: str) -> dict:
+    def map_database(self, record: dict[str, Any], connection_qn: str) -> Asset:
         """Map raw database record to Atlan Database entity.
 
         No ``description`` is set: the 'def' catalog isn't a real MySQL object
@@ -241,9 +234,9 @@ class MySQLApp(SqlApp):
         asset.schema_count = record.get("schema_count", 0)
         asset.tenant_id = TENANT_ID
         asset.status = "ACTIVE"
-        return _asset_to_dict(asset)
+        return asset
 
-    def map_schema(self, record: dict[str, Any], connection_qn: str) -> dict:
+    def map_schema(self, record: dict[str, Any], connection_qn: str) -> Asset:
         """Map raw schema record to Atlan Schema entity.
 
         No ``description`` is set: MySQL genuinely has no schema/database-level
@@ -267,13 +260,19 @@ class MySQLApp(SqlApp):
         asset.views_count = record.get("views_count", 0)
         asset.tenant_id = TENANT_ID
         asset.status = "ACTIVE"
-        return _asset_to_dict(asset)
+        return asset
 
-    def map_table(self, record: dict[str, Any], connection_qn: str) -> dict:
+    def map_table(
+        self, record: dict[str, Any], connection_qn: str
+    ) -> Asset | dict[str, Any]:
         """Map raw table/view record to Atlan Table or View entity.
 
         MySQL extract_table.sql returns both tables and views in the same
         result set, differentiated by table_type / table_kind column.
+
+        Returns the asset itself for a table, and the serialised entity for a
+        view — see the QI hand-off at the end of this method for why a view
+        cannot stay an ``Asset``.
         """
         db_name = record.get(
             "table_catalog",
@@ -339,21 +338,26 @@ class MySQLApp(SqlApp):
         custom["is_transient"] = ""
         asset.custom_attributes = custom
 
-        entity = _asset_to_dict(asset)
+        if not is_view:
+            return asset
 
         # QI reads column_mapping.defaultCatalogName / defaultSchemaName from the
         # top-level entity fields (not from nested attributes) and writes them to
         # each success.json row. Lineage-app uses these to resolve bare view/table
         # names (e.g. "akshaycat") to fully-qualified Atlas entity paths. This is a
-        # live cross-app contract with QI/lineage-app, not a legacy-shape artifact —
-        # pyatlan_v9's Asset model has no equivalent field, so it's added post-serialization.
-        if is_view:
-            entity["defaultCatalogName"] = db_name
-            entity["defaultSchemaName"] = schema_name
-
+        # live cross-app contract with QI/lineage-app, not a legacy-shape artifact.
+        #
+        # A view is therefore the one mapper result that cannot stay an ``Asset``:
+        # pyatlan_v9 has no field for either key, and its nested wire structs are
+        # closed msgspec types, so there is nowhere to put them before serialisation.
+        # The SDK's own ``entity_bytes`` still owns the wire shape — this only
+        # decorates what it produced, rather than re-deriving it here.
+        entity: dict[str, Any] = orjson.loads(entity_bytes(asset, entity_type="view"))
+        entity["defaultCatalogName"] = db_name
+        entity["defaultSchemaName"] = schema_name
         return entity
 
-    def map_column(self, record: dict[str, Any], connection_qn: str) -> dict:
+    def map_column(self, record: dict[str, Any], connection_qn: str) -> Asset:
         """Map raw column record to Atlan Column entity."""
         db_name = record.get(
             "table_catalog",
@@ -435,9 +439,9 @@ class MySQLApp(SqlApp):
         custom["type_name"] = (record.get("data_type") or "").lower()
         asset.custom_attributes = custom
 
-        return _asset_to_dict(asset)
+        return asset
 
-    def map_procedure(self, record: dict[str, Any], connection_qn: str) -> dict:
+    def map_procedure(self, record: dict[str, Any], connection_qn: str) -> Asset:
         """Map raw procedure record to Atlan Procedure entity.
 
         The ``definition`` field contains the stored procedure SQL body. The
@@ -480,7 +484,7 @@ class MySQLApp(SqlApp):
         if source_updated:
             asset.source_updated_at = source_updated
 
-        return _asset_to_dict(asset)
+        return asset
 
     async def run(  # type: ignore[override]
         self, input: ExtractionInput

@@ -20,6 +20,7 @@ from typing import Any
 import pytest
 
 from app.mysql import MySQLApp
+from tests.wire import wire
 
 
 def _sanitize_for_json(obj: Any) -> Any:
@@ -95,17 +96,17 @@ def assert_ref(ref: dict, expected_type: str):
 class TestDatabaseParity:
     def test_structure(self, app):
         record = {"database_name": "def", "schema_count": 5}
-        entity = app.map_database(record, CONNECTION_QN)
+        entity = wire(app.map_database(record, CONNECTION_QN))
         assert_structure(entity, "database", "Database")
 
     def test_qualified_name_includes_connection(self, app):
-        entity = app.map_database({"database_name": "def"}, CONNECTION_QN)
+        entity = wire(app.map_database({"database_name": "def"}, CONNECTION_QN))
         qn = entity["attributes"]["qualifiedName"]
         assert qn.startswith(CONNECTION_QN), f"QN doesn't start with connection: {qn}"
         assert entity["attributes"]["connectionQualifiedName"] == CONNECTION_QN
 
     def test_tenant_id(self, app):
-        entity = app.map_database({"database_name": "def"}, CONNECTION_QN)
+        entity = wire(app.map_database({"database_name": "def"}, CONNECTION_QN))
         assert entity["attributes"]["tenantId"] == "default"
 
 
@@ -120,22 +121,22 @@ class TestSchemaParity:
             "table_count": 7,
             "views_count": 4,
         }
-        entity = app.map_schema(record, CONNECTION_QN)
+        entity = wire(app.map_schema(record, CONNECTION_QN))
         assert_structure(entity, "schema", "Schema")
 
     def test_database_relationship_ref(self, app):
         record = {"catalog_name": "def", "schema_name": "employees"}
-        entity = app.map_schema(record, CONNECTION_QN)
+        entity = wire(app.map_schema(record, CONNECTION_QN))
         assert_ref(entity["relationshipAttributes"]["database"], "Database")
 
     def test_views_count(self, app):
         record = {"catalog_name": "def", "schema_name": "employees", "views_count": 4}
-        entity = app.map_schema(record, CONNECTION_QN)
+        entity = wire(app.map_schema(record, CONNECTION_QN))
         assert "viewsCount" in entity["attributes"]
 
     def test_qualified_name_format(self, app):
         record = {"catalog_name": "def", "schema_name": "employees"}
-        entity = app.map_schema(record, CONNECTION_QN)
+        entity = wire(app.map_schema(record, CONNECTION_QN))
         qn = entity["attributes"]["qualifiedName"]
         assert qn == f"{CONNECTION_QN}/def/employees"
 
@@ -161,7 +162,7 @@ class TestTableParity:
             "table_collation": "utf8mb4_0900_ai_ci",
             "create_options": "",
         }
-        entity = app.map_table(record, CONNECTION_QN)
+        entity = wire(app.map_table(record, CONNECTION_QN))
         assert_structure(entity, "table", "Table")
         assert entity["typeName"] == "Table"
 
@@ -175,7 +176,7 @@ class TestTableParity:
             "size_bytes": 0,
             "view_definition": "CREATE VIEW ...",
         }
-        entity = app.map_table(record, CONNECTION_QN)
+        entity = wire(app.map_table(record, CONNECTION_QN))
         assert_structure(entity, "view", "View")
         assert entity["typeName"] == "View"
 
@@ -186,7 +187,7 @@ class TestTableParity:
             "table_name": "t1",
             "table_kind": "BASE TABLE",
         }
-        entity = app.map_table(record, CONNECTION_QN)
+        entity = wire(app.map_table(record, CONNECTION_QN))
         assert_ref(entity["relationshipAttributes"]["atlanSchema"], "Schema")
 
     def test_custom_attributes(self, app):
@@ -202,7 +203,7 @@ class TestTableParity:
             "table_collation": "utf8mb4",
             "create_options": "",
         }
-        entity = app.map_table(record, CONNECTION_QN)
+        entity = wire(app.map_table(record, CONNECTION_QN))
         custom = entity["customAttributes"]
         for key in (
             "engine",
@@ -223,7 +224,7 @@ class TestTableParity:
             "table_kind": "BASE TABLE",
             "row_count": 500,
         }
-        entity = app.map_table(record, CONNECTION_QN)
+        entity = wire(app.map_table(record, CONNECTION_QN))
         assert entity["attributes"]["rowCount"] == 500
         assert entity["attributes"]["subType"] == "TABLE"
 
@@ -237,7 +238,7 @@ class TestTableParity:
             "table_name": "t",
             "table_kind": "BASE TABLE",
         }
-        entity = app.map_table(record, CONNECTION_QN)
+        entity = wire(app.map_table(record, CONNECTION_QN))
         assert "definition" not in entity["attributes"]
 
     def test_view_has_definition(self, app):
@@ -248,7 +249,7 @@ class TestTableParity:
             "table_kind": "VIEW",
             "view_definition": "SELECT 1",
         }
-        entity = app.map_table(record, CONNECTION_QN)
+        entity = wire(app.map_table(record, CONNECTION_QN))
         assert (
             entity["attributes"]["definition"] == "CREATE OR REPLACE VIEW v AS SELECT 1"
         )
@@ -264,7 +265,7 @@ class TestTableParity:
             "table_kind": "BASE TABLE",
             "remarks": "Orders placed by customers",
         }
-        table_entity = app.map_table(table_record, CONNECTION_QN)
+        table_entity = wire(app.map_table(table_record, CONNECTION_QN))
         assert table_entity["attributes"]["description"] == "Orders placed by customers"
 
         view_record = {
@@ -274,7 +275,7 @@ class TestTableParity:
             "table_kind": "VIEW",
             "remarks": "Active orders only",
         }
-        view_entity = app.map_table(view_record, CONNECTION_QN)
+        view_entity = wire(app.map_table(view_record, CONNECTION_QN))
         assert view_entity["attributes"]["description"] == "Active orders only"
 
     def test_table_description_empty_when_no_remarks(self, app):
@@ -284,7 +285,7 @@ class TestTableParity:
             "table_name": "t",
             "table_kind": "BASE TABLE",
         }
-        entity = app.map_table(record, CONNECTION_QN)
+        entity = wire(app.map_table(record, CONNECTION_QN))
         assert entity["attributes"]["description"] == ""
 
     def test_source_created_at(self, app):
@@ -295,7 +296,7 @@ class TestTableParity:
             "table_kind": "BASE TABLE",
             "create_time": "2021-09-16 00:05:23",
         }
-        entity = app.map_table(record, CONNECTION_QN)
+        entity = wire(app.map_table(record, CONNECTION_QN))
         assert "sourceCreatedAt" in entity["attributes"]
         assert isinstance(entity["attributes"]["sourceCreatedAt"], int)
 
@@ -319,7 +320,7 @@ class TestColumnParity:
             "numeric_scale": 0,
             "constraint_type": "PRIMARY KEY",
         }
-        entity = app.map_column(record, CONNECTION_QN)
+        entity = wire(app.map_column(record, CONNECTION_QN))
         assert_structure(entity, "column", "Column")
 
         # Table-specific conditional attributes
@@ -340,7 +341,7 @@ class TestColumnParity:
             "is_nullable": "NO",
             "ordinal_position": 1,
         }
-        entity = app.map_column(record, CONNECTION_QN)
+        entity = wire(app.map_column(record, CONNECTION_QN))
 
         attrs = entity["attributes"]
         for key in SHAPE_SPEC["column"]["conditional_attributes"]["view_column"]:
@@ -358,7 +359,7 @@ class TestColumnParity:
             "table_type": "BASE TABLE",
             "constraint_type": "PRIMARY KEY",
         }
-        entity = app.map_column(record, CONNECTION_QN)
+        entity = wire(app.map_column(record, CONNECTION_QN))
         assert entity["attributes"]["isPrimary"] is True
         assert entity["attributes"]["isForeign"] is False
 
@@ -371,7 +372,7 @@ class TestColumnParity:
             "table_type": "BASE TABLE",
             "constraint_type": "FOREIGN KEY",
         }
-        entity = app.map_column(record, CONNECTION_QN)
+        entity = wire(app.map_column(record, CONNECTION_QN))
         assert entity["attributes"]["isPrimary"] is False
         assert entity["attributes"]["isForeign"] is True
 
@@ -384,7 +385,7 @@ class TestColumnParity:
             "table_type": "BASE TABLE",
             "data_type": "varchar",
         }
-        entity = app.map_column(record, CONNECTION_QN)
+        entity = wire(app.map_column(record, CONNECTION_QN))
         assert entity["attributes"]["dataType"] == "VARCHAR"
 
     def test_description_from_remarks(self, app):
@@ -397,7 +398,7 @@ class TestColumnParity:
             "table_type": "BASE TABLE",
             "remarks": "Primary identifier",
         }
-        entity = app.map_column(record, CONNECTION_QN)
+        entity = wire(app.map_column(record, CONNECTION_QN))
         assert entity["attributes"]["description"] == "Primary identifier"
 
     def test_description_empty_when_no_remarks(self, app):
@@ -408,7 +409,7 @@ class TestColumnParity:
             "column_name": "c",
             "table_type": "BASE TABLE",
         }
-        entity = app.map_column(record, CONNECTION_QN)
+        entity = wire(app.map_column(record, CONNECTION_QN))
         assert entity["attributes"]["description"] == ""
 
     def test_custom_attributes(self, app):
@@ -425,7 +426,7 @@ class TestColumnParity:
             "character_set_name": "utf8mb4",
             "collation_name": "utf8mb4_0900_ai_ci",
         }
-        entity = app.map_column(record, CONNECTION_QN)
+        entity = wire(app.map_column(record, CONNECTION_QN))
         custom = entity["customAttributes"]
         assert "type_name" in custom
         assert custom["type_name"] == "int"
@@ -460,7 +461,7 @@ class TestJsonSerialization:
             "numeric_scale": float("nan"),
             "ordinal_position": 1,
         }
-        entity = app.map_column(record, CONNECTION_QN)
+        entity = wire(app.map_column(record, CONNECTION_QN))
         # SDK sanitizes NaN before writing — simulate that here
         sanitized = _sanitize_for_json(entity)
         serialized = json.dumps(sanitized)
@@ -479,7 +480,7 @@ class TestJsonSerialization:
             "numeric_precision": float("inf"),
             "column_size": float("-inf"),
         }
-        entity = app.map_column(record, CONNECTION_QN)
+        entity = wire(app.map_column(record, CONNECTION_QN))
         sanitized = _sanitize_for_json(entity)
         serialized = json.dumps(sanitized)
         assert "Infinity" not in serialized
@@ -493,7 +494,7 @@ class TestJsonSerialization:
             "size_bytes": float("nan"),
             "row_count": float("nan"),
         }
-        entity = app.map_table(record, CONNECTION_QN)
+        entity = wire(app.map_table(record, CONNECTION_QN))
         sanitized = _sanitize_for_json(entity)
         serialized = json.dumps(sanitized)
         assert "NaN" not in serialized
@@ -506,28 +507,32 @@ class TestCrossEntityConsistency:
     """Verify QN patterns are consistent across entity types."""
 
     def test_qn_hierarchy(self, app):
-        db = app.map_database({"database_name": "def"}, CONNECTION_QN)
-        schema = app.map_schema(
-            {"catalog_name": "def", "schema_name": "emp"}, CONNECTION_QN
+        db = wire(app.map_database({"database_name": "def"}, CONNECTION_QN))
+        schema = wire(
+            app.map_schema({"catalog_name": "def", "schema_name": "emp"}, CONNECTION_QN)
         )
-        table = app.map_table(
-            {
-                "table_catalog": "def",
-                "table_schema": "emp",
-                "table_name": "t1",
-                "table_kind": "BASE TABLE",
-            },
-            CONNECTION_QN,
+        table = wire(
+            app.map_table(
+                {
+                    "table_catalog": "def",
+                    "table_schema": "emp",
+                    "table_name": "t1",
+                    "table_kind": "BASE TABLE",
+                },
+                CONNECTION_QN,
+            )
         )
-        column = app.map_column(
-            {
-                "table_catalog": "def",
-                "table_schema": "emp",
-                "table_name": "t1",
-                "column_name": "id",
-                "table_type": "BASE TABLE",
-            },
-            CONNECTION_QN,
+        column = wire(
+            app.map_column(
+                {
+                    "table_catalog": "def",
+                    "table_schema": "emp",
+                    "table_name": "t1",
+                    "column_name": "id",
+                    "table_type": "BASE TABLE",
+                },
+                CONNECTION_QN,
+            )
         )
 
         db_qn = db["attributes"]["qualifiedName"]
@@ -541,26 +546,34 @@ class TestCrossEntityConsistency:
 
     def test_all_entities_have_tenant_id(self, app):
         for entity in [
-            app.map_database({"database_name": "def"}, CONNECTION_QN),
-            app.map_schema({"catalog_name": "def", "schema_name": "s"}, CONNECTION_QN),
-            app.map_table(
-                {
-                    "table_catalog": "def",
-                    "table_schema": "s",
-                    "table_name": "t",
-                    "table_kind": "BASE TABLE",
-                },
-                CONNECTION_QN,
+            wire(app.map_database({"database_name": "def"}, CONNECTION_QN)),
+            wire(
+                app.map_schema(
+                    {"catalog_name": "def", "schema_name": "s"}, CONNECTION_QN
+                )
             ),
-            app.map_column(
-                {
-                    "table_catalog": "def",
-                    "table_schema": "s",
-                    "table_name": "t",
-                    "column_name": "c",
-                    "table_type": "BASE TABLE",
-                },
-                CONNECTION_QN,
+            wire(
+                app.map_table(
+                    {
+                        "table_catalog": "def",
+                        "table_schema": "s",
+                        "table_name": "t",
+                        "table_kind": "BASE TABLE",
+                    },
+                    CONNECTION_QN,
+                )
+            ),
+            wire(
+                app.map_column(
+                    {
+                        "table_catalog": "def",
+                        "table_schema": "s",
+                        "table_name": "t",
+                        "column_name": "c",
+                        "table_type": "BASE TABLE",
+                    },
+                    CONNECTION_QN,
+                )
             ),
         ]:
             assert entity["attributes"].get("tenantId") == "default", (
@@ -573,24 +586,28 @@ class TestCrossEntityConsistency:
         so they legitimately omit the key (unlike the legacy shape, which always
         included an empty ``customAttributes: {}``)."""
         for entity in [
-            app.map_table(
-                {
-                    "table_catalog": "def",
-                    "table_schema": "s",
-                    "table_name": "t",
-                    "table_kind": "BASE TABLE",
-                },
-                CONNECTION_QN,
+            wire(
+                app.map_table(
+                    {
+                        "table_catalog": "def",
+                        "table_schema": "s",
+                        "table_name": "t",
+                        "table_kind": "BASE TABLE",
+                    },
+                    CONNECTION_QN,
+                )
             ),
-            app.map_column(
-                {
-                    "table_catalog": "def",
-                    "table_schema": "s",
-                    "table_name": "t",
-                    "column_name": "c",
-                    "table_type": "BASE TABLE",
-                },
-                CONNECTION_QN,
+            wire(
+                app.map_column(
+                    {
+                        "table_catalog": "def",
+                        "table_schema": "s",
+                        "table_name": "t",
+                        "column_name": "c",
+                        "table_type": "BASE TABLE",
+                    },
+                    CONNECTION_QN,
+                )
             ),
         ]:
             assert "customAttributes" in entity, (
