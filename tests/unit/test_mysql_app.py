@@ -8,7 +8,7 @@ from pyatlan_v9.model.assets import Column, Database, Procedure, Schema, Table
 
 from app.constants import DATABASE_PLACEHOLDER
 from app.mysql import MySQLApp
-from tests.wire import wire
+from tests.wire import rels_of, wire
 
 
 class TestMySQLAppClassAttrs:
@@ -97,7 +97,7 @@ class TestMySQLAppMappers:
         assert result["attributes"]["databaseName"] == "def"
         assert result["attributes"]["tableCount"] == 10
         assert result["attributes"]["viewsCount"] == 3
-        assert result["relationshipAttributes"]["database"]["typeName"] == "Database"
+        assert rels_of(result)["database"]["typeName"] == "Database"
 
     def test_map_table_base_table(self, app, connection_qn):
         record = {
@@ -117,7 +117,7 @@ class TestMySQLAppMappers:
         assert result["attributes"]["columnCount"] == 5
         assert result["attributes"]["rowCount"] == 100
         assert result["attributes"]["subType"] == "TABLE"
-        assert result["relationshipAttributes"]["atlanSchema"]["typeName"] == "Schema"
+        assert rels_of(result)["atlanSchema"]["typeName"] == "Schema"
 
     def test_map_table_view(self, app, connection_qn):
         """Views are returned as typeName=View based on table_kind."""
@@ -192,7 +192,7 @@ class TestMySQLAppMappers:
         assert result["attributes"]["maxLength"] == 255
         assert result["attributes"]["isNullable"] is True
         assert result["attributes"]["order"] == 3
-        assert result["relationshipAttributes"]["table"]["typeName"] == "Table"
+        assert rels_of(result)["table"]["typeName"] == "Table"
         assert "customAttributes" in result
 
     def test_map_column_not_nullable(self, app, connection_qn):
@@ -217,9 +217,10 @@ class TestMySQLAppMappers:
             "table_type": "VIEW",
         }
         result = wire(app.map_column(record, connection_qn))
-        assert "view" in result["relationshipAttributes"]
-        assert result["relationshipAttributes"]["view"]["typeName"] == "View"
-        assert "table" not in result["relationshipAttributes"]
+        rels = rels_of(result)
+        assert "view" in rels
+        assert rels["view"]["typeName"] == "View"
+        assert "table" not in rels
         assert result["attributes"]["viewName"] == "active_view"
 
 
@@ -301,7 +302,7 @@ class TestMapProcedure:
 
     def test_schema_ref(self, app, basic_record, connection_qn):
         result = wire(app.map_procedure(basic_record, connection_qn))
-        schema_ref = result["relationshipAttributes"]["atlanSchema"]
+        schema_ref = rels_of(result)["atlanSchema"]
         assert schema_ref["typeName"] == "Schema"
         assert schema_ref["uniqueAttributes"]["qualifiedName"] == (
             "default/mysql/123/def/atlan"

@@ -1,5 +1,5 @@
 {
-  "_description": "Expected JSONL entity shape produced by the pyatlan_v9 asset-mapper (.creator()) pattern. Structural guard rail — relationship refs live under relationshipAttributes, not nested inside attributes; tenantId/status are not duplicated at the top level (status is top-level, tenantId is attributes-only).",
+  "_description": "Expected JSONL entity shape produced by the pyatlan_v9 asset-mapper (.creator()) pattern. Structural guard rail — tenantId/status are not duplicated at the top level (status is top-level, tenantId is attributes-only). required_relationships are looked up through tests.wire.rels_of, which reads whichever envelope position the SDK is using: flattened into attributes from 3.36.0 (FND-2137), under a top-level relationshipAttributes key before that. That is why relationshipAttributes is not listed in any top_level_keys — its presence is no longer invariant. test_refs_live_in_exactly_one_place pins which position is in force.",
   "_note": "sdk_injected_attributes are added by the SDK framework (not app mappers) — connectionName, lastSync*",
   "sdk_injected_attributes": [
     "lastSyncWorkflowName",
@@ -26,8 +26,7 @@
     "top_level_keys": [
       "typeName",
       "status",
-      "attributes",
-      "relationshipAttributes"
+      "attributes"
     ],
     "required_attributes": [
       "name",
@@ -49,7 +48,6 @@
       "typeName",
       "status",
       "attributes",
-      "relationshipAttributes",
       "customAttributes"
     ],
     "required_attributes": [
@@ -84,7 +82,6 @@
       "typeName",
       "status",
       "attributes",
-      "relationshipAttributes",
       "customAttributes"
     ],
     "required_attributes": [
@@ -115,7 +112,6 @@
       "typeName",
       "status",
       "attributes",
-      "relationshipAttributes",
       "customAttributes"
     ],
     "required_attributes": [
