@@ -2,10 +2,16 @@
 
 These tests ensure the asset mappers produce entities with the expected keys,
 relationship refs, and structure for the native pyatlan_v9 wire shape (BLDX-1492
-asset-mapper migration) — relationship refs live under ``relationshipAttributes``,
-not nested inside ``attributes``, and ``tenantId``/``status`` are not duplicated
-at the top level the way the legacy hand-rolled dict shape did. Values are not
-compared, only the presence and shape of fields.
+asset-mapper migration) — ``tenantId``/``status`` are not duplicated at the top
+level the way the legacy hand-rolled dict shape did. Values are not compared,
+only the presence and shape of fields.
+
+Relationship refs are read through :func:`tests.wire.rels_of`, which accepts
+either envelope position: the SDK flattens refs into ``attributes`` from 3.36.0
+(FND-2137), and before that they sat under a top-level ``relationshipAttributes``
+key. The refs themselves are identical either way, so these tests pin them under
+both SDKs; ``test_refs_live_in_exactly_one_place`` pins which envelope is
+actually in force, and that a ref is never lost or duplicated across the two.
 
 Reference: tests/integration/fixtures/parity_spec.json
 """
@@ -20,7 +26,7 @@ from typing import Any
 import pytest
 
 from app.mysql import MySQLApp
-from tests.wire import wire
+from tests.wire import rels_of, wire
 
 
 def _sanitize_for_json(obj: Any) -> Any:
@@ -73,8 +79,8 @@ def assert_structure(entity: dict, spec_key: str, entity_type: str):
     for key in spec["required_attributes"]:
         assert key in attrs, f"{entity_type} missing attribute: {key}"
 
-    # Required relationships (relationshipAttributes, not nested in attributes)
-    rels = entity.get("relationshipAttributes", {})
+    # Required relationships (in whichever envelope position is in force)
+    rels = rels_of(entity)
     for key in spec.get("required_relationships", []):
         assert key in rels, f"{entity_type} missing relationship: {key}"
 
@@ -127,7 +133,7 @@ class TestSchemaParity:
     def test_database_relationship_ref(self, app):
         record = {"catalog_name": "def", "schema_name": "employees"}
         entity = wire(app.map_schema(record, CONNECTION_QN))
-        assert_ref(entity["relationshipAttributes"]["database"], "Database")
+        assert_ref(rels_of(entity)["database"], "Database")
 
     def test_views_count(self, app):
         record = {"catalog_name": "def", "schema_name": "employees", "views_count": 4}
@@ -188,7 +194,7 @@ class TestTableParity:
             "table_kind": "BASE TABLE",
         }
         entity = wire(app.map_table(record, CONNECTION_QN))
-        assert_ref(entity["relationshipAttributes"]["atlanSchema"], "Schema")
+        assert_ref(rels_of(entity)["atlanSchema"], "Schema")
 
     def test_custom_attributes(self, app):
         record = {
@@ -328,7 +334,7 @@ class TestColumnParity:
         for key in SHAPE_SPEC["column"]["conditional_attributes"]["table_column"]:
             assert key in attrs, f"Table column missing: {key}"
 
-        assert_ref(entity["relationshipAttributes"]["table"], "Table")
+        assert_ref(rels_of(entity)["table"], "Table")
 
     def test_structure_view_column(self, app):
         record = {
@@ -347,8 +353,8 @@ class TestColumnParity:
         for key in SHAPE_SPEC["column"]["conditional_attributes"]["view_column"]:
             assert key in attrs, f"View column missing: {key}"
 
-        assert_ref(entity["relationshipAttributes"]["view"], "View")
-        assert "table" not in entity["relationshipAttributes"]
+        assert_ref(rels_of(entity)["view"], "View")
+        assert "table" not in rels_of(entity)
 
     def test_primary_key_detection(self, app):
         record = {
@@ -438,6 +444,73 @@ class TestColumnParity:
             "collation_name",
         ):
             assert key in custom, f"Column customAttributes missing: {key}"
+
+
+# ── Envelope invariant ───────────────────────────────────────────────────
+
+
+class TestEnvelopeInvariant:
+    """Pin *where* relationship refs live, now that the ref assertions accept both.
+
+    Every other ref assertion in this file goes through
+    :func:`tests.wire.rels_of`, which reads either envelope position so the suite
+    is green under both the current SDK and the flattened envelope (FND-2137).
+    That widening on its own could no longer notice an accidental envelope flip
+    — the exact failure FND-2137 exists to prevent — so the shape assertion moves
+    here rather than disappearing.
+
+    Both genuinely bad states fail this test: a ref in neither position has been
+    lost, and a ref in both would double-write the relationship. Which of the two
+    good positions is in force is deliberately not asserted — that is the SDK's
+    declared policy to choose, and this test outlives the transition.
+    """
+
+    @pytest.mark.parametrize(
+        ("mapper", "record", "ref"),
+        [
+            (
+                "map_table",
+                {
+                    "table_catalog": "def",
+                    "table_schema": "employees",
+                    "table_name": "dept_emp",
+                    "table_kind": "BASE TABLE",
+                },
+                "atlanSchema",
+            ),
+            (
+                "map_column",
+                {
+                    "table_catalog": "def",
+                    "table_schema": "employees",
+                    "table_name": "dept_emp",
+                    "column_name": "emp_no",
+                    "table_type": "BASE TABLE",
+                },
+                "table",
+            ),
+            (
+                "map_column",
+                {
+                    "table_catalog": "def",
+                    "table_schema": "employees",
+                    "table_name": "current_dept_emp",
+                    "column_name": "emp_no",
+                    "table_type": "VIEW",
+                },
+                "view",
+            ),
+        ],
+        ids=["table.atlanSchema", "column.table", "column.view"],
+    )
+    def test_refs_live_in_exactly_one_place(self, app, mapper, record, ref):
+        entity = wire(getattr(app, mapper)(record, CONNECTION_QN))
+        nested = ref in entity.get("relationshipAttributes", {})
+        flat = ref in entity["attributes"]
+        assert nested != flat, (
+            f"{entity['typeName']}.{ref} must appear in exactly one envelope "
+            f"position (relationshipAttributes={nested}, attributes={flat})"
+        )
 
 
 # ── JSON serialization safety ────────────────────────────────────────────

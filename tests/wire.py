@@ -7,9 +7,11 @@ asserts on the wire shape has to go through that same seam — asserting on the
 asset's Python attributes instead would check the app's inputs to serialisation
 rather than the entity publish actually receives.
 
-Deliberately a thin wrapper over the SDK call and nothing else: a second
-serialiser written for the tests is a second wire format, and the one it agrees
-with would be itself.
+:func:`wire` is deliberately a thin wrapper over the SDK call and nothing else:
+a second serialiser written for the tests is a second wire format, and the one
+it agrees with would be itself. :func:`rels_of` is a *reader* over that same
+output, not a second serialiser — it exists so envelope-position changes on the
+SDK side do not have to be chased through every ref assertion in the suite.
 """
 
 from __future__ import annotations
@@ -30,3 +32,19 @@ def wire(asset: Any, *, connection_name: str = "") -> dict[str, Any]:
             name. Empty (the default) skips the injection.
     """
     return orjson.loads(entity_bytes(asset, connection_name=connection_name))
+
+
+def rels_of(entity: dict[str, Any]) -> dict[str, Any]:
+    """Relationship refs, from wherever the envelope puts them (FND-2137).
+
+    The SDK flattens refs into ``attributes`` from 3.36.0; before that they sat
+    under a top-level ``relationshipAttributes`` key. These tests assert the refs
+    are *correct*, which holds in either envelope. Which envelope is in force is
+    asserted once, by ``test_refs_live_in_exactly_one_place`` — so widening here
+    does not lose that coverage.
+
+    A widening, not a swap: an empty-or-absent ``relationshipAttributes`` falls
+    through to ``attributes``, so the flattened envelope reads the same whether
+    the SDK drops the key or leaves it behind empty.
+    """
+    return entity.get("relationshipAttributes") or entity.get("attributes", {})
