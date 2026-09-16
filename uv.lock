@@ -262,7 +262,7 @@ workflows = [
 
 [[package]]
 name = "atlan-application-sdk-conformance"
-version = "0.31.0"
+version = "0.31.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jinja2" },
@@ -270,9 +270,9 @@ dependencies = [
     { name = "packaging" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/19/ee/b9742c509ebe4a7dd1713e3d2510835c4b0c4bd1faf5c366ca579ba47c69/atlan_application_sdk_conformance-0.31.0.tar.gz", hash = "sha256:bbf5af5ab3236dc4436256cd4ded7ee3ce74544a1b1a57f6e3d100bd434e8af0", size = 1703415, upload-time = "2026-09-15T18:09:32.025Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/76/3e/50ad6d53a454c44db2cda268e164ddab0a6feb6fce3c48aa797975d1cd55/atlan_application_sdk_conformance-0.31.1.tar.gz", hash = "sha256:7e86bd0e6f25d90cb8fcf3f99269989d4392c023ddda3dc5f7ed081cb6dbc873", size = 1707566, upload-time = "2026-09-16T14:14:36.121Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/fa/50/ff46c29b2dc246d874a8be6f66dae3c7dedd829239b1021d77cd8f04ff6a/atlan_application_sdk_conformance-0.31.0-py3-none-any.whl", hash = "sha256:1073283b2878b4361d88687122dda5ca1838680a358fe3a4f547970a34526ddf", size = 1450928, upload-time = "2026-09-15T18:09:30.731Z" },
+    { url = "https://files.pythonhosted.org/packages/03/7f/02fae5f159b760ff96d164db667f392e0d633ec6b41ecaf6dd3ea9ec4541/atlan_application_sdk_conformance-0.31.1-py3-none-any.whl", hash = "sha256:1ee17fb70fe6d004fb910be8bd096e189df8ad5716632cdd5959cb0376eabb5f", size = 1453014, upload-time = "2026-09-16T14:14:34.256Z" },
 ]
 
 [[package]]
@@ -2848,7 +2848,7 @@ wheels = [
 
 [[package]]
 name = "pyatlan"
-version = "11.1.0"
+version = "11.2.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "authlib" },
@@ -2864,9 +2864,9 @@ dependencies = [
     { name = "pyyaml" },
     { name = "tenacity" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/cf/5a/df56196bf5eae9dd2976dbb151f5181e68b987aa45b79028bdba95b7f254/pyatlan-11.1.0.tar.gz", hash = "sha256:90c693921a27d1db6198803cbf1e22562afdec2cc6c67db261c698e7fcbbc6e9", size = 3720303, upload-time = "2026-09-10T10:37:46.367Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/47/93/7eda3cb29c1901099ead020751dfb0a8135022ec7032ef10b277df4f97a1/pyatlan-11.2.0.tar.gz", hash = "sha256:5262cb8326f4d23b54270700dec7e615d9363bff55eeb8400620e3e3d8195748", size = 3769972, upload-time = "2026-09-16T12:57:02.544Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/be/7d/2c6576662c32d6b57b20801e1a6a68804d38fc72678ffd4b983e92ff5cd0/pyatlan-11.1.0-py3-none-any.whl", hash = "sha256:68bb7212da25195bcb3692140b6f21a02162c8a316017bf597c624089952704d", size = 5620713, upload-time = "2026-09-10T10:37:44.622Z" },
+    { url = "https://files.pythonhosted.org/packages/77/75/96a3a26cf8ffcf8586bd052cca366541db7486e39f77ab844d2530a20912/pyatlan-11.2.0-py3-none-any.whl", hash = "sha256:55e3c292ecc60567f99928b42940edfd59c8eed04584a6d1b0ab62f9cad46d19", size = 5634350, upload-time = "2026-09-16T12:57:00.757Z" },
 ]
 
 [[package]]
