@@ -202,6 +202,7 @@ class MySQLServerHandler(SQLHandler):
             logger.warning(
                 "MySQL fetch_metadata failed, returning no objects: %s",
                 type(exc).__name__,
+                exc_info=True,
             )
             return SqlMetadataOutput(objects=[])
         finally:
