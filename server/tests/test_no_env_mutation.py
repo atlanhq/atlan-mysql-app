@@ -23,6 +23,9 @@ import ast
 import os
 import pathlib
 import unittest
+from unittest import mock
+
+from mysql_server.client import MySQLServerClient
 
 PACKAGE = pathlib.Path(__file__).resolve().parents[1] / "mysql_server"
 
@@ -61,7 +64,9 @@ class TestNoEnvironmentWrites(unittest.TestCase):
                         and value.attr == "environ"
                         and node.func.attr in ("setdefault", "update", "pop", "clear")
                     ):
-                        offenders.append(f"{path.name}:{node.lineno} ({node.func.attr})")
+                        offenders.append(
+                            f"{path.name}:{node.lineno} ({node.func.attr})"
+                        )
         self.assertEqual(
             offenders,
             [],
@@ -75,10 +80,6 @@ class TestNoEnvironmentWrites(unittest.TestCase):
         The AWS calls are stubbed — what is under test is this package's
         handling of credentials, not boto3.
         """
-        from unittest import mock
-
-        from mysql_server.client import MySQLServerClient
-
         before = {key: os.environ.get(key) for key in _AWS_KEYS}
         creds = {
             "host": "db-1.eu-west-1.rds.amazonaws.com",
