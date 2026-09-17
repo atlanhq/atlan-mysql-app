@@ -7,6 +7,14 @@ DependencyUnavailableError), so the categories this connector actually reports
 — permission, rate-limited, source-unavailable — are declared here against
 ``AppError`` directly.
 
+Each leaf declares its own ``category``, which the conformance suite flags as
+taxonomy drift (P002) and which is justified inline at every site: server-sdk
+ships four categorical leaves — auth, invalid-input, internal,
+dependency-unavailable — while this connector's worker leaves carry permission,
+precondition, rate-limited and source-unavailable. The UI keys on category, so
+inheriting the nearest available leaf would change what the customer sees once
+this app is consolidated.
+
 The ``code`` strings are the worker's, unchanged. They are what the UI keys on,
 so a failure must read identically whether this app is consolidated or on its
 own pod.
@@ -30,9 +38,7 @@ class CredentialFieldMissingError(_MySQLError):
     """A credential field the chosen auth type requires was not supplied."""
 
     code: ClassVar[str] = "INVALID_INPUT_MYSQL_CREDENTIAL_MISSING"
-    category: ClassVar[FailureCategory] = (
-        FailureCategory.INVALID_INPUT
-    )  # conformance: ignore[P002] server-sdk ships only four categorical leaves (auth/invalid-input/internal/dependency-unavailable); this connector's worker leaves carry permission, precondition, rate-limited and source-unavailable, and the UI keys on category, so inheriting the nearest leaf would change what the customer sees when this app is consolidated
+    category: ClassVar[FailureCategory] = FailureCategory.INVALID_INPUT  # conformance: ignore[P002] worker taxonomy; the UI keys on category  # fmt: skip
     retryable: ClassVar[bool] = False
 
 
@@ -40,9 +46,7 @@ class RegionExtractionError(_MySQLError):
     """The AWS region could not be derived from the RDS hostname."""
 
     code: ClassVar[str] = "INVALID_INPUT_MYSQL_REGION"
-    category: ClassVar[FailureCategory] = (
-        FailureCategory.INVALID_INPUT
-    )  # conformance: ignore[P002] server-sdk ships only four categorical leaves (auth/invalid-input/internal/dependency-unavailable); this connector's worker leaves carry permission, precondition, rate-limited and source-unavailable, and the UI keys on category, so inheriting the nearest leaf would change what the customer sees when this app is consolidated
+    category: ClassVar[FailureCategory] = FailureCategory.INVALID_INPUT  # conformance: ignore[P002] worker taxonomy; the UI keys on category  # fmt: skip
     retryable: ClassVar[bool] = False
 
 
@@ -50,9 +54,7 @@ class IamTokenGenerationError(_MySQLError):
     """RDS IAM token generation failed (assume-role denied, or empty token)."""
 
     code: ClassVar[str] = "AUTH_MYSQL_IAM_TOKEN"
-    category: ClassVar[FailureCategory] = (
-        FailureCategory.AUTH
-    )  # conformance: ignore[P002] server-sdk ships only four categorical leaves (auth/invalid-input/internal/dependency-unavailable); this connector's worker leaves carry permission, precondition, rate-limited and source-unavailable, and the UI keys on category, so inheriting the nearest leaf would change what the customer sees when this app is consolidated
+    category: ClassVar[FailureCategory] = FailureCategory.AUTH  # conformance: ignore[P002] worker taxonomy; the UI keys on category  # fmt: skip
     retryable: ClassVar[bool] = False
 
 
@@ -60,9 +62,7 @@ class EngineCreationError(_MySQLError):
     """The SQLAlchemy engine could not be constructed."""
 
     code: ClassVar[str] = "INTERNAL_MYSQL_ENGINE_CREATE"
-    category: ClassVar[FailureCategory] = (
-        FailureCategory.INTERNAL
-    )  # conformance: ignore[P002] server-sdk ships only four categorical leaves (auth/invalid-input/internal/dependency-unavailable); this connector's worker leaves carry permission, precondition, rate-limited and source-unavailable, and the UI keys on category, so inheriting the nearest leaf would change what the customer sees when this app is consolidated
+    category: ClassVar[FailureCategory] = FailureCategory.INTERNAL  # conformance: ignore[P002] worker taxonomy; the UI keys on category  # fmt: skip
     retryable: ClassVar[bool] = False
     audience: ClassVar[Audience] = Audience.APP_OWNER
 
@@ -71,9 +71,7 @@ class MetadataHostMissingError(_MySQLError):
     """fetch_metadata was called before credential resolution supplied a host."""
 
     code: ClassVar[str] = "PRECONDITION_MYSQL_METADATA_HOST"
-    category: ClassVar[FailureCategory] = (
-        FailureCategory.PRECONDITION
-    )  # conformance: ignore[P002] server-sdk ships only four categorical leaves (auth/invalid-input/internal/dependency-unavailable); this connector's worker leaves carry permission, precondition, rate-limited and source-unavailable, and the UI keys on category, so inheriting the nearest leaf would change what the customer sees when this app is consolidated
+    category: ClassVar[FailureCategory] = FailureCategory.PRECONDITION  # conformance: ignore[P002] worker taxonomy; the UI keys on category  # fmt: skip
     retryable: ClassVar[bool] = False
 
 
@@ -81,9 +79,7 @@ class MetadataFetchError(_MySQLError):
     """Metadata listing failed for a reason this app does not classify."""
 
     code: ClassVar[str] = "INTERNAL_MYSQL_METADATA_FETCH"
-    category: ClassVar[FailureCategory] = (
-        FailureCategory.INTERNAL
-    )  # conformance: ignore[P002] server-sdk ships only four categorical leaves (auth/invalid-input/internal/dependency-unavailable); this connector's worker leaves carry permission, precondition, rate-limited and source-unavailable, and the UI keys on category, so inheriting the nearest leaf would change what the customer sees when this app is consolidated
+    category: ClassVar[FailureCategory] = FailureCategory.INTERNAL  # conformance: ignore[P002] worker taxonomy; the UI keys on category  # fmt: skip
     retryable: ClassVar[bool] = False
     audience: ClassVar[Audience] = Audience.APP_OWNER
 
@@ -92,9 +88,7 @@ class PreflightAuthError(_MySQLError):
     """Preflight could not authenticate, for a definitive reason."""
 
     code: ClassVar[str] = "AUTH_MYSQL_PREFLIGHT"
-    category: ClassVar[FailureCategory] = (
-        FailureCategory.AUTH
-    )  # conformance: ignore[P002] server-sdk ships only four categorical leaves (auth/invalid-input/internal/dependency-unavailable); this connector's worker leaves carry permission, precondition, rate-limited and source-unavailable, and the UI keys on category, so inheriting the nearest leaf would change what the customer sees when this app is consolidated
+    category: ClassVar[FailureCategory] = FailureCategory.AUTH  # conformance: ignore[P002] worker taxonomy; the UI keys on category  # fmt: skip
     retryable: ClassVar[bool] = False
 
 
@@ -102,9 +96,7 @@ class TableListingError(_MySQLError):
     """The role authenticated but cannot list tables."""
 
     code: ClassVar[str] = "PERMISSION_MYSQL_TABLE_LISTING"
-    category: ClassVar[FailureCategory] = (
-        FailureCategory.PERMISSION
-    )  # conformance: ignore[P002] server-sdk ships only four categorical leaves (auth/invalid-input/internal/dependency-unavailable); this connector's worker leaves carry permission, precondition, rate-limited and source-unavailable, and the UI keys on category, so inheriting the nearest leaf would change what the customer sees when this app is consolidated
+    category: ClassVar[FailureCategory] = FailureCategory.PERMISSION  # conformance: ignore[P002] worker taxonomy; the UI keys on category  # fmt: skip
     retryable: ClassVar[bool] = False
 
 
@@ -112,9 +104,7 @@ class ConnectionLimitError(_MySQLError):
     """The server refused the connection because it is at its limit."""
 
     code: ClassVar[str] = "RATE_LIMITED_MYSQL_CONNECTIONS"
-    category: ClassVar[FailureCategory] = (
-        FailureCategory.RATE_LIMITED
-    )  # conformance: ignore[P002] server-sdk ships only four categorical leaves (auth/invalid-input/internal/dependency-unavailable); this connector's worker leaves carry permission, precondition, rate-limited and source-unavailable, and the UI keys on category, so inheriting the nearest leaf would change what the customer sees when this app is consolidated
+    category: ClassVar[FailureCategory] = FailureCategory.RATE_LIMITED  # conformance: ignore[P002] worker taxonomy; the UI keys on category  # fmt: skip
     retryable: ClassVar[bool] = True
 
 
@@ -122,9 +112,7 @@ class SourceRestartingError(_MySQLError):
     """The connection dropped because the server is going away / restarting."""
 
     code: ClassVar[str] = "SOURCE_UNAVAILABLE_MYSQL_CONNECTION_LOST"
-    category: ClassVar[FailureCategory] = (
-        FailureCategory.SOURCE_UNAVAILABLE
-    )  # conformance: ignore[P002] server-sdk ships only four categorical leaves (auth/invalid-input/internal/dependency-unavailable); this connector's worker leaves carry permission, precondition, rate-limited and source-unavailable, and the UI keys on category, so inheriting the nearest leaf would change what the customer sees when this app is consolidated
+    category: ClassVar[FailureCategory] = FailureCategory.SOURCE_UNAVAILABLE  # conformance: ignore[P002] worker taxonomy; the UI keys on category  # fmt: skip
     retryable: ClassVar[bool] = True
 
 
