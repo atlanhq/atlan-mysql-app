@@ -193,10 +193,18 @@ class MySQLServerHandler(SQLHandler):
                     )
                 )
             return SqlMetadataOutput(objects=objects)
-        except Exception as exc:
-            if isinstance(exc, (MetadataHostMissingError, MetadataFetchError)):
-                raise
-            raise MetadataFetchError(cause=exc) from exc
+        except Exception as exc:  # noqa: BLE001 — boundary: never 500 to the UI
+            # The SDK's generic fetch_metadata documents this contract: an empty
+            # list to the connector form, never a 500. Overriding the method
+            # does not exempt us from it — a raised error here renders as
+            # "Internal server error" in the schema picker, which tells the
+            # customer nothing and looks like our fault even when the source is
+            # simply unreachable.
+            logger.warning(
+                "MySQL fetch_metadata failed, returning no objects: %s",
+                type(exc).__name__,
+            )
+            return SqlMetadataOutput(objects=[])
         finally:
             await client.close()
 
