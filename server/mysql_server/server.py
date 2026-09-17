@@ -39,7 +39,6 @@ from server_sdk.observability.logger_adaptor import get_logger
 
 from mysql_server.client import MySQLServerClient
 from mysql_server.errors import (
-    MetadataFetchError,
     MetadataHostMissingError,
     PreflightAuthError,
     TableListingError,
