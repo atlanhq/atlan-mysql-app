@@ -1,0 +1,53 @@
+[project]
+name = "atlan-mysql-server"
+version = "0.1.0"
+description = "MySQL API server — the serving (auth/preflight/metadata) surface, exported as an importable package for the common-api-server. Independent of the worker code in app/."
+requires-python = ">=3.11,<4.0"
+# This package owns its MySQL driver; the shared serving runtime comes from
+# atlan-server-sdk with the extras it needs — [sql] (SQLAlchemy + engine
+# helpers) and [aws] (boto3 + the explicit-credential IAM helpers this
+# connector's iam_user / iam_role paths use).
+#
+# PEP 508 direct reference (not [tool.uv.sources]): the pinned git rev is
+# authoritative for EVERY installer — uv, plain pip, and the consolidated
+# common-api-server build that installs this package transitively. It also
+# stops `atlan-server-sdk` resolving from PyPI (a dependency-confusion target,
+# since the name is unpublished). Bump the rev HERE to move server-sdk; keep
+# the sibling app + common pins on the same rev (a mismatch is a hard uv error).
+dependencies = [
+    "atlan-server-sdk[sql,aws] @ git+https://github.com/atlanhq/server-sdk.git@761bbe535963da0d4b3a8974bcbe409f4784c89c",
+    "pymysql>=1.1.1",
+]
+
+[project.optional-dependencies]
+# Makes POST /workflows/v1/start functional: the route needs a Temporal CLIENT
+# to submit onto this app's task queue, not a worker, so the consolidated host
+# serves it too and must pin this app WITH the extra (as it does for governance
+# and ai-memory). Without it server-sdk silently drops the route and a crawl
+# can no longer be triggered through the host.
+workflow = [
+    "atlan-server-sdk[workflow] @ git+https://github.com/atlanhq/server-sdk.git@761bbe535963da0d4b3a8974bcbe409f4784c89c",
+]
+
+# How the common-api-server discovers this app (name = routing key = Service name).
+[project.entry-points."atlan.app_server"]
+mysql = "mysql_server:get_asgi_app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+# PEP 508 direct references in dependencies require this opt-in.
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["mysql_server"]
+# The handler reads these at import time, and in the consolidated host the app
+# tree is not present — so they must ride inside the wheel, next to the code
+# that loads them (skill Phase 3.3).
+[tool.hatch.build.targets.wheel.force-include]
+"../app/sql/test_authentication.sql" = "mysql_server/sql/test_authentication.sql"
+"../app/sql/tables_check.sql" = "mysql_server/sql/tables_check.sql"
+"../app/sql/filter_metadata.sql" = "mysql_server/sql/filter_metadata.sql"
+"../app/generated" = "mysql_server/generated"

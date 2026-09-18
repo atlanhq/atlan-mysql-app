@@ -1,0 +1,75 @@
+name: Server Tests
+
+# The serving package (`server/`) is deliberately NOT in this app's dependency
+# graph: it must never reach the worker image, and putting it in a dependency
+# group makes `uv sync` in the Dockerfile try to build it. So the main test job
+# cannot see `server/tests`, and without this workflow nothing would run them —
+# the failure mode that let a sibling connector's ported serving code drift a
+# whole refactor behind its worker with no red build (ARUN-942).
+#
+# It needs a credential the other jobs do not: `atlan-server-sdk` lives in the
+# private atlanhq/server-sdk repo, and actions/checkout scopes its token to this
+# repo's own .git via includeIf, so uv's separate clone cache cannot use it.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'app/**'
+      - '.github/workflows/server-tests.yaml'
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'app/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  server-tests:
+    name: Server Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
+        with:
+          enable-cache: true
+
+      - name: Authorize private atlanhq git deps
+        # Scoped to atlanhq/ so the token never travels to any other host.
+        env:
+          GIT_TOKEN: ${{ secrets.ORG_PAT_GITHUB }}
+        run: |
+          if [ -z "${GIT_TOKEN:-}" ]; then
+            echo "::error::ORG_PAT_GITHUB is not available - cannot fetch atlan-server-sdk"
+            exit 1
+          fi
+          git config --global url."https://x-access-token:${GIT_TOKEN}@github.com/atlanhq/".insteadOf "https://github.com/atlanhq/"
+          git config --global --add url."https://x-access-token:${GIT_TOKEN}@github.com/atlanhq/".insteadOf "ssh://git@github.com/atlanhq/"
+
+      - name: Install the serving package
+        working-directory: server
+        run: |
+          uv venv .venv
+          uv pip install --python .venv -e .
+          uv pip install --python .venv pytest pytest-asyncio
+
+      - name: Prove the package really imports
+        # A suite that silently skips reports agreement it never measured.
+        working-directory: server
+        run: |
+          uv run --no-sync --python .venv python -c "
+          from mysql_server import get_asgi_app
+          app = get_asgi_app()
+          assert app.state.app_name == 'mysql', app.state.app_name
+          print('mysql_server builds:', len(app.openapi()['paths']), 'paths')
+          "
+
+      - name: Run server tests
+        working-directory: server
+        run: uv run --no-sync --python .venv python -m pytest tests -q
