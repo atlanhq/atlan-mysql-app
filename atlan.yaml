@@ -27,6 +27,7 @@ deploy:
       targetQueueSize: 5
   env:
     ATLAN_TENANT_ID: default
+  routeToCommonAPIServer: true
   canary_enabled: true
   canary_mode: auto
   stages:

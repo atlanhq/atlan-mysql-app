@@ -40,6 +40,10 @@ deploy = new DeployConfig {
   // Stages auto-progress based on workflow success rate on selected tenants.
   // Pattern ported from atlan-teradata-app.
   overrides {
+    // ARUN-942: serve this app from the consolidated common-api-server. The
+    // chart reads deploy.routeToCommonAPIServer and aliases this app's Service
+    // to the shared host; the Temporal worker is untouched.
+    ["routeToCommonAPIServer"] = true
     ["canary_enabled"] = true
     ["canary_mode"] = "auto"
     ["stages"] = new Mapping {
