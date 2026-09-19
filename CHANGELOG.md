@@ -1,5 +1,18 @@
 # Changelog
 
+## v2.3.0 (September 19, 2026)
+
+Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.2.0...v2.3.0
+
+### Features
+
+- MySQL API server package on atlan-server-sdk (ARUN-942) (#680) (by @SanilK2108 in [a2acf46](https://github.com/atlanhq/atlan-mysql-app/commit/a2acf46))
+
+### Bug Fixes
+
+- drop the re-annotated preflight_gate_mode ClassVar (#693) (by @cmgrote in [612dcb3](https://github.com/atlanhq/atlan-mysql-app/commit/612dcb3))
+
+
 ## v2.2.0 (September 10, 2026)
 
 Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.1.0...v2.2.0
