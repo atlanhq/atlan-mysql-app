@@ -9,7 +9,7 @@ import math
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, ClassVar, Literal
+from typing import Any, ClassVar
 
 import orjson
 import pandas as pd
@@ -192,7 +192,7 @@ class MySQLApp(SqlApp):
     # being reported. ATLAN_PREFLIGHT_GATE_MODE overrides this per deployment
     # (resolved SDK-side in `_resolve_gate_enforcement`, which reads the env var
     # ahead of this attribute).
-    preflight_gate_mode: ClassVar[Literal["hard", "soft"]] = "hard"
+    preflight_gate_mode = "hard"
 
     name: ClassVar[str] = "mysql"
 
