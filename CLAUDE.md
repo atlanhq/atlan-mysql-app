@@ -1,14 +1,13 @@
-## Mandatory pre-commit review (L1–L4)
 
-Before ANY `git commit`, the current changes MUST pass the `connector-review`
-skill: the L1 conformance suite plus every applicable L2/L3/L4 review rule.
-A PreToolUse hook blocks unreviewed commits; editing after a review invalidates
-it, so re-review after fixes.
 
-- L2/L4 rules: fetched from `atlanhq/application-sdk@main` into
-  `.mothership/.cache/review-rulesets/` by `scripts/fetch-review-rules.sh`.
-- L3 rules: `.mothership/review-rulesets/connector-app/` (this repo).
-- Never restate rule text in this file or in prompts — the rule files are the
-  only authority. If a rule seems wrong, change it in its source repo.
-- Local review is fast feedback. The PR-label CI review remains authoritative.
-- Emergency bypass (humans only, discouraged): `SKIP_CONNECTOR_REVIEW=1`.
+<!-- BEGIN APPLICATION SDK CONNECTOR REVIEW -->
+## Mandatory pre-commit review (L2-L4 rules; L1 in PR CI)
+
+Before any `git commit`, run the `connector-review` skill for the applicable
+L2-L4 rules. It is local review guidance, not a marker-based commit gate.
+
+L1 conformance runs in CI on every pull-request update; the repository's CI
+configuration remains authoritative for enforcement.
+Shared L2/L4 rules are fetched into `.mothership/.cache/review-rulesets/` and
+L3 rules live in `.mothership/review-rulesets/connector-app/`.
+<!-- END APPLICATION SDK CONNECTOR REVIEW -->
