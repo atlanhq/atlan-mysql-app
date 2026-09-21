@@ -149,4 +149,10 @@ ignore = ["G002"]
 ".github/**/*.py" = ["T201"]  # CLI scripts — print() is intentional stdout
 
 [tool.uv.sources]
+# TEMPORARY — test vehicle for atlanhq/application-sdk#3872 (FND-1936), which
+# stamps sdk.version + app.version on every lifecycle log line. This pin is an
+# unreleased SDK commit, so this PR must be CLOSED, never merged; the real bump
+# is the Renovate PR raised after the SDK releases. Remove this line to restore
+# the lockfile's PyPI pin.
+atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "9581825fb2b13bce24a766cc969ef4eaf3034301" }
 # atlan-application-sdk = { path = "../application-sdk", editable = true }
