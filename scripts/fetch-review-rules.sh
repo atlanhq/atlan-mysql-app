@@ -1,45 +1,45 @@
 #!/usr/bin/env bash
-# Fetch the shared L2/L4 review rulesets from application-sdk@main, pinned to a SHA.
-# L3 rules live in this repo (.mothership/review-rulesets/) and are never fetched.
+# Fetch shared L2/L4 review rules into the local, gitignored cache.
 set -euo pipefail
 
-SDK_REPO="atlanhq/application-sdk"
-CACHE_DIR=".mothership/.cache/review-rulesets"
-LOCK_FILE=".mothership/.cache/rules.lock"
+sdk_repo="atlanhq/application-sdk"
+cache_dir=".mothership/.cache/review-rulesets"
+lock_file=".mothership/.cache/rules.lock"
 
-sha="$(gh api "repos/${SDK_REPO}/commits/main" --jq .sha 2>/dev/null || true)"
+sha="$(gh api "repos/${sdk_repo}/commits/main" --jq .sha 2>/dev/null || true)"
 if [ -z "${sha}" ]; then
-  if [ -f "${LOCK_FILE}" ]; then
-    echo "WARN: cannot reach GitHub — keeping cached rules pinned at $(cat "${LOCK_FILE}")" >&2
+  if [ -f "${lock_file}" ]; then
+    echo "WARN: cannot reach GitHub; keeping cached review rules." >&2
     exit 0
   fi
-  echo "ERROR: cannot reach GitHub and no cached rules exist. Review will run L1+L3 only." >&2
+  echo "ERROR: no shared rules cache and GitHub is unavailable." >&2
   exit 1
 fi
 
-mkdir -p "${CACHE_DIR}"
 tmp="$(mktemp -d)"
 trap 'rm -rf "${tmp}"' EXIT
-
 for ruleset in connector-app platform; do
-  gh api "repos/${SDK_REPO}/contents/.mothership/review-rulesets/${ruleset}?ref=${sha}" \
-    --jq '.[] | select(.type=="file") | .path' | while read -r path; do
-    mkdir -p "${tmp}/${ruleset}"
-    gh api "repos/${SDK_REPO}/contents/${path}?ref=${sha}" --jq .content | base64 -d \
-      > "${tmp}/${ruleset}/$(basename "${path}")"
-  done
-  rulesdir=".mothership/review-rulesets/${ruleset}/rules"
-  gh api "repos/${SDK_REPO}/contents/${rulesdir}?ref=${sha}" \
-    --jq '.[] | select(.type=="file") | .path' | while read -r path; do
-    mkdir -p "${tmp}/${ruleset}/rules"
-    gh api "repos/${SDK_REPO}/contents/${path}?ref=${sha}" --jq .content | base64 -d \
-      > "${tmp}/${ruleset}/rules/$(basename "${path}")"
-  done
+  gh api "repos/${sdk_repo}/contents/.mothership/review-rulesets/${ruleset}?ref=${sha}" \
+    --jq '.[] | select(.type == "file") | .path' | while read -r path; do
+      mkdir -p "${tmp}/${ruleset}"
+      gh api "repos/${sdk_repo}/contents/${path}?ref=${sha}" --jq .content | \
+        python3 -c 'import base64, sys; sys.stdout.buffer.write(base64.b64decode(sys.stdin.buffer.read()))' \
+        > "${tmp}/${ruleset}/$(basename "${path}")"
+    done
+  rules_dir=".mothership/review-rulesets/${ruleset}/rules"
+  gh api "repos/${sdk_repo}/contents/${rules_dir}?ref=${sha}" \
+    --jq '.[] | select(.type == "file") | .path' | while read -r path; do
+      mkdir -p "${tmp}/${ruleset}/rules"
+      gh api "repos/${sdk_repo}/contents/${path}?ref=${sha}" --jq .content | \
+        python3 -c 'import base64, sys; sys.stdout.buffer.write(base64.b64decode(sys.stdin.buffer.read()))' \
+        > "${tmp}/${ruleset}/rules/$(basename "${path}")"
+    done
 done
 
-rm -rf "${CACHE_DIR}"
-mv "${tmp}" "${CACHE_DIR}"
+mkdir -p "$(dirname "${cache_dir}")"
+rm -rf "${cache_dir}"
+mv "${tmp}" "${cache_dir}"
 trap - EXIT
 printf '{"sdk_repo":"%s","sha":"%s","fetched_at":"%s"}\n' \
-  "${SDK_REPO}" "${sha}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "${LOCK_FILE}"
-echo "Fetched L2/L4 review rules at ${SDK_REPO}@${sha}"
+  "${sdk_repo}" "${sha}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "${lock_file}"
+echo "Fetched L2/L4 review rules at ${sdk_repo}@${sha}"

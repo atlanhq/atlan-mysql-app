@@ -180,10 +180,10 @@ class TestMySQLHandlerPreflight:
             ),
         ],
     )
-    async def test_preflight_transient_auth_failure_is_partial(
+    async def test_preflight_transient_auth_failure_is_ready(
         self, handler, valid_creds, driver_error, expected_category
     ):
-        """A blip must not block a hard gate: PARTIAL, typed retryable, nothing raised."""
+        """A blip must not block a hard gate: READY, typed retryable, nothing raised."""
         mock_client = AsyncMock()
         mock_client.load = AsyncMock(side_effect=driver_error)
         mock_client.close = AsyncMock()
@@ -193,7 +193,7 @@ class TestMySQLHandlerPreflight:
                 PreflightInput(credentials=valid_creds)
             )
 
-        assert result.status == PreflightStatus.PARTIAL
+        assert result.status == PreflightStatus.READY
         # the advisory check could not run after the blip, so it is absent
         assert len(result.checks) == 1
         auth_check = result.checks[0]
@@ -204,7 +204,7 @@ class TestMySQLHandlerPreflight:
         assert auth_check.error.suggested_action
 
     @pytest.mark.asyncio
-    async def test_preflight_auth_ok_tables_fail_is_partial(self, handler, valid_creds):
+    async def test_preflight_auth_ok_tables_fail_is_ready(self, handler, valid_creds):
         mock_client = AsyncMock()
         # auth query succeeds; the advisory tables query fails
         mock_client.get_results = AsyncMock(
@@ -217,7 +217,7 @@ class TestMySQLHandlerPreflight:
                 PreflightInput(credentials=valid_creds)
             )
 
-        assert result.status == PreflightStatus.PARTIAL
+        assert result.status == PreflightStatus.READY
         assert len(result.checks) == 2
         assert next(c for c in result.checks if c.name == "auth").passed is True
         tables_check = next(c for c in result.checks if c.name == "connectivity")
@@ -230,7 +230,7 @@ class TestMySQLHandlerPreflight:
     async def test_preflight_transient_tables_failure_keeps_retryable_leaf(
         self, handler, valid_creds
     ):
-        """An advisory blip is PARTIAL either way, but must not be blamed on a grant."""
+        """An advisory blip is READY either way, but must not be blamed on a grant."""
         mock_client = AsyncMock()
         mock_client.get_results = AsyncMock(
             side_effect=[
@@ -245,7 +245,7 @@ class TestMySQLHandlerPreflight:
                 PreflightInput(credentials=valid_creds)
             )
 
-        assert result.status == PreflightStatus.PARTIAL
+        assert result.status == PreflightStatus.READY
         tables_check = next(c for c in result.checks if c.name == "connectivity")
         assert tables_check.error.category == FailureCategory.RATE_LIMITED
         assert tables_check.error.retryable is True

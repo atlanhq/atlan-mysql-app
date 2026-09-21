@@ -96,12 +96,12 @@ class MySQLAppHandler(Handler):
     async def preflight_check(self, input: PreflightInput) -> PreflightOutput:
         """Auth (required, short-circuits the run) + tables (advisory).
 
-        NOT_READY only when auth fails for a definitive reason; PARTIAL when a
-        transient blip hid the verdict, or when auth passes but the advisory
-        tables check fails; READY when both pass. A blip never reaches NOT_READY
-        because a hard gate would abort the run on it.
+        NOT_READY only when auth fails for a definitive reason; READY otherwise
+        — including when a transient blip hid the auth verdict, and when auth
+        passes but the advisory tables check fails. A blip never reaches
+        NOT_READY because a hard gate would abort the run on it; a failed
+        advisory check stays visible as a typed row under the READY verdict.
         """
-        checks: list[PreflightCheck] = []
         client = SQLClient()
         try:
             creds = _creds_to_dict(input.credentials)
@@ -125,30 +125,35 @@ class MySQLAppHandler(Handler):
                 auth_failure = (
                     transient if transient is not None else PreflightAuthError(cause=e)
                 )
-                checks.append(
-                    PreflightCheck(
-                        name="auth",
-                        passed=False,
-                        error=auth_failure.to_failure_details(),
-                    )
+                auth_check = PreflightCheck(
+                    name="auth",
+                    passed=False,
+                    error=auth_failure.to_failure_details(),
                 )
+                # READY, not the deprecated PARTIAL: the gate always treated
+                # PARTIAL exactly like READY, so this preserves the verdict the
+                # run has always seen while dropping a member the SDK removes in
+                # v3.40.0. The failed auth row stays visible either way.
                 status = (
-                    PreflightStatus.PARTIAL if transient else PreflightStatus.NOT_READY
+                    PreflightStatus.READY if transient else PreflightStatus.NOT_READY
                 )
-                return PreflightOutput(status=status, checks=checks)
-            checks.append(
-                PreflightCheck(name="auth", passed=True, message="Authenticated")
+                # The checks list is spelled inline at every PreflightOutput
+                # call rather than accumulated with .append(): static analysis
+                # can only resolve mandatory/advisory roles from a literal list,
+                # and an accumulator reads as an unresolved aggregation (F019).
+                # Same verdicts, same rows, same order.
+                return PreflightOutput(status=status, checks=[auth_check])
+            auth_check = PreflightCheck(
+                name="auth", passed=True, message="Authenticated"
             )
 
             try:
                 result = await client.get_results(_TABLES_CHECK_SQL)
                 count = len(result) if result is not None else 0
-                checks.append(
-                    PreflightCheck(
-                        name="connectivity",
-                        passed=True,
-                        message=f"Found {count} accessible tables",
-                    )
+                tables_check = PreflightCheck(
+                    name="connectivity",
+                    passed=True,
+                    message=f"Found {count} accessible tables",
                 )
                 status = PreflightStatus.READY
             # Suppression owner: @cmgrote. Review by 2027-03-02, or sooner if the
@@ -166,15 +171,16 @@ class MySQLAppHandler(Handler):
                 listing_failure = (
                     blip if blip is not None else TableListingError(cause=e)
                 )
-                checks.append(
-                    PreflightCheck(
-                        name="connectivity",
-                        passed=False,
-                        error=listing_failure.to_failure_details(),
-                    )
+                tables_check = PreflightCheck(
+                    name="connectivity",
+                    passed=False,
+                    error=listing_failure.to_failure_details(),
                 )
-                status = PreflightStatus.PARTIAL
-            return PreflightOutput(status=status, checks=checks)
+                # Advisory check — extraction can still proceed, which is
+                # exactly what the SDK says READY means now that PARTIAL is
+                # deprecated. The failed row above carries the detail.
+                status = PreflightStatus.READY
+            return PreflightOutput(status=status, checks=[auth_check, tables_check])
         finally:
             await client.close()
 
