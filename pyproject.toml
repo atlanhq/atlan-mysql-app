@@ -90,6 +90,13 @@ venv = ".venv"
 typeCheckingMode = "standard"
 exclude = [
     ".github/**",
+    # pyright's `exclude` REPLACES its built-in defaults rather than adding
+    # to them, and `**/.*` is the only reason .venv stays out of the walk.
+    # Restate all three whenever an entry is added, or a bare `uv run pyright`
+    # type-checks every installed package in the virtualenv (D015).
+    "**/.*",
+    "**/node_modules",
+    "**/__pycache__",
 ]
 reportMissingTypeStubs = false
 
@@ -147,6 +154,19 @@ ignore = ["G002"]
 [tool.ruff.lint.per-file-ignores]
 "tests/unit/test_mysql_app.py" = ["PLC0415"]
 ".github/**/*.py" = ["T201"]  # CLI scripts — print() is intentional stdout
+
+# Pins PyPI as uv's default index, displacing the machine-wide default an
+# Atlan laptop carries in ~/.config/uv/uv.toml (the Endor Labs package
+# firewall). Without this, every `uv run`/`uv sync`/`uv lock` silently
+# rewrites every URL in uv.lock to that credentialed proxy — no version and
+# no hash change — and CI, which holds no credential for it, then fails at
+# dependency install with 401 Unauthorized (D012/D013, FND-1928).
+# Declared here and NOT in a project-level uv.toml: a uv.toml suppresses
+# [tool.uv] in this file entirely, silently dropping constraint-dependencies.
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+default = true
 
 [tool.uv.sources]
 # atlan-application-sdk = { path = "../application-sdk", editable = true }
