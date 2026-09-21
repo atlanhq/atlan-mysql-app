@@ -15,7 +15,7 @@ requires-python = ">=3.11,<4.0"
 # since the name is unpublished). Bump the rev HERE to move server-sdk; keep
 # the sibling app + common pins on the same rev (a mismatch is a hard uv error).
 dependencies = [
-    "atlan-application-sdk-server[sql,aws] @ git+https://github.com/atlanhq/application-sdk.git@ba4bcc3e1dfb172464e177093da1d5c5da5f5850#subdirectory=packages/server",
+    "atlan-application-sdk-server[sql,aws] @ git+https://github.com/atlanhq/application-sdk.git@46aa1aa71382f66b90b88179f7915381bbf914ee#subdirectory=packages/server",
     "pymysql>=1.1.1",
 ]
 
@@ -26,7 +26,7 @@ dependencies = [
 # and ai-memory). Without it server-sdk silently drops the route and a crawl
 # can no longer be triggered through the host.
 workflow = [
-    "atlan-application-sdk-server[workflow] @ git+https://github.com/atlanhq/application-sdk.git@ba4bcc3e1dfb172464e177093da1d5c5da5f5850#subdirectory=packages/server",
+    "atlan-application-sdk-server[workflow] @ git+https://github.com/atlanhq/application-sdk.git@46aa1aa71382f66b90b88179f7915381bbf914ee#subdirectory=packages/server",
 ]
 
 # How the common-api-server discovers this app (name = routing key = Service name).
