@@ -221,44 +221,44 @@ class MySQLAppHandler(Handler):
                 return PreflightOutput(
                     status=PreflightStatus.NOT_READY, checks=[auth_check]
                 )
-            auth_check = PreflightCheck(
-                name="auth", passed=True, message="Authenticated"
-            )
 
-            try:
-                result = await client.get_results(_TABLES_CHECK_SQL)
-                count = len(result) if result is not None else 0
-                tables_check = PreflightCheck(
-                    name="connectivity",
-                    passed=True,
-                    message=f"Found {count} accessible tables",
-                )
-                status = PreflightStatus.READY
-            except Exception as e:
-                # DEBUG, not WARNING: this check is advisory, so the gate emits the
-                # single WARNING outcome row itself (keyed on any failed check) —
-                # F005 bans the handler from logging it. DEBUG keeps the traceback
-                # for engineers without duplicating the gate's record.
-                # safe_traceback, not exc_info — see the auth probe above.
-                logger.debug(
-                    "Connectivity preflight check failed: %s", safe_traceback(e)
-                )
-                blip = transient_failure(e)
-                listing_failure = (
-                    blip if blip is not None else TableListingError(cause=e)
-                )
-                tables_check = PreflightCheck(
-                    name="connectivity",
-                    passed=False,
-                    error=listing_failure.to_failure_details(),
-                )
-                # Advisory check — extraction can still proceed, which is
-                # exactly what the SDK says READY means now that PARTIAL is
-                # deprecated. The failed row above carries the detail.
-                status = PreflightStatus.READY
-            return PreflightOutput(status=status, checks=[auth_check, tables_check])
+            # Connectivity is advisory: extraction can still proceed when the
+            # table listing fails, which is what READY means now that PARTIAL
+            # is deprecated. The failed row carries the detail.
+            return PreflightOutput(
+                status=PreflightStatus.READY,
+                checks=[
+                    PreflightCheck(name="auth", passed=True, message="Authenticated"),
+                    await self._check_connectivity(client),
+                ],
+            )
         finally:
             await client.close()
+
+    async def _check_connectivity(self, client: SQLClient) -> PreflightCheck:
+        """List accessible tables. A source failure becomes a failed row, never a raise."""
+        try:
+            result = await client.get_results(_TABLES_CHECK_SQL)
+        except Exception as e:
+            # DEBUG, not WARNING: this check is advisory, so the gate emits the
+            # single WARNING outcome row itself (keyed on any failed check) —
+            # F005 bans the handler from logging it. DEBUG keeps the traceback
+            # for engineers without duplicating the gate's record.
+            # safe_traceback, not exc_info — see the auth probe above.
+            logger.debug("Connectivity preflight check failed: %s", safe_traceback(e))
+            blip = transient_failure(e)
+            listing_failure = blip if blip is not None else TableListingError(cause=e)
+            return PreflightCheck(
+                name="connectivity",
+                passed=False,
+                error=listing_failure.to_failure_details(),
+            )
+        count = len(result) if result is not None else 0
+        return PreflightCheck(
+            name="connectivity",
+            passed=True,
+            message=f"Found {count} accessible tables",
+        )
 
     async def fetch_metadata(self, input: MetadataInput) -> SqlMetadataOutput:
         """Fetch schema metadata for the UI tree."""

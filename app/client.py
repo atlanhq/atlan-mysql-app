@@ -1,4 +1,3 @@
-import os
 import re
 import ssl
 from typing import Any, Dict, Optional
@@ -217,7 +216,8 @@ class SQLClient(AsyncBaseSQLClient):
         - extra["aws_role_arn"] contains the AWS role ARN
         - extra["aws_external_id"] contains optional external ID
         - extra["aws_access_key_id"] and extra["aws_secret_access_key"] are optional
-          (if provided, sets environment variables for default credential chain)
+          (if both are provided, they authenticate the STS assume-role call;
+          otherwise boto3's default credential chain is used)
         - Database is optional for MySQL (unlike other databases)
 
         Returns:
@@ -277,26 +277,20 @@ class SQLClient(AsyncBaseSQLClient):
                 field="host",
             )
 
-        # Set environment variables from frontend credentials if provided
-        # This allows SDK's generate_aws_rds_token_with_iam_role to use default credential chain
-        # This matches how other apps (Glue, Postgres) handle credentials
-        old_env = {}
-        if aws_access_key_id and aws_secret_access_key:
-            old_env["AWS_ACCESS_KEY_ID"] = os.environ.get("AWS_ACCESS_KEY_ID")
-            old_env["AWS_SECRET_ACCESS_KEY"] = os.environ.get("AWS_SECRET_ACCESS_KEY")
-            os.environ["AWS_ACCESS_KEY_ID"] = aws_access_key_id
-            os.environ["AWS_SECRET_ACCESS_KEY"] = aws_secret_access_key
-            logger.debug(
-                "Set AWS credentials in environment for default credential chain"
-            )
-        else:
-            logger.debug(
-                "Using default AWS credential chain (environment variables, IAM instance profile, etc.)"
-            )
+        # A complete frontend-supplied key pair goes to STS explicitly; without
+        # one, the SDK uses boto3's default chain (pod IAM role, etc.). Never
+        # stage the keys in os.environ: it is process-global, so concurrent
+        # workflows on one worker race on it.
+        explicit_keys = (
+            {
+                "aws_access_key_id": aws_access_key_id,
+                "aws_secret_access_key": aws_secret_access_key,
+            }
+            if aws_access_key_id and aws_secret_access_key
+            else {}
+        )
 
         try:
-            # Use SDK function directly - it now correctly handles ExternalId (commit 931c538)
-            # SDK function uses boto3's default credential chain, which will pick up our env vars
             token = generate_aws_rds_token_with_iam_role(
                 role_arn=aws_role_arn,
                 host=host,
@@ -304,6 +298,7 @@ class SQLClient(AsyncBaseSQLClient):
                 external_id=external_id,
                 port=int(port),
                 region=region,
+                **explicit_keys,
             )
 
             if not token:
@@ -323,19 +318,6 @@ class SQLClient(AsyncBaseSQLClient):
                 failure_reason="assume_role_denied",
                 cause=e,
             ) from e
-        finally:
-            # Restore original environment variables if we set them
-            if aws_access_key_id and aws_secret_access_key:
-                old_access_key = old_env.get("AWS_ACCESS_KEY_ID")
-                old_secret_key = old_env.get("AWS_SECRET_ACCESS_KEY")
-                if old_access_key is not None:
-                    os.environ["AWS_ACCESS_KEY_ID"] = old_access_key
-                else:
-                    os.environ.pop("AWS_ACCESS_KEY_ID", None)
-                if old_secret_key is not None:
-                    os.environ["AWS_SECRET_ACCESS_KEY"] = old_secret_key
-                else:
-                    os.environ.pop("AWS_SECRET_ACCESS_KEY", None)
 
     async def load(self, credentials: Dict[str, Any]) -> None:
         """Override load to handle IAM authentication.
