@@ -142,7 +142,16 @@ def transient_failure(exc: BaseException) -> AppError | None:
     A blip must not block a hard preflight gate, so the caller reports it as a
     failed check on a ``PARTIAL`` verdict instead of ``NOT_READY``. Anything
     unrecognised stays definitive and keeps the caller's own leaf.
+
+    A probe that outran its slice of the gate budget is classified here too:
+    ``asyncio.wait_for`` surfaces it as a bare ``TimeoutError``, and a source
+    that did not answer has said nothing about whether it is readable — the
+    same "ask me again" as a server blip, not a verdict. Classifying it beside
+    the errno blips keeps every gate-transient leaf constructed in one place,
+    so the handler only ever re-raises what this returned.
     """
+    if isinstance(exc, TimeoutError):
+        return PreflightProbeTimeoutError(cause=exc)
     errno = _mysql_errno(exc)
     if errno in _CONNECTION_LIMIT_ERRNOS:
         return ConnectionLimitError(cause=exc)

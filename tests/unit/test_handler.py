@@ -18,7 +18,11 @@ from application_sdk.handler import (
     PreflightStatus,
 )
 
-from app.failures import ConnectionLimitError, transient_failure
+from app.failures import (
+    ConnectionLimitError,
+    PreflightProbeTimeoutError,
+    transient_failure,
+)
 from app.handler import MySQLAppHandler, _creds_to_dict
 
 
@@ -288,6 +292,15 @@ class TestTransientClassification:
             transient_failure(_wrapped(2003, "Can't connect to MySQL server")) is None
         )
         assert transient_failure(Exception("no errno anywhere")) is None
+
+    def test_probe_overrun_is_transient(self):
+        """A bare TimeoutError is the shape asyncio.wait_for raises on overrun.
+
+        A connect timeout does not arrive this way — aiomysql wraps it as
+        OperationalError(2003), which stays definitive above — so this branch
+        only ever sees the gate's own deadline being hit.
+        """
+        assert isinstance(transient_failure(TimeoutError()), PreflightProbeTimeoutError)
 
 
 class TestMySQLHandlerMetadata:

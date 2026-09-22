@@ -156,20 +156,17 @@ class MySQLAppHandler(Handler):
             return await asyncio.wait_for(
                 self._run_preflight_probes(input, deadline), timeout=deadline
             )
-        # F008 wants expected typed failures returned as a verdict rather than
-        # raised. A deadline overrun is not an expected *source* failure: the
-        # source said nothing, so there is no verdict to report, and returning
-        # NOT_READY would abort a healthy run because a server was briefly slow.
-        # This is the same fail-open shape the transient auth blip uses below
-        # (which F008 accepts, because that one re-raises a classified error
-        # rather than constructing one) and the gate-transient re-raise F008's
-        # own compliant example sanctions in atlan-openapi-app. The error is a
+        # A deadline overrun is not an expected *source* failure: the source
+        # said nothing, so there is no verdict to report, and returning
+        # NOT_READY would abort a healthy run because a server was briefly
+        # slow. `transient_failure` classifies it into the typed retryable
+        # leaf and this only re-raises what it returned — the same shape as
+        # the transient auth blip below, and as `_as_gate_transient` in
+        # atlan-openapi-app, F008's own compliant example. The leaf is a
         # SourceUnavailableError with retryable=True, so the gate asks again.
-        # Suppression owner: @cmgrote. Review by 2027-03-02, or when the suite
-        # settles how a constructed gate-transient should be spelled.
         except TimeoutError as e:
-            # conformance: ignore[F008] a probe overrun is the absence of an answer, not a verdict; raised as a retryable gate-transient so the gate retries instead of aborting the run
-            raise PreflightProbeTimeoutError(cause=e) from e
+            overrun = transient_failure(e) or PreflightProbeTimeoutError(cause=e)
+            raise overrun from e
 
     async def _run_preflight_probes(
         self, input: PreflightInput, deadline: float | None

@@ -1,6 +1,9 @@
 amends "@app-contract-toolkit/App.pkl"
 
-import "@app-contract-toolkit/Connectors.pkl"  // conformance: ignore[K002] verified via pkl eval that App.pkl@0.18.0 does not re-export Connectors.* to amending contracts; removing this import breaks the build with "Cannot find property Connectors"
+// App.pkl imports Connectors internally and types `connector` as
+// Connectors.Type, but does not re-export the constants to an amending
+// contract, so this import stays. K002 exempts it at the detector level.
+import "@app-contract-toolkit/Connectors.pkl"
 
 name = "mysql"
 displayName = "MySQL Assets"
