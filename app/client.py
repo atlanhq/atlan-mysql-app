@@ -56,6 +56,31 @@ class SQLClient(AsyncBaseSQLClient):
         connect_args={},
     )
 
+    def __init__(self, *args: Any, probe_timeout: Optional[int] = None, **kwargs: Any):
+        """Optionally bound this client's connect attempt.
+
+        ``probe_timeout`` is seconds, and only the preflight gate passes it:
+        the gate hands the handler a *remaining* budget, and a connect attempt
+        that can outlive it makes the gate's deadline decorative. The override
+        lands on an instance-level copy of ``DB_CONFIG`` because the class-level
+        one is shared by every client in the worker — mutating it in place would
+        hand one probe's deadline to unrelated extraction connections.
+        """
+        super().__init__(*args, **kwargs)
+        if probe_timeout is not None and self.DB_CONFIG is not None:
+            # Shallow, with a fresh `defaults` dict: that is the only mapping
+            # this override touches, and a deep copy would have to clone
+            # `connect_args`, which load() populates with an ssl.SSLContext —
+            # not a deep-copyable object.
+            self.DB_CONFIG = self.DB_CONFIG.model_copy(
+                update={
+                    "defaults": {
+                        **(self.DB_CONFIG.defaults or {}),
+                        "connect_timeout": probe_timeout,
+                    }
+                },
+            )
+
     @staticmethod
     def _create_ssl_context() -> ssl.SSLContext:
         """

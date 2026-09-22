@@ -87,6 +87,24 @@ class ConnectionLimitError(RateLimitedError):
 
 
 @dataclass(kw_only=True)
+class PreflightProbeTimeoutError(SourceUnavailableError):
+    """The probe outran the slice of the gate's budget it was given.
+
+    Retryable, and deliberately not a verdict: a source that did not answer in
+    time has told us nothing about whether it is readable, so the gate must ask
+    again rather than record a green or a red light nothing verified.
+    """
+
+    code: ClassVar[str] = "SOURCE_UNAVAILABLE_MYSQL_PREFLIGHT_TIMEOUT"
+    message: str = "The MySQL source did not answer the preflight check in time."
+    suggested_action: str | None = (
+        "Check that the host and port are reachable from Atlan and that the "
+        "server is not overloaded, then run the workflow again."
+    )
+    source_type: str | None = "mysql"
+
+
+@dataclass(kw_only=True)
 class SourceRestartingError(SourceUnavailableError):
     code: ClassVar[str] = "SOURCE_UNAVAILABLE_MYSQL_CONNECTION_LOST"
     message: str = "The MySQL server closed the connection before the check finished."
