@@ -791,16 +791,17 @@ class TestMySQLClient:
                 client.get_iam_role_token()
             assert exc_info.value.failure_reason == "empty_token"
 
-    def test_get_iam_role_token_sets_and_restores_aws_env_vars(self, monkeypatch):
+    def test_get_iam_role_token_passes_keys_explicitly(self, monkeypatch):
         """When extra carries aws_access_key_id / aws_secret_access_key, they
-        are exported into AWS_* env vars for boto3's default chain — and the
-        finally block restores the prior values once token gen completes."""
+        are passed to the SDK explicitly — the process-global AWS_* env vars
+        are never touched, so concurrent workflows cannot race on them."""
         monkeypatch.setenv("AWS_ACCESS_KEY_ID", "prior_access")
         monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "prior_secret")
 
         observed = {}
 
         def fake_token(**kwargs):
+            observed["kwargs"] = kwargs
             observed["access_key_during_call"] = os.environ.get("AWS_ACCESS_KEY_ID")
             observed["secret_key_during_call"] = os.environ.get("AWS_SECRET_ACCESS_KEY")
             return "tok"
@@ -823,12 +824,37 @@ class TestMySQLClient:
         ):
             assert client.get_iam_role_token() == "tok"
 
-        # During the call, env vars were the overridden values
-        assert observed["access_key_during_call"] == "override_access"
-        assert observed["secret_key_during_call"] == "override_secret"
-        # After the call, env vars are restored
+        assert observed["kwargs"]["aws_access_key_id"] == "override_access"
+        assert observed["kwargs"]["aws_secret_access_key"] == "override_secret"
+        # The environment is untouched during and after the call
+        assert observed["access_key_during_call"] == "prior_access"
+        assert observed["secret_key_during_call"] == "prior_secret"
         assert os.environ.get("AWS_ACCESS_KEY_ID") == "prior_access"
         assert os.environ.get("AWS_SECRET_ACCESS_KEY") == "prior_secret"
+
+    @pytest.mark.parametrize(
+        "extra_keys",
+        [{}, {"aws_access_key_id": "override_access"}],
+        ids=["no_keys", "half_pair"],
+    )
+    def test_get_iam_role_token_without_full_pair_uses_default_chain(self, extra_keys):
+        """No keys, or only half a pair, passes no explicit keys — the SDK
+        falls back to boto3's default credential chain."""
+        client = SQLClient()
+        client.credentials = {
+            "username": "db_user",
+            "host": "test.abc123.us-east-1.rds.amazonaws.com",
+            "port": "3306",
+            "extra": {"aws_role_arn": "arn:aws:iam::123:role/r", **extra_keys},
+            "authType": "iam_role",
+        }
+        with patch(
+            "app.client.generate_aws_rds_token_with_iam_role", return_value="tok"
+        ) as mock_gen:
+            assert client.get_iam_role_token() == "tok"
+        kwargs = mock_gen.call_args.kwargs
+        assert "aws_access_key_id" not in kwargs
+        assert "aws_secret_access_key" not in kwargs
 
     # ------------------------------------------------------------------
     # load() — connection-test failure path
