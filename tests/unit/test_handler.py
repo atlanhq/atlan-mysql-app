@@ -8,7 +8,7 @@ import pandas as pd
 import pymysql.err as pymysql_err
 import pytest
 import sqlalchemy.exc as sqlalchemy_exc
-from application_sdk.errors import FailureCategory
+from application_sdk.errors import AppError, FailureCategory
 from application_sdk.handler import (
     AuthInput,
     AuthStatus,
@@ -180,28 +180,27 @@ class TestMySQLHandlerPreflight:
             ),
         ],
     )
-    async def test_preflight_transient_auth_failure_is_ready(
+    async def test_preflight_transient_auth_failure_raises_retryable_leaf(
         self, handler, valid_creds, driver_error, expected_category
     ):
-        """A blip must not block a hard gate: READY, typed retryable, nothing raised."""
+        """A blip is not a verdict: the typed retryable leaf is raised so the
+        gate can ask again. Returning one would mean either READY carrying a
+        failed mandatory row (a green light nothing verified) or NOT_READY,
+        which aborts a healthy run on a server restart."""
         mock_client = AsyncMock()
         mock_client.load = AsyncMock(side_effect=driver_error)
         mock_client.close = AsyncMock()
 
         with patch("app.handler.SQLClient", return_value=mock_client):
-            result = await handler.preflight_check(
-                PreflightInput(credentials=valid_creds)
-            )
+            with pytest.raises(AppError) as raised:
+                await handler.preflight_check(PreflightInput(credentials=valid_creds))
 
-        assert result.status == PreflightStatus.READY
-        # the advisory check could not run after the blip, so it is absent
-        assert len(result.checks) == 1
-        auth_check = result.checks[0]
-        assert auth_check.name == "auth"
-        assert auth_check.passed is False
-        assert auth_check.error.category == expected_category
-        assert auth_check.error.retryable is True
-        assert auth_check.error.suggested_action
+        details = raised.value.to_failure_details()
+        assert details.category == expected_category
+        assert details.retryable is True
+        assert details.suggested_action
+        # The probe still cleaned up on the way out.
+        mock_client.close.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_preflight_auth_ok_tables_fail_is_ready(self, handler, valid_creds):
