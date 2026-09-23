@@ -20,7 +20,9 @@ from application_sdk.handler import (
 
 from app.failures import (
     ConnectionLimitError,
+    PreflightAuthError,
     PreflightProbeTimeoutError,
+    SourceRestartingError,
     transient_failure,
 )
 from app.handler import MySQLAppHandler, _creds_to_dict
@@ -104,7 +106,27 @@ class TestMySQLHandlerAuth:
             result = await handler.test_auth(AuthInput(credentials=valid_creds))
 
         assert result.status == AuthStatus.FAILED
-        assert result.message == "Authentication failed"
+        assert result.message == PreflightAuthError().message
+        assert "Connection refused" not in result.message
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("errno", "expected"),
+        [(1040, ConnectionLimitError), (2013, SourceRestartingError)],
+    )
+    async def test_auth_failure_reports_the_classified_reason(
+        self, handler, valid_creds, errno, expected
+    ):
+        mock_client = AsyncMock()
+        mock_client.load = AsyncMock(side_effect=_wrapped(errno, "driver text"))
+        mock_client.close = AsyncMock()
+
+        with patch("app.handler.SQLClient", return_value=mock_client):
+            result = await handler.test_auth(AuthInput(credentials=valid_creds))
+
+        assert result.status == AuthStatus.FAILED
+        assert result.message == expected().message
+        assert "driver text" not in result.message
 
     @pytest.mark.asyncio
     async def test_auth_empty_credentials(self, handler):
