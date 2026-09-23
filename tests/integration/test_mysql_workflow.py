@@ -25,6 +25,7 @@ from application_sdk.templates.contracts.sql_metadata import ExtractionInput
 from pyatlan.model.enums import AtlanConnectorType
 
 from app.mysql import MySQLApp, MySQLExtractionOutput
+from tests.manifest_args import extract_input_type, manifest_extract_args
 
 if TYPE_CHECKING:
     from application_sdk.credentials.ref import CredentialRef
@@ -176,3 +177,82 @@ class TestMySQLExtraction:
             assert not unexpected, (
                 f"{entity} has unexpected typeName values: {unexpected}"
             )
+
+
+class TestExcludeTableRegex:
+    """The form's "Exclude regex for tables & views" filters a real crawl (FND-2731).
+
+    The input is built from the committed manifest's extract-node args and
+    validated against ``run()``'s own annotation — the path the Automation
+    Engine's payload takes — so this fails both if the arg is dropped on the way
+    in and if it is received but never reaches the extraction SQL.
+    """
+
+    # One seeded base table and one seeded view, so both TABLE_TYPEs are covered.
+    _EXCLUDED = frozenset({"inventory_log", "order_summary"})
+    _KEPT = "customers"
+
+    @pytest.fixture(scope="class")
+    async def run_dir(
+        self,
+        mysql_executor: "AppExecutor",
+        mysql_credential_ref: "CredentialRef",
+        store_root: Path,
+    ) -> Path:
+        if not os.environ.get("MYSQL_HOST"):
+            pytest.skip("No MySQL available — set MYSQL_HOST or provide Docker")
+
+        # A caller-supplied workflow_id wins over the minted one, and it is a
+        # segment of every artifact path — so it identifies this run's tree in
+        # the session-scoped store the other extraction run also writes to.
+        workflow_id = f"mysql-exclude-{uuid.uuid4().hex[:8]}"
+        args = manifest_extract_args(
+            workflow_id=workflow_id,
+            connection=json.dumps({
+                "typeName": "Connection",
+                "attributes": {
+                    "qualifiedName": _CONNECTION_QN,
+                    "name": _CONNECTION_NAME,
+                },
+            }),
+            extraction_method="direct",
+            exclude_table_regex="|".join(f"^{t}$" for t in sorted(self._EXCLUDED)),
+            credential_ref=mysql_credential_ref,
+        )
+        await mysql_executor.execute_app(
+            MySQLApp,
+            extract_input_type().model_validate(args),
+            execution_id_prefix=workflow_id,
+        )
+
+        matches = [
+            p.parent.parent.parent
+            for p in store_root.rglob("raw/table/records.json")
+            if workflow_id in p.parts
+        ]
+        assert len(matches) == 1, f"expected one run tree for {workflow_id}: {matches}"
+        return matches[0]
+
+    @staticmethod
+    def _table_names(records_file: Path) -> set[str]:
+        return {
+            json.loads(line)["table_name"]
+            for line in records_file.read_text().splitlines()
+            if line.strip()
+        }
+
+    async def test_matching_tables_and_views_are_not_extracted(
+        self, run_dir: Path
+    ) -> None:
+        names = self._table_names(run_dir / "raw" / "table" / "records.json")
+
+        assert not names & self._EXCLUDED
+        assert self._KEPT in names
+
+    async def test_columns_of_matching_tables_are_not_extracted(
+        self, run_dir: Path
+    ) -> None:
+        names = self._table_names(run_dir / "raw" / "column" / "records.json")
+
+        assert not names & self._EXCLUDED
+        assert self._KEPT in names

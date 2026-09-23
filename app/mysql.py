@@ -19,15 +19,16 @@ from application_sdk.contracts.storage import DeclaredFile, UploadRefsInput
 from application_sdk.execution import get_object_store_prefix
 from application_sdk.observability.logger_adaptor import get_logger
 from application_sdk.templates.contracts.sql_metadata import (
-    ExtractionInput,
     ExtractionTaskInput,
     TransformOutput,
 )
 from application_sdk.templates.sql_app import SqlApp
+from pydantic import model_validator
 from pyatlan_v9.model.assets import Column, Database, Procedure, Schema, Table, View
 
 from app.client import SQLClient
 from app.constants import DATABASE_PLACEHOLDER, TENANT_ID
+from app.generated._input import AppInputContract
 from app.handler import (  # noqa: F401 — SDK discovers {AppClass}Handler by convention
     MySQLAppHandler,
 )
@@ -80,6 +81,44 @@ class MySQLExtractionOutput(Output):
 
     # Forwarded to QI + lineage-app via manifest JSONPath
     storage_bucket: str = ""
+
+
+class MySQLExtractionInput(AppInputContract):
+    """The extract entrypoint's input: the generated contract, plus one mapping.
+
+    ``run()`` must be annotated with the contract the manifest is generated
+    from. The SDK validates the workflow payload against the type ``run()``
+    takes, not against the generated ``AppInputContract`` (that class is only
+    published to callers), so annotating the SDK's bare ``ExtractionInput``
+    silently dropped every arg only the generated contract declares —
+    ``exclude_table_regex`` included (FND-2731).
+
+    Receiving the field is not enough on its own. The form's "Exclude regex for
+    tables & views" arrives as ``exclude_table_regex`` (the SDK's standard
+    ``{{exclude-table-regex}}`` mustache key), but ``SqlApp`` builds its
+    table-name exclusion from ``temp_table_regex``: ``_prepare_sql`` substitutes
+    that value into this app's ``extract_temp_table_regex_table.sql`` fragment
+    (``NOT REGEXP '{exclude_table_regex}'``) and injects it as
+    ``{temp_table_regex_sql}``. That is the SDK's only table-level filter —
+    ``exclude_filter`` works on ``db.schema`` — so it is the mechanism the form
+    field describes, whatever its historical name.
+
+    The mapping runs *before* field validation on purpose. The value is spliced
+    into a quoted SQL literal, and only a before-validator puts it through the
+    SDK's ``temp_table_regex`` validators (``SAFE_FILTER_PATTERN``, the SQL
+    injection check, legacy quoted-CSV normalisation) — so an unsafe regex fails
+    the run at the input boundary instead of reaching the query.
+    """
+
+    @model_validator(mode="before")
+    @classmethod
+    def _exclude_table_regex_drives_temp_table_regex(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        exclude_table_regex = data.get("exclude_table_regex")
+        if exclude_table_regex and not data.get("temp_table_regex"):
+            return {**data, "temp_table_regex": exclude_table_regex}
+        return data
 
 
 # Read SQL files at module level
@@ -499,7 +538,7 @@ class MySQLApp(SqlApp):
         return asset
 
     async def run(  # type: ignore[override]
-        self, input: ExtractionInput
+        self, input: MySQLExtractionInput
     ) -> MySQLExtractionOutput:
         """MySQL extraction: standard assets + procedures + lineage pipeline outputs.
 
