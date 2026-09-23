@@ -169,4 +169,10 @@ url = "https://pypi.org/simple"
 default = true
 
 [tool.uv.sources]
+# TEMPORARY — test vehicle for atlanhq/application-sdk#3928 (FND-1936), which
+# names the build in the App started / App completed log messages. This pin is
+# an unreleased SDK commit, so this PR must be CLOSED, never merged; the real
+# bump is the Renovate PR raised after the SDK releases. Remove this line to
+# restore the lockfile's PyPI pin.
+atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk", rev = "18c7e07594be876e847818feb188866ebc8bc44d" }
 # atlan-application-sdk = { path = "../application-sdk", editable = true }

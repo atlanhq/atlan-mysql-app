@@ -212,7 +212,7 @@ wheels = [
 [[package]]
 name = "atlan-application-sdk"
 version = "3.38.0"
-source = { registry = "https://pypi.org/simple" }
+source = { git = "https://github.com/atlanhq/application-sdk?rev=18c7e07594be876e847818feb188866ebc8bc44d#18c7e07594be876e847818feb188866ebc8bc44d" }
 dependencies = [
     { name = "aiohttp" },
     { name = "azure-identity" },
@@ -234,10 +234,6 @@ dependencies = [
     { name = "pyyaml" },
     { name = "temporalio" },
     { name = "uvloop", marker = "sys_platform != 'win32'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/14/cb/7d678766a1c0fabd8f9a884dd42fa2de4a2f85c102aa3b7aaf6d73140903/atlan_application_sdk-3.38.0.tar.gz", hash = "sha256:f601ecd2340bec3e3978ab61bc7612d2c3a305e91993455a76cdeaa6f5410eeb", size = 8890743, upload-time = "2026-09-22T16:42:01.371Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/a2/ba/fabbebc1e6b02ea6d175785c0768d23839a06ad97eefe16796f210158647/atlan_application_sdk-3.38.0-py3-none-any.whl", hash = "sha256:096eafc7419c82a26fa53c347f31e2ed928ff12f1abb626fd4745cb0e0b328a3", size = 1874256, upload-time = "2026-09-22T16:41:59.191Z" },
 ]
 
 [package.optional-dependencies]
@@ -310,7 +306,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "aiomysql", specifier = ">=0.3.0" },
-    { name = "atlan-application-sdk", extras = ["iam-auth", "pandas", "sql", "workflows"], specifier = ">=3.33.2,<4.0.0" },
+    { name = "atlan-application-sdk", extras = ["iam-auth", "pandas", "sql", "workflows"], git = "https://github.com/atlanhq/application-sdk?rev=18c7e07594be876e847818feb188866ebc8bc44d" },
     { name = "atlan-application-sdk-conformance", marker = "extra == 'dev'", specifier = ">=0.17.0,<1.0.0" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.6.1" },
     { name = "docker", marker = "extra == 'test'", specifier = ">=7.0.0" },
