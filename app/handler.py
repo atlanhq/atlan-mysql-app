@@ -134,7 +134,7 @@ class MySQLAppHandler(Handler):
         except Exception as e:
             logger.error("MySQL auth test failed: %s", safe_traceback(e))
             err = transient_failure(e) or PreflightAuthError(cause=e)
-            return AuthOutput(status=AuthStatus.FAILED, message=err.message)
+            return AuthOutput(status=AuthStatus.FAILED, error=err.to_failure_details())
         finally:
             await client.close()
 

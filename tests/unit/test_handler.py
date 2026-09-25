@@ -107,6 +107,8 @@ class TestMySQLHandlerAuth:
 
         assert result.status == AuthStatus.FAILED
         assert result.message == PreflightAuthError().message
+        assert result.error is not None
+        assert result.error.code == PreflightAuthError.code
         assert "Connection refused" not in result.message
 
     @pytest.mark.asyncio
@@ -126,6 +128,8 @@ class TestMySQLHandlerAuth:
 
         assert result.status == AuthStatus.FAILED
         assert result.message == expected().message
+        assert result.error is not None
+        assert result.error.code == expected.code
         assert "driver text" not in result.message
 
     @pytest.mark.asyncio
