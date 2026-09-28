@@ -17,7 +17,6 @@ import sys
 from pathlib import Path
 
 import atlan_mysql_api
-import pytest
 from application_sdk_api import build_asgi_app
 from atlan_mysql_api.handler import MySQLAppHandler
 from fastapi.testclient import TestClient
@@ -42,17 +41,6 @@ def test_worker_serves_the_api_packages_handler_class() -> None:
     assert isinstance(atlan_mysql_api.handler, MySQLAppHandler)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=AssertionError,
-    reason=(
-        "application_sdk_api.server's /auth route serialises AuthOutput with "
-        "model_dump() rather than model_dump(mode='json'), so a FAILED verdict "
-        "carrying typed error details (FailureCategory is a plain Enum) cannot "
-        "be JSON-encoded and the route answers 500. SDK defect at the pinned "
-        "commit; strict, so this flips to a failure once the SDK is fixed."
-    ),
-)
 def test_host_serves_the_handler_and_a_dead_source_is_a_verdict() -> None:
     app = build_asgi_app(
         atlan_mysql_api.handler,

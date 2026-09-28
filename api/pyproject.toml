@@ -9,7 +9,7 @@ license = "Apache-2.0"
 dependencies = [
     # Pinned to an unreleased application-sdk branch commit. Re-pin to a
     # released atlan-application-sdk-api version before this merges.
-    "atlan-application-sdk-api[sql,aws] @ git+https://github.com/atlanhq/application-sdk.git@15e12164b4cf91cb0d8ea426fb1583f5e1d1a856#subdirectory=packages/api",
+    "atlan-application-sdk-api[sql,aws] @ git+https://github.com/atlanhq/application-sdk.git@9c41eb79aeeb819ca28c841d38925ed3d4b7f457#subdirectory=packages/api",
     # Sync driver for the handler's client. Already in the lock via aiomysql.
     "pymysql>=1.1.0",
     # caching_sha2_password cold-cache retry, shared with the worker's client.

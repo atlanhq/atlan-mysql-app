@@ -28,6 +28,8 @@ import dataclasses
 import os
 import re
 import ssl
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
@@ -62,10 +64,16 @@ CONNECTION_DEFAULTS: dict[str, Any] = {
     "charset": "utf8mb4",
 }
 
-#: STS session name for the IAM role path. Same env var and default as
-#: ``application_sdk.constants.AWS_SESSION_NAME``, which the worker's token
-#: helper reads; the api package does not carry that constant.
-AWS_SESSION_NAME = os.getenv("AWS_SESSION_NAME", "temp-session")
+
+def aws_session_name() -> str:
+    """STS session name for the IAM role path.
+
+    Same env var and default as ``application_sdk.constants.AWS_SESSION_NAME``,
+    which the worker's token helper reads; the api package does not carry that
+    constant. Read per call, not at import: the host imports this package into
+    a process it shares with other apps (P053).
+    """
+    return os.getenv("AWS_SESSION_NAME", "temp-session")
 
 
 def with_connect_timeout(
@@ -410,6 +418,25 @@ def token_refresher(get_token: Callable[[], str], log: Any) -> Callable[..., Non
 # The handler's client
 # =============================================================================
 
+# boto3's STS/RDS calls block, so they run off the event loop — but not on
+# asyncio's default executor: on the worker this handler runs inside the
+# preflight gate's activity, and Temporal's SDK uses that pool itself (P031).
+# The worker's own client uses application_sdk's run_in_thread, which the api
+# package does not ship, so the handler's client keeps a small pool of its own.
+_IAM_EXECUTOR: ThreadPoolExecutor | None = None
+_IAM_EXECUTOR_LOCK = threading.Lock()
+
+
+def _iam_executor() -> ThreadPoolExecutor:
+    global _IAM_EXECUTOR
+    if _IAM_EXECUTOR is None:
+        with _IAM_EXECUTOR_LOCK:
+            if _IAM_EXECUTOR is None:
+                _IAM_EXECUTOR = ThreadPoolExecutor(
+                    max_workers=4, thread_name_prefix="atlan_mysql_api_iam"
+                )
+    return _IAM_EXECUTOR
+
 
 def _is_connection_attempt(exc: BaseException) -> bool:
     """A driver/connect failure, which the cold-cache retry may retry.
@@ -501,7 +528,7 @@ class MySQLHandlerClient(BaseSQLClient):
         explicit_keys = sts_explicit_keys(fields)
         assume_role_kwargs: dict[str, Any] = {
             "RoleArn": fields.aws_role_arn,
-            "RoleSessionName": AWS_SESSION_NAME,
+            "RoleSessionName": aws_session_name(),
         }
         # AWS STS rejects an empty ExternalId, so only send one that is set.
         if fields.external_id:
@@ -578,7 +605,9 @@ class MySQLHandlerClient(BaseSQLClient):
             else self.get_iam_role_token
         )
         # boto3 is synchronous and talks to STS/RDS over the network.
-        raw_token = await asyncio.to_thread(get_token)
+        raw_token = await asyncio.get_running_loop().run_in_executor(
+            _iam_executor(), get_token
+        )
         username = iam_db_username(credentials, auth_type)
         defaults = self.DB_CONFIG.defaults if self.DB_CONFIG else None
         url = iam_engine_url("mysql+pymysql", credentials, defaults)
