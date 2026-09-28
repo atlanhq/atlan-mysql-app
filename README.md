@@ -16,9 +16,10 @@ MySQLApp(SqlApp)                    MySQLAppHandler(Handler)
 ```
 
 - **`app/mysql.py`** — `MySQLApp` extends `SqlApp` with MySQL-specific SQL queries and asset mappers (`map_database`, `map_schema`, `map_table`, `map_column`, `map_procedure`)
-- **`app/handler.py`** — `MySQLAppHandler` (v3) for auth, preflight, and metadata endpoints
-- **`app/client.py`** — `SQLClient` with basic, IAM user, and IAM role authentication
-- **`app/sql/`** — SQL templates for metadata extraction
+- **`api/atlan_mysql_api/handler.py`** — `MySQLAppHandler` (v3) for auth, preflight, and metadata endpoints. Lives in the `atlan-mysql-api` workspace member (`api/`), which depends only on `atlan-application-sdk-api`, so the worker and the consolidated API host serve the same handler
+- **`api/atlan_mysql_api/client.py`** — `MySQLHandlerClient`, the handler's client, plus the connection logic the worker's client shares
+- **`app/client.py`** — `SQLClient`, the worker's extraction client, with basic, IAM user, and IAM role authentication
+- **`api/atlan_mysql_api/sql/`** — SQL templates for the handler and metadata extraction
 - **`app/run_dev.py`** — local dev entry point (embedded Dapr + Temporal via `run_dev_combined`)
 - **`app/generated/`** — PKL-generated contract artifacts (`manifest.json`, `mysql.json`, `atlan-connectors-mysql.json`, `_input.py`, `_e2e_base.py`, `_e2e_credential.py`)
 

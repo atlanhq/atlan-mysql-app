@@ -1,4 +1,3 @@
-import re
 import ssl
 from typing import Any, Dict, Optional
 
@@ -10,19 +9,39 @@ from application_sdk.common.aws_utils import (
     generate_aws_rds_token_with_iam_user,
 )
 from application_sdk.common.aws_utils_errors import AwsAssumeRoleError
-from application_sdk.credentials.utils import parse_credentials_extra
 from application_sdk.execution.heartbeat import run_in_thread
 from application_sdk.observability.logger_adaptor import get_logger
-from app.failures import (
-    CredentialFieldMissingError,
+from sqlalchemy import event
+from sqlalchemy.ext.asyncio import create_async_engine
+from tenacity import retry_if_exception_type
+
+# The connection logic both clients share lives once, beside the handler's own
+# client; this worker client keeps only what depends on its async base class.
+from atlan_mysql_api.client import (
+    CONNECTION_DEFAULTS,
+    REQUIRED_FIELDS,
+    cold_cache_retry,
+    create_ssl_context,
+    extract_region_from_hostname,
+    flatten_basic_credentials,
+    iam_connect_args,
+    iam_db_username,
+    iam_engine_url,
+    iam_role_fields,
+    iam_user_fields,
+    log_iam_role_fields,
+    log_iam_user_fields,
+    require_iam_role_fields,
+    require_iam_user_fields,
+    require_token,
+    sts_explicit_keys,
+    token_refresher,
+    with_connect_timeout,
+)
+from atlan_mysql_api.failures import (
     EngineCreationError,
     IamTokenGenerationError,
-    RegionExtractionError,
 )
-from sqlalchemy import event
-from sqlalchemy.engine import URL
-from sqlalchemy.ext.asyncio import create_async_engine
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_random
 
 logger = get_logger(__name__)
 
@@ -45,11 +64,8 @@ class SQLClient(AsyncBaseSQLClient):
 
     DB_CONFIG: Optional[DatabaseConfig] = DatabaseConfig(
         template="mysql+aiomysql://{username}:{password}@{host}:{port}",
-        required=["username", "password", "host", "port"],
-        defaults={
-            "connect_timeout": 5,
-            "charset": "utf8mb4",
-        },
+        required=list(REQUIRED_FIELDS),
+        defaults=dict(CONNECTION_DEFAULTS),
         # SSL will be enabled in load() method using SSL context (like IAM auth)
         # This avoids class-level initialization issues and allows proper SSL context creation
         connect_args={},
@@ -73,49 +89,20 @@ class SQLClient(AsyncBaseSQLClient):
             # not a deep-copyable object.
             self.DB_CONFIG = self.DB_CONFIG.model_copy(
                 update={
-                    "defaults": {
-                        **(self.DB_CONFIG.defaults or {}),
-                        "connect_timeout": probe_timeout,
-                    }
+                    "defaults": with_connect_timeout(
+                        self.DB_CONFIG.defaults, probe_timeout
+                    )
                 },
             )
 
     @staticmethod
     def _create_ssl_context() -> ssl.SSLContext:
-        """
-        Create SSL context without certificate verification for RDS compatibility.
-
-        RDS IAM auth and servers with --require_secure_transport=ON require SSL
-        but may have self-signed certificates. This context disables verification
-        to allow connections while still using encrypted transport.
-
-        Returns:
-            ssl.SSLContext: SSL context configured for RDS compatibility
-        """
-        ssl_context = ssl.create_default_context()
-        ssl_context.check_hostname = False
-        ssl_context.verify_mode = ssl.CERT_NONE
-        return ssl_context
+        """SSL context without certificate verification — see ``create_ssl_context``."""
+        return create_ssl_context()
 
     def _extract_region_from_hostname(self, host: Optional[str]) -> Optional[str]:
-        """Extract AWS region from RDS hostname.
-
-        RDS hostname pattern: [identifier].[unique-id].[region].rds.amazonaws.com
-        Example: dsp-prd-mysql-analytics.c7y4kcieagzd.ap-south-1.rds.amazonaws.com -> ap-south-1
-
-        Args:
-            host: RDS hostname
-
-        Returns:
-            Extracted region or None if pattern doesn't match
-        """
-        if not host:
-            return None
-
-        match = re.search(r"\.([a-z0-9-]+)\.rds\.amazonaws\.com", host)
-        if match:
-            return match.group(1)
-        return None
+        """AWS region from an RDS hostname — see ``extract_region_from_hostname``."""
+        return extract_region_from_hostname(host)
 
     def get_iam_user_token(self) -> str:
         """Get an IAM user token for AWS RDS MySQL authentication.
@@ -132,81 +119,25 @@ class SQLClient(AsyncBaseSQLClient):
         Raises:
             CommonError: If required credentials are missing.
         """
-        extra = parse_credentials_extra(self.credentials)
-
-        # Legacy marketplace mapping (matches PKL form using extraFields):
-        #   credentials.username        = AWS access key ID
-        #   credentials.password        = AWS secret access key
-        #   credentials.extra.username  = MySQL database user
-        aws_access_key_id = self.credentials.get("username")
-        aws_secret_access_key = self.credentials.get("password")
-        user = extra.get("username")
-        host = self.credentials.get("host")
-        port = self.credentials.get("port")
-
-        region = self._extract_region_from_hostname(host)
-
-        logger.info(
-            "IAM user auth — access_key_id=%.10s..., host=%s, port=%s, region=%s, user=%s",
-            aws_access_key_id or "None",
-            host,
-            port,
-            region,
-            user,
-        )
-
-        if not aws_access_key_id:
-            raise CredentialFieldMissingError(
-                message="username (AWS access key ID) is required for IAM user authentication",
-                field="username",
-            )
-        if not aws_secret_access_key:
-            raise CredentialFieldMissingError(
-                message="password (AWS secret access key) is required for IAM user authentication",
-                field="password",
-            )
-        if not user:
-            raise CredentialFieldMissingError(
-                message="extra.username (MySQL database user) is required for IAM user authentication",
-                field="extra.username",
-            )
-        if not host:
-            raise CredentialFieldMissingError(
-                message="host is required for IAM user authentication",
-                field="host",
-            )
-        if not port:
-            raise CredentialFieldMissingError(
-                message="port is required for IAM user authentication",
-                field="port",
-            )
-        if not region:
-            raise RegionExtractionError(
-                message="Region could not be extracted from RDS hostname; expected [identifier].[region].rds.amazonaws.com",
-                field="host",
-            )
+        fields = iam_user_fields(self.credentials)
+        log_iam_user_fields(logger, fields)
+        require_iam_user_fields(fields)
 
         try:
             token = generate_aws_rds_token_with_iam_user(
-                aws_access_key_id=aws_access_key_id,
-                aws_secret_access_key=aws_secret_access_key,
-                host=host,
-                user=user,  # MySQL DB user
-                port=int(port),
-                region=region,
+                aws_access_key_id=fields.aws_access_key_id,
+                aws_secret_access_key=fields.aws_secret_access_key,
+                host=fields.host,
+                user=fields.user,  # MySQL DB user
+                port=int(fields.port),
+                region=fields.region,
             )
         except Exception as e:
             raise IamTokenGenerationError(
                 failure_reason="token_generation_failed", cause=e
             ) from e
 
-        if not token:
-            raise IamTokenGenerationError(
-                message="AWS RDS IAM token generation returned an empty token",
-                failure_reason="empty_token",
-            )
-        logger.info("IAM token generated successfully (length: %d)", len(token))
-        return token
+        return require_token(token, logger)
 
     def get_iam_role_token(self) -> str:
         """Get an IAM role token for AWS RDS MySQL authentication.
@@ -226,88 +157,22 @@ class SQLClient(AsyncBaseSQLClient):
         Raises:
             CommonError: If required credentials (aws_role_arn) are missing.
         """
-        extra = parse_credentials_extra(self.credentials)
-        # Legacy marketplace mapping (matches PKL form using extraFields):
-        #   credentials.username             = MySQL database user
-        #   credentials.extra.aws_role_arn   = IAM role ARN
-        #   credentials.extra.aws_external_id (optional) = STS external ID
-        #   credentials.extra.aws_access_key_id / aws_secret_access_key (optional)
-        aws_role_arn = extra.get("aws_role_arn")
-        external_id = extra.get("aws_external_id") or None
-        aws_access_key_id = extra.get("aws_access_key_id")
-        aws_secret_access_key = extra.get("aws_secret_access_key")
-        username = self.credentials.get("username")  # MySQL DB user
-        host = self.credentials.get("host")
-        port = self.credentials.get("port")
-        region = self._extract_region_from_hostname(host)
-
-        logger.info(
-            "IAM role auth — role_arn=%s, host=%s, port=%s, region=%s, user=%s, has_external_id=%s",
-            aws_role_arn,
-            host,
-            port,
-            region,
-            username,
-            bool(external_id),
-        )
-
-        if not aws_role_arn:
-            raise CredentialFieldMissingError(
-                message="extra.aws_role_arn is required for IAM role authentication",
-                field="extra.aws_role_arn",
-            )
-        if not username:
-            raise CredentialFieldMissingError(
-                message="username (MySQL database user) is required for IAM role authentication",
-                field="username",
-            )
-        if not host:
-            raise CredentialFieldMissingError(
-                message="host is required for IAM role authentication",
-                field="host",
-            )
-        if not port:
-            raise CredentialFieldMissingError(
-                message="port is required for IAM role authentication",
-                field="port",
-            )
-        if not region:
-            raise RegionExtractionError(
-                message="Region could not be extracted from RDS hostname; expected [identifier].[region].rds.amazonaws.com",
-                field="host",
-            )
-
-        # A complete frontend-supplied key pair goes to STS explicitly; without
-        # one, the SDK uses boto3's default chain (pod IAM role, etc.). Never
-        # stage the keys in os.environ: it is process-global, so concurrent
-        # workflows on one worker race on it.
-        explicit_keys = (
-            {
-                "aws_access_key_id": aws_access_key_id,
-                "aws_secret_access_key": aws_secret_access_key,
-            }
-            if aws_access_key_id and aws_secret_access_key
-            else {}
-        )
+        fields = iam_role_fields(self.credentials)
+        log_iam_role_fields(logger, fields)
+        require_iam_role_fields(fields)
+        explicit_keys = sts_explicit_keys(fields)
 
         try:
             token = generate_aws_rds_token_with_iam_role(
-                role_arn=aws_role_arn,
-                host=host,
-                user=username,
-                external_id=external_id,
-                port=int(port),
-                region=region,
+                role_arn=fields.aws_role_arn,
+                host=fields.host,
+                user=fields.user,
+                external_id=fields.external_id,
+                port=int(fields.port),
+                region=fields.region,
                 **explicit_keys,
             )
-
-            if not token:
-                raise IamTokenGenerationError(
-                    message="AWS RDS IAM token generation returned an empty token",
-                    failure_reason="empty_token",
-                )
-            logger.info("IAM token generated successfully (length: %d)", len(token))
-            return token
+            return require_token(token, logger)
         except AwsAssumeRoleError as e:
             # STS rejected the assume-role call — re-raise with a message that
             # contains "authentication failed" so the SDK's auth-cache prime
@@ -347,7 +212,7 @@ class SQLClient(AsyncBaseSQLClient):
         else:
             # For basic auth, enable SSL by default (matching legacy JDBC driver behavior)
             # Create SSL context and modify DB_CONFIG.connect_args before calling base class
-            ssl_context = self._create_ssl_context()
+            ssl_context = create_ssl_context()
 
             # Temporarily add SSL context to DB_CONFIG.connect_args
             # Base class will use this when creating the engine
@@ -356,28 +221,13 @@ class SQLClient(AsyncBaseSQLClient):
 
             # SDR / agent mode: agent_json uses "basic.username" / "basic.password" dot
             # notation. Flatten them to top-level so the base class finds username/password.
-            if "basic.username" in credentials or "basic.password" in credentials:
-                credentials = {
-                    **credentials,
-                    "username": credentials.get("basic.username")
-                    or credentials.get("username"),
-                    "password": credentials.get("basic.password")
-                    or credentials.get("password"),
-                }
+            credentials = flatten_basic_credentials(credentials)
 
             # Use base class - it will use the modified DB_CONFIG.connect_args.
-            # Tenacity retry for MySQL 8 caching_sha2_password cold-cache:
-            # the server-side cache can require several failed connection
-            # attempts before it is warm enough for a subsequent attempt to
-            # take the fast path and succeed. Each failed attempt progressively
-            # populates the cache. Jitter spreads retries to avoid thundering-
-            # herd when multiple workers start simultaneously on a cold server.
-            @retry(
-                retry=retry_if_exception_type(SqlClientAuthFailedError),
-                stop=stop_after_attempt(5),
-                wait=wait_random(min=0, max=0.5),
-                reraise=True,
-            )
+            # The base class wraps every failed connection attempt in
+            # SqlClientAuthFailedError, so that is what the cold-cache retry
+            # (see cold_cache_retry) counts.
+            @cold_cache_retry(retry_if_exception_type(SqlClientAuthFailedError))
             async def _load_with_retry():
                 if self.engine:
                     await self.engine.dispose()
@@ -403,60 +253,20 @@ class SQLClient(AsyncBaseSQLClient):
         else:  # iam_role
             raw_token = await run_in_thread(self.get_iam_role_token)
 
-        # Determine username based on auth type
-        extra = parse_credentials_extra(credentials)
-        if auth_type == "iam_user":
-            username = extra.get("username")
-            if not username:
-                raise CredentialFieldMissingError(
-                    message="extra.username (MySQL database user) is required for IAM user authentication",
-                    field="extra.username",
-                )
-        else:  # iam_role
-            username = credentials.get("username")
-            if not username:
-                raise CredentialFieldMissingError(
-                    message="username (MySQL database user) is required for IAM role authentication",
-                    field="username",
-                )
-
-        host = credentials.get("host")
-        port = credentials.get("port")
-        if not host or not port:
-            raise CredentialFieldMissingError(
-                message="host and port are required for IAM authentication",
-                field="host",
-            )
-
-        # Build query parameters
-        query_params: Dict[str, str] = {}
-        if self.DB_CONFIG and self.DB_CONFIG.defaults:
-            for key, value in self.DB_CONFIG.defaults.items():
-                if value is not None:
-                    query_params[key] = str(value)
-
-        url_kwargs = {
-            "drivername": "mysql+aiomysql",
-            "host": host,
-            "port": int(port),
-        }
-        if query_params:
-            url_kwargs["query"] = query_params
-
-        engine_url = URL.create(**url_kwargs)
-
-        # Create SSL context without certificate verification for RDS IAM auth
-        ssl_context = self._create_ssl_context()
-
-        # Create async engine with all auth parameters in connect_args
-        connect_args = dict(self.DB_CONFIG.connect_args if self.DB_CONFIG else {})
-        connect_args["user"] = username
-        connect_args["password"] = raw_token
-        connect_args["auth_plugin"] = "mysql_clear_password"
-        connect_args["ssl"] = ssl_context
+        username = iam_db_username(credentials, auth_type)
+        engine_url = iam_engine_url(
+            "mysql+aiomysql",
+            credentials,
+            self.DB_CONFIG.defaults if self.DB_CONFIG else None,
+        )
+        connect_args = iam_connect_args(
+            self.DB_CONFIG.connect_args if self.DB_CONFIG else None,
+            username,
+            raw_token,
+        )
 
         self.engine = create_async_engine(
-            str(engine_url),
+            engine_url,
             connect_args=connect_args,
             pool_pre_ping=True,
         )
@@ -466,18 +276,14 @@ class SQLClient(AsyncBaseSQLClient):
 
         # Register event listener as additional safety to ensure token is injected
         # This ensures fresh tokens on each connection (tokens expire)
-        @event.listens_for(self.engine.sync_engine, "do_connect")
-        def provide_token(dialect, conn_rec, cargs, cparams):
-            """Event listener to inject/refresh IAM token before connecting."""
-            # Get fresh token (tokens expire, so regenerate for each connection)
-            if auth_type == "iam_user":
-                token = self.get_iam_user_token()
-            else:  # iam_role
-                token = self.get_iam_role_token()
-
-            # Inject token into connection parameters
-            cparams["password"] = token
-            logger.debug("IAM token refreshed for connection (length: %d)", len(token))
+        get_token = (
+            self.get_iam_user_token
+            if auth_type == "iam_user"
+            else self.get_iam_role_token
+        )
+        event.listens_for(self.engine.sync_engine, "do_connect")(
+            token_refresher(get_token, logger)
+        )
 
         # Test connection briefly to validate credentials
         try:

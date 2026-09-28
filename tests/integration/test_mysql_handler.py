@@ -2,8 +2,8 @@
 
 Calls handler methods directly (no HTTP layer) against a real MySQL instance
 provided by the session-scoped testcontainers fixture. Complements the unit
-tests (which mock SQLClient) by verifying the full path through SQLClient to
-the database.
+tests (which mock the client) by verifying the full path through
+MySQLHandlerClient to the database.
 
 Skips gracefully when no MySQL is available (no MYSQL_HOST env var and no
 Docker daemon).
@@ -14,7 +14,7 @@ from __future__ import annotations
 import os
 
 import pytest
-from application_sdk.handler import (
+from application_sdk_api.handler import (
     AuthInput,
     AuthStatus,
     HandlerCredential,
@@ -23,7 +23,7 @@ from application_sdk.handler import (
     PreflightStatus,
 )
 
-from app.handler import MySQLAppHandler
+from atlan_mysql_api.handler import MySQLAppHandler
 
 pytestmark = pytest.mark.integration
 

@@ -14,7 +14,7 @@ from application_sdk.common.aws_utils_errors import AwsAssumeRoleError
 from application_sdk.common.error_codes import ClientError
 
 from app.client import SQLClient
-from app.failures import IamTokenGenerationError
+from atlan_mysql_api.failures import IamTokenGenerationError
 
 
 class TestMySQLClient:

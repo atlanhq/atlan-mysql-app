@@ -8,6 +8,12 @@ resolution-markers = [
     "python_full_version < '3.12'",
 ]
 
+[manifest]
+members = [
+    "atlan-mysql-api",
+    "atlan-mysql-app",
+]
+
 [[package]]
 name = "agent-detector"
 version = "2.0.0"
@@ -211,10 +217,11 @@ wheels = [
 
 [[package]]
 name = "atlan-application-sdk"
-version = "3.39.1"
-source = { registry = "https://pypi.org/simple" }
+version = "3.39.0"
+source = { git = "https://github.com/atlanhq/application-sdk.git?rev=15e12164b4cf91cb0d8ea426fb1583f5e1d1a856#15e12164b4cf91cb0d8ea426fb1583f5e1d1a856" }
 dependencies = [
     { name = "aiohttp" },
+    { name = "atlan-application-sdk-api" },
     { name = "azure-identity" },
     { name = "boto3" },
     { name = "fastapi", extra = ["standard"] },
@@ -234,10 +241,6 @@ dependencies = [
     { name = "pyyaml" },
     { name = "temporalio" },
     { name = "uvloop", marker = "sys_platform != 'win32'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/94/3b/2d7ec7d6829ee5ccb6573ac6adae41fb737127448372b229292528fd7953/atlan_application_sdk-3.39.1.tar.gz", hash = "sha256:c81d033328a064a45dc73dcdfb31a27665a52582930b8b767c3447cdab774a15", size = 8945904, upload-time = "2026-09-27T23:25:33.291Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/87/1b/b50e1aa695e7b10ab4c02b1e5cd5ce8c17e368ddf87f084fd4a5ddfb2791/atlan_application_sdk-3.39.1-py3-none-any.whl", hash = "sha256:6752daf3b0a62a2712101631ff2aaa06d54f2f8ed3fe2fd85d939eb1ce977f25", size = 1878278, upload-time = "2026-09-27T23:25:30.791Z" },
 ]
 
 [package.optional-dependencies]
@@ -261,6 +264,25 @@ workflows = [
 ]
 
 [[package]]
+name = "atlan-application-sdk-api"
+version = "3.39.0"
+source = { git = "https://github.com/atlanhq/application-sdk.git?subdirectory=packages%2Fapi&rev=15e12164b4cf91cb0d8ea426fb1583f5e1d1a856#15e12164b4cf91cb0d8ea426fb1583f5e1d1a856" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "orjson" },
+    { name = "pydantic" },
+    { name = "starlette" },
+]
+
+[package.optional-dependencies]
+aws = [
+    { name = "boto3" },
+]
+sql = [
+    { name = "sqlalchemy" },
+]
+
+[[package]]
 name = "atlan-application-sdk-conformance"
 version = "0.39.1"
 source = { registry = "https://pypi.org/simple" }
@@ -276,12 +298,30 @@ wheels = [
 ]
 
 [[package]]
+name = "atlan-mysql-api"
+version = "2.2.0"
+source = { editable = "api" }
+dependencies = [
+    { name = "atlan-application-sdk-api", extra = ["aws", "sql"] },
+    { name = "pymysql" },
+    { name = "tenacity" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "atlan-application-sdk-api", extras = ["sql", "aws"], git = "https://github.com/atlanhq/application-sdk.git?subdirectory=packages%2Fapi&rev=15e12164b4cf91cb0d8ea426fb1583f5e1d1a856" },
+    { name = "pymysql", specifier = ">=1.1.0" },
+    { name = "tenacity", specifier = ">=8.0.0" },
+]
+
+[[package]]
 name = "atlan-mysql-app"
 version = "2.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiomysql" },
     { name = "atlan-application-sdk", extra = ["iam-auth", "pandas", "sql", "workflows"] },
+    { name = "atlan-mysql-api" },
 ]
 
 [package.optional-dependencies]
@@ -310,8 +350,9 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "aiomysql", specifier = ">=0.3.0" },
-    { name = "atlan-application-sdk", extras = ["iam-auth", "pandas", "sql", "workflows"], specifier = ">=3.33.2,<4.0.0" },
+    { name = "atlan-application-sdk", extras = ["iam-auth", "pandas", "sql", "workflows"], git = "https://github.com/atlanhq/application-sdk.git?rev=15e12164b4cf91cb0d8ea426fb1583f5e1d1a856" },
     { name = "atlan-application-sdk-conformance", marker = "extra == 'dev'", specifier = ">=0.17.0,<1.0.0" },
+    { name = "atlan-mysql-api", editable = "api" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.6.1" },
     { name = "docker", marker = "extra == 'test'", specifier = ">=7.0.0" },
     { name = "isort", marker = "extra == 'dev'", specifier = ">=5.13.2" },
