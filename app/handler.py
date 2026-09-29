@@ -6,7 +6,7 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
-from application_sdk.errors import AppError, safe_traceback
+from application_sdk.errors import AppError
 from application_sdk.handler import (
     AuthInput,
     AuthOutput,
@@ -21,7 +21,6 @@ from application_sdk.handler import (
     SqlMetadataObject,
     SqlMetadataOutput,
 )
-from application_sdk.handler import get_logger
 
 from .client import SQLClient
 from .constants import DATABASE_PLACEHOLDER
@@ -34,7 +33,6 @@ from .failures import (
     transient_failure,
 )
 
-logger = get_logger(__name__)
 
 # SQL for handler endpoints
 _TEST_AUTH_SQL = (
@@ -128,11 +126,7 @@ class MySQLAppHandler(Handler):
             return AuthOutput(
                 status=AuthStatus.SUCCESS, message="Authentication successful"
             )
-        # safe_traceback, not exc_info: this is ERROR, so it is emitted in
-        # production, and a SQLAlchemy connection error carries the password in
-        # its text. Same redaction as the preflight probes below.
         except Exception as e:
-            logger.error("MySQL auth test failed: %s", safe_traceback(e))
             err = transient_failure(e) or PreflightAuthError(cause=e)
             return AuthOutput(status=AuthStatus.FAILED, error=err.to_failure_details())
         finally:
@@ -186,19 +180,6 @@ class MySQLAppHandler(Handler):
                 await client.load(credentials=creds)
                 await client.get_results(_TEST_AUTH_SQL)
             except Exception as e:
-                # DEBUG, not WARNING: the preflight gate owns the customer-facing
-                # outcome row and levels it from the verdict — ERROR when the run is
-                # blocked, as it is here. A handler-authored WARNING is both a
-                # duplicate of that row and invisible under the customer's default
-                # ERROR filter (F005 / FND-901). DEBUG keeps the traceback for
-                # engineers without adding a second customer-visible record.
-                #
-                # safe_traceback, not exc_info: SQLAlchemy embeds the whole
-                # connection string — password included — in its error text, so
-                # a raw traceback puts the credential in the log. The SDK omits
-                # exc_info at its own load() failure site for this reason; this
-                # keeps the frames and redacts the userinfo instead.
-                logger.debug("Auth preflight check failed: %s", safe_traceback(e))
                 transient = transient_failure(e)
                 if transient is not None:
                     # A blip is "ask me later", not a verdict. Raising the typed
@@ -241,12 +222,6 @@ class MySQLAppHandler(Handler):
         try:
             result = await client.get_results(_TABLES_CHECK_SQL)
         except Exception as e:
-            # DEBUG, not WARNING: this check is advisory, so the gate emits the
-            # single WARNING outcome row itself (keyed on any failed check) —
-            # F005 bans the handler from logging it. DEBUG keeps the traceback
-            # for engineers without duplicating the gate's record.
-            # safe_traceback, not exc_info — see the auth probe above.
-            logger.debug("Connectivity preflight check failed: %s", safe_traceback(e))
             blip = transient_failure(e)
             listing_failure = blip if blip is not None else TableListingError(cause=e)
             return PreflightCheck(
@@ -269,12 +244,6 @@ class MySQLAppHandler(Handler):
             # Log credential keys (not values) so we can tell whether the
             # marketplace credential-resolution layer populated the input.
             # Values would leak secrets; keys alone are enough to diagnose.
-            logger.info(
-                "fetch_metadata: %d credentials received, keys=%s, host=%s",
-                len(input.credentials),
-                sorted(creds.keys()),
-                creds.get("host", "<missing>"),
-            )
 
             if not creds.get("host"):
                 raise MetadataHostMissingError(
@@ -285,12 +254,6 @@ class MySQLAppHandler(Handler):
             await client.load(credentials=creds)
 
             result = await client.get_results(_FILTER_METADATA_SQL)
-            row_count = 0 if result is None else len(result)
-            logger.info(
-                "fetch_metadata: SQL returned %s (%d rows)",
-                "None" if result is None else "DataFrame",
-                row_count,
-            )
 
             objects = []
             if result is not None:
