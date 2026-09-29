@@ -12,7 +12,7 @@ from application_sdk.common.aws_utils import (
 from application_sdk.common.aws_utils_errors import AwsAssumeRoleError
 from application_sdk.credentials.utils import parse_credentials_extra
 from application_sdk.common.concurrency import run_in_thread
-from application_sdk.observability.logger_adaptor import get_logger
+from application_sdk.handler import get_logger
 from .failures import (
     CredentialFieldMissingError,
     EngineCreationError,

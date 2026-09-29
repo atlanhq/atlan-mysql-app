@@ -21,7 +21,7 @@ from application_sdk.handler import (
     SqlMetadataObject,
     SqlMetadataOutput,
 )
-from application_sdk.observability.logger_adaptor import get_logger
+from application_sdk.handler import get_logger
 
 from .client import SQLClient
 from .constants import DATABASE_PLACEHOLDER
