@@ -24,7 +24,7 @@ class TestMySQLAppClassAttrs:
         assert MySQLApp.preflight_gate_mode == "hard"
 
     def test_sql_client_class_set(self):
-        from app.client import SQLClient
+        from atlan_mysql_api.client import SQLClient
 
         assert MySQLApp.sql_client_class is SQLClient
 

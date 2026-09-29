@@ -23,9 +23,9 @@ from application_sdk.handler import (
 )
 from application_sdk.observability.logger_adaptor import get_logger
 
-from app.client import SQLClient
-from app.constants import DATABASE_PLACEHOLDER
-from app.failures import (
+from atlan_mysql_api.client import SQLClient
+from atlan_mysql_api.constants import DATABASE_PLACEHOLDER
+from atlan_mysql_api.failures import (
     MetadataFetchError,
     MetadataHostMissingError,
     PreflightAuthError,

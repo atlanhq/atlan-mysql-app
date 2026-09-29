@@ -1,0 +1,41 @@
+[project]
+name = "atlan-mysql-api"
+version = "2.2.0"
+description = "The Atlan MySQL app's handler (auth, preflight, metadata), served by the worker and the consolidated API host"
+authors = [{ name = "Atlan Apps Team" }]
+requires-python = ">=3.11"
+license = "Apache-2.0"
+# No worker dependencies: this is what the consolidated host installs per app.
+dependencies = [
+    # Pinned to an unreleased application-sdk commit (the api distribution's
+    # first release). Re-pin to a released atlan-application-sdk-api before merge.
+    "atlan-application-sdk-api[sql,pandas,aws] @ git+https://github.com/atlanhq/application-sdk.git@e633c5b1fb7d4c7115097701c37423bfc940f268#subdirectory=packages/api",
+    # The async MySQL driver the client's engine uses (was the app's own dep).
+    "aiomysql>=0.3.0",
+    # caching_sha2_password cold-cache retry in the client.
+    "tenacity>=8.0.0",
+]
+
+[project.entry-points."atlan.app_api"]
+mysql = "atlan_mysql_api:handler"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+# The application-sdk-api dependency is a git direct reference until it is
+# pinned to a release.
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["atlan_mysql_api"]
+
+# The configmaps the host serves: build_asgi_app(generated_dir=<package>/generated).
+# app/generated/ stays the source of truth (the contract toolkit writes it for
+# the worker); only its JSON is shipped, so the Python in that tree stays out
+# of this package.
+[tool.hatch.build.targets.wheel.force-include]
+"../app/generated/atlan-connectors-mysql.json" = "atlan_mysql_api/generated/atlan-connectors-mysql.json"
+"../app/generated/manifest.json" = "atlan_mysql_api/generated/manifest.json"
+"../app/generated/mysql.json" = "atlan_mysql_api/generated/mysql.json"

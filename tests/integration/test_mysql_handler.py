@@ -23,7 +23,7 @@ from application_sdk.handler import (
     PreflightStatus,
 )
 
-from app.handler import MySQLAppHandler
+from atlan_mysql_api.handler import MySQLAppHandler
 
 pytestmark = pytest.mark.integration
 

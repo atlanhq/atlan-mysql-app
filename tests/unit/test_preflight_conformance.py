@@ -2,7 +2,7 @@
 
 Every test here drives the **real** ``MySQLAppHandler.preflight_check`` and
 validates its output with ``assert_preflight_result``. Nothing in the handler,
-its error classification (``app.failures.transient_failure`` /
+its error classification (``atlan_mysql_api.failures.transient_failure`` /
 ``_mysql_errno``), its short-circuit or its verdict aggregation is mocked.
 
 Source adapter — where the fake stops
@@ -58,7 +58,7 @@ truthfully, and the handler now carries it:
 * ``hung_probe`` / ``budget_retry`` — the handler ignored
   ``PreflightInput.timeout_seconds`` entirely, so nothing bounded a probe by
   the gate's remaining budget. It now derives a deadline from it
-  (``app.handler._probe_deadline`` / ``_connect_timeout``).
+  (``atlan_mysql_api.handler._probe_deadline`` / ``_connect_timeout``).
 """
 
 from __future__ import annotations
@@ -82,9 +82,9 @@ from conformance.preflight_testing import (
     assert_probe_lifetime,
 )
 
-from app.client import SQLClient
-from app.failures import PreflightProbeTimeoutError, SourceRestartingError
-from app.handler import _TABLES_CHECK_SQL, _TEST_AUTH_SQL, MySQLAppHandler
+from atlan_mysql_api.client import SQLClient
+from atlan_mysql_api.failures import PreflightProbeTimeoutError, SourceRestartingError
+from atlan_mysql_api.handler import _TABLES_CHECK_SQL, _TEST_AUTH_SQL, MySQLAppHandler
 
 # Synthetic only — never a real credential. Used to prove the password never
 # reaches the gate's output or the logs, on the path that carries a driver
@@ -95,11 +95,11 @@ MANDATORY = ("auth",)
 OBSERVED = {"auth", "connectivity"}
 
 # MySQL server error numbers used by the scenarios. 1045/1142 are definitive
-# customer-fixable facts; app.failures._SERVER_BLIP_ERRNOS holds the retryable
+# customer-fixable facts; atlan_mysql_api.failures._SERVER_BLIP_ERRNOS holds the retryable
 # ones, which only the deferred recoverable_transient scenario needs.
 ERRNO_ACCESS_DENIED = 1045
 ERRNO_NO_SELECT_GRANT = 1142
-ERRNO_CONNECTION_LOST = 2013  # app.failures._SERVER_BLIP_ERRNOS
+ERRNO_CONNECTION_LOST = 2013  # atlan_mysql_api.failures._SERVER_BLIP_ERRNOS
 
 
 def _connect_timeouts(source: SyntheticMySQL) -> list[int]:

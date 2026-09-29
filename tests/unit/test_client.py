@@ -13,8 +13,8 @@ from application_sdk.clients.sql_errors import (
 from application_sdk.common.aws_utils_errors import AwsAssumeRoleError
 from application_sdk.common.error_codes import ClientError
 
-from app.client import SQLClient
-from app.failures import IamTokenGenerationError
+from atlan_mysql_api.client import SQLClient
+from atlan_mysql_api.failures import IamTokenGenerationError
 
 
 class TestMySQLClient:
@@ -177,10 +177,10 @@ class TestMySQLClient:
         """Test successful loading with IAM user authentication."""
         with (
             patch(
-                "app.client.generate_aws_rds_token_with_iam_user",
+                "atlan_mysql_api.client.generate_aws_rds_token_with_iam_user",
                 return_value="mock_token_12345",
             ) as mock_token,
-            patch("app.client.create_async_engine") as mock_create_engine,
+            patch("atlan_mysql_api.client.create_async_engine") as mock_create_engine,
             patch("sqlalchemy.event.listens_for") as mock_listens_for,
         ):
             mock_engine = MagicMock()
@@ -210,7 +210,7 @@ class TestMySQLClient:
         """Test successful loading with IAM role authentication."""
         with (
             patch("boto3.Session") as mock_boto3_session,
-            patch("app.client.create_async_engine") as mock_create_engine,
+            patch("atlan_mysql_api.client.create_async_engine") as mock_create_engine,
             patch("sqlalchemy.event.listens_for") as mock_listens_for,
             patch(
                 "application_sdk.common.aws_utils.create_aws_client"
@@ -267,7 +267,7 @@ class TestMySQLClient:
         IamTokenGenerationError (AuthError) with a message that the SDK
         auth-cache prime classifier routes to AuthError."""
         with patch(
-            "app.client.generate_aws_rds_token_with_iam_role",
+            "atlan_mysql_api.client.generate_aws_rds_token_with_iam_role",
             side_effect=AwsAssumeRoleError(cause=Exception("STS denied")),
         ):
             client = SQLClient()
@@ -293,10 +293,10 @@ class TestMySQLClient:
 
         with (
             patch(
-                "app.client.generate_aws_rds_token_with_iam_role",
+                "atlan_mysql_api.client.generate_aws_rds_token_with_iam_role",
                 side_effect=fake_token,
             ),
-            patch("app.client.create_async_engine") as mock_create_engine,
+            patch("atlan_mysql_api.client.create_async_engine") as mock_create_engine,
             patch("sqlalchemy.event.listens_for"),
         ):
             mock_engine = MagicMock()
@@ -531,10 +531,10 @@ class TestMySQLClient:
 
         with (
             patch(
-                "app.client.generate_aws_rds_token_with_iam_user",
+                "atlan_mysql_api.client.generate_aws_rds_token_with_iam_user",
                 return_value="mock_iam_token",
             ) as mock_gen,
-            patch("app.client.logger") as mock_logger,
+            patch("atlan_mysql_api.client.logger") as mock_logger,
         ):
             token = client.get_iam_user_token()
             assert token == "mock_iam_token"
@@ -700,7 +700,7 @@ class TestMySQLClient:
             "authType": "iam_user",
         }
         with patch(
-            "app.client.generate_aws_rds_token_with_iam_user",
+            "atlan_mysql_api.client.generate_aws_rds_token_with_iam_user",
             side_effect=RuntimeError("boto3 blew up"),
         ):
             with pytest.raises(IamTokenGenerationError) as exc_info:
@@ -719,7 +719,10 @@ class TestMySQLClient:
             "extra": {"username": "db_user"},
             "authType": "iam_user",
         }
-        with patch("app.client.generate_aws_rds_token_with_iam_user", return_value=""):
+        with patch(
+            "atlan_mysql_api.client.generate_aws_rds_token_with_iam_user",
+            return_value="",
+        ):
             with pytest.raises(IamTokenGenerationError) as exc_info:
                 client.get_iam_user_token()
             assert exc_info.value.failure_reason == "empty_token"
@@ -786,7 +789,10 @@ class TestMySQLClient:
             "extra": {"aws_role_arn": "arn:aws:iam::123:role/r"},
             "authType": "iam_role",
         }
-        with patch("app.client.generate_aws_rds_token_with_iam_role", return_value=""):
+        with patch(
+            "atlan_mysql_api.client.generate_aws_rds_token_with_iam_role",
+            return_value="",
+        ):
             with pytest.raises(IamTokenGenerationError) as exc_info:
                 client.get_iam_role_token()
             assert exc_info.value.failure_reason == "empty_token"
@@ -820,7 +826,8 @@ class TestMySQLClient:
         }
 
         with patch(
-            "app.client.generate_aws_rds_token_with_iam_role", side_effect=fake_token
+            "atlan_mysql_api.client.generate_aws_rds_token_with_iam_role",
+            side_effect=fake_token,
         ):
             assert client.get_iam_role_token() == "tok"
 
@@ -849,7 +856,8 @@ class TestMySQLClient:
             "authType": "iam_role",
         }
         with patch(
-            "app.client.generate_aws_rds_token_with_iam_role", return_value="tok"
+            "atlan_mysql_api.client.generate_aws_rds_token_with_iam_role",
+            return_value="tok",
         ) as mock_gen:
             assert client.get_iam_role_token() == "tok"
         kwargs = mock_gen.call_args.kwargs
@@ -869,10 +877,10 @@ class TestMySQLClient:
         translated to IamTokenGenerationError(connection_rejected)."""
         with (
             patch(
-                "app.client.generate_aws_rds_token_with_iam_role",
+                "atlan_mysql_api.client.generate_aws_rds_token_with_iam_role",
                 return_value="initial_token",
             ),
-            patch("app.client.create_async_engine") as mock_create_engine,
+            patch("atlan_mysql_api.client.create_async_engine") as mock_create_engine,
             patch("sqlalchemy.event.listens_for"),
         ):
             mock_engine = MagicMock()
