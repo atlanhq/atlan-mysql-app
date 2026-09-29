@@ -2,29 +2,31 @@
 
 Every test here drives the **real** ``MySQLAppHandler.preflight_check`` and
 validates its output with ``assert_preflight_result``. Nothing in the handler,
-its error classification (``app.failures.transient_failure`` /
+its error classification (``atlan_mysql_api.failures.transient_failure`` /
 ``_mysql_errno``), its short-circuit or its verdict aggregation is mocked.
 
 Source adapter — where the fake stops
 -------------------------------------
 ``atlan-openapi-app`` fakes its source at the HTTP transport (respx) so the
-real client runs. The MySQL equivalent is two seams, because one of them needs
-a live ``AsyncEngine`` that no stub can supply:
+real client runs. The MySQL equivalent is two seams. The handler's client is
+``atlan_mysql_api.client.MySQLHandlerClient`` (a sync engine driven off the
+event loop by ``application_sdk_api``'s ``BaseSQLClient``):
 
-* ``sqlalchemy.ext.asyncio.create_async_engine`` returns a synthetic engine.
-  The app's **real** ``SQLClient.load`` still runs end to end — SSL context,
-  the SDR ``basic.username`` / ``basic.password`` flattening, the
-  caching_sha2_password tenacity retry, required-field validation, connection
-  string construction, and the SDK's own ``SqlClientAuthFailedError`` wrapping
-  of whatever the connection raises. Auth failures are injected at
+* ``sqlalchemy.create_engine`` returns a synthetic engine. The app's **real**
+  ``MySQLHandlerClient.load`` still runs end to end — SSL context, the SDR
+  ``basic.username`` / ``basic.password`` flattening, the caching_sha2_password
+  tenacity retry, required-field validation, connection string construction
+  and the eager connection test. Auth failures are injected at
   ``engine.connect()``, so the app classifies a real driver exception.
-* ``SQLClient.get_results`` is stubbed, because the SDK's read path
-  (``_execute_async_read_operation``) requires an ``isinstance`` check against
-  a real ``AsyncEngine``. Query failures are injected in the shape the SDK
-  delivers them: ``SqlPandasResultError(cause=<driver error>, retryable=True)``.
+* ``get_results`` is stubbed, so each statement can be answered, refused or
+  hung per scenario. Query failures are injected as the raw driver error the
+  handler's client surfaces. The worker's ``app.client.SQLClient.get_results``
+  is stubbed from the same source for the extraction-parity scenario, in the
+  shape the worker SDK delivers failures:
+  ``SqlPandasResultError(cause=<driver error>, retryable=True)``.
 
-``SQLClient.close`` is left real, so engine disposal is independent teardown
-evidence rather than a recorded mock call.
+``MySQLHandlerClient.close`` is left real, so engine disposal is independent
+teardown evidence rather than a recorded mock call.
 
 Scenario mapping decisions
 --------------------------
@@ -58,7 +60,7 @@ truthfully, and the handler now carries it:
 * ``hung_probe`` / ``budget_retry`` — the handler ignored
   ``PreflightInput.timeout_seconds`` entirely, so nothing bounded a probe by
   the gate's remaining budget. It now derives a deadline from it
-  (``app.handler._probe_deadline`` / ``_connect_timeout``).
+  (``atlan_mysql_api.handler._probe_deadline`` / ``_connect_timeout``).
 """
 
 from __future__ import annotations
@@ -72,19 +74,21 @@ from urllib.parse import parse_qs, urlparse
 import pandas as pd
 import pymysql.err as pymysql_err
 import pytest
+import sqlalchemy
 import sqlalchemy.exc as sqlalchemy_exc
-import sqlalchemy.ext.asyncio as sqlalchemy_async
 from application_sdk.clients.sql_errors import SqlPandasResultError
+from application_sdk_api.handler import HandlerCredential, PreflightInput
 from loguru import logger as loguru_logger
-from application_sdk.handler import HandlerCredential, PreflightInput
 from conformance.preflight_testing import (
     assert_preflight_result,
     assert_probe_lifetime,
 )
 
+from atlan_mysql_api.client import MySQLHandlerClient
+from atlan_mysql_api.failures import PreflightProbeTimeoutError, SourceRestartingError
+from atlan_mysql_api.handler import _TABLES_CHECK_SQL, _TEST_AUTH_SQL, MySQLAppHandler
+
 from app.client import SQLClient
-from app.failures import PreflightProbeTimeoutError, SourceRestartingError
-from app.handler import _TABLES_CHECK_SQL, _TEST_AUTH_SQL, MySQLAppHandler
 
 # Synthetic only — never a real credential. Used to prove the password never
 # reaches the gate's output or the logs, on the path that carries a driver
@@ -95,11 +99,11 @@ MANDATORY = ("auth",)
 OBSERVED = {"auth", "connectivity"}
 
 # MySQL server error numbers used by the scenarios. 1045/1142 are definitive
-# customer-fixable facts; app.failures._SERVER_BLIP_ERRNOS holds the retryable
+# customer-fixable facts; atlan_mysql_api.failures._SERVER_BLIP_ERRNOS holds the retryable
 # ones, which only the deferred recoverable_transient scenario needs.
 ERRNO_ACCESS_DENIED = 1045
 ERRNO_NO_SELECT_GRANT = 1142
-ERRNO_CONNECTION_LOST = 2013  # app.failures._SERVER_BLIP_ERRNOS
+ERRNO_CONNECTION_LOST = 2013  # atlan_mysql_api.failures._SERVER_BLIP_ERRNOS
 
 
 def _connect_timeouts(source: SyntheticMySQL) -> list[int]:
@@ -123,12 +127,16 @@ def _access_denied() -> Exception:
     )
 
 
-def _grant_denied() -> SqlPandasResultError:
-    """What the SDK's get_results raises when the listing query is refused."""
-    cause = _driver_error(
+def _grant_denied() -> Exception:
+    """The driver error a refused listing query raises."""
+    return _driver_error(
         ERRNO_NO_SELECT_GRANT,
         "SELECT command denied to user 'atlan_reader'@'10.0.0.1' for table 'TABLES'",
     )
+
+
+def _as_worker_read_error(cause: BaseException) -> SqlPandasResultError:
+    """What the worker SDK's get_results raises for a refused query."""
     try:
         raise SqlPandasResultError(cause=cause, retryable=True) from cause
     except SqlPandasResultError as raised:
@@ -140,35 +148,45 @@ def _grant_denied() -> SqlPandasResultError:
 # =============================================================================
 
 
+class _SyntheticResult:
+    def keys(self) -> list[str]:
+        return ["1"]
+
+    def fetchall(self) -> list[tuple[int]]:
+        return [(1,)]
+
+
 class _SyntheticConnection:
     def __init__(self, source: SyntheticMySQL) -> None:
         self._source = source
 
-    async def __aenter__(self) -> _SyntheticConnection:
+    def __enter__(self) -> _SyntheticConnection:
         self._source.connects += 1
         if self._source.connect_error is not None:
             raise self._source.connect_error
         return self
 
-    async def __aexit__(self, *exc_info: Any) -> bool:
+    def __exit__(self, *exc_info: Any) -> bool:
         return False
+
+    def execute(self, statement: Any) -> _SyntheticResult:
+        # Only the client's own connection test reaches here; every statement
+        # the handler issues goes through the stubbed get_results.
+        return _SyntheticResult()
 
 
 class _SyntheticEngine:
-    """Stands in for an AsyncEngine; records the URL the app built for it."""
+    """Stands in for a sync Engine; records the URL the app built for it."""
 
     def __init__(self, source: SyntheticMySQL, url: str, **kwargs: Any) -> None:
         self._source = source
         self.url = url
         self.kwargs = kwargs
-        # install_tolerant_text_decoder_hook() attaches a DBAPI event to this;
-        # a plain object is enough for the hook to bind to and never fire.
-        self.sync_engine = type("SyncEngine", (), {})()
 
     def connect(self) -> _SyntheticConnection:
         return _SyntheticConnection(self._source)
 
-    async def dispose(self) -> None:
+    def dispose(self) -> None:
         self._source.disposed += 1
 
 
@@ -189,7 +207,7 @@ class SyntheticMySQL:
 
     # -- configuration ----------------------------------------------------
     def answer(self, query: str, value: Any) -> None:
-        """Answer `query` with a DataFrame, an exception, or a coroutine fn."""
+        """Answer `query` with rows, an exception, or a coroutine fn."""
         self.responses[query] = value
 
     def deny_listing(self) -> None:
@@ -200,16 +218,25 @@ class SyntheticMySQL:
         self.urls.append(str(url))
         return _SyntheticEngine(self, str(url), **kwargs)
 
-    async def _get_results(self, query: str) -> pd.DataFrame:
+    async def _get_results(self, query: str) -> list[dict[str, Any]]:
         self.queries.append(query)
         value = self.responses.get(query)
         if value is None:
-            return pd.DataFrame({"count": [42]})
+            return [{"count": 42}]
         if callable(value):
             return await value()
         if isinstance(value, BaseException):
             raise value
         return value
+
+    async def _get_worker_results(self, query: str) -> pd.DataFrame:
+        try:
+            rows = await self._get_results(query)
+        except SqlPandasResultError:
+            raise
+        except Exception as e:
+            raise _as_worker_read_error(e) from e
+        return pd.DataFrame(rows)
 
 
 @pytest.fixture
@@ -217,15 +244,21 @@ def source(monkeypatch: pytest.MonkeyPatch) -> SyntheticMySQL:
     adapter = SyntheticMySQL()
 
     monkeypatch.setattr(
-        sqlalchemy_async,
-        "create_async_engine",
+        sqlalchemy,
+        "create_engine",
         lambda url, **kwargs: adapter._engine(url, **kwargs),
     )
 
-    async def _get_results(self: SQLClient, query: str) -> pd.DataFrame:
+    async def _get_results(
+        self: MySQLHandlerClient, query: str
+    ) -> list[dict[str, Any]]:
         return await adapter._get_results(query)
 
-    monkeypatch.setattr(SQLClient, "get_results", _get_results)
+    async def _get_worker_results(self: SQLClient, query: str) -> pd.DataFrame:
+        return await adapter._get_worker_results(query)
+
+    monkeypatch.setattr(MySQLHandlerClient, "get_results", _get_results)
+    monkeypatch.setattr(SQLClient, "get_results", _get_worker_results)
     return adapter
 
 
@@ -502,7 +535,7 @@ async def test_every_supported_credential_shape_produces_a_typed_verdict(
     )
 
     # SDR / agent mode. The app flattens basic.username / basic.password in
-    # SQLClient.load; the connection URL it built proves the flattening ran
+    # MySQLHandlerClient.load; the connection URL it built proves the flattening ran
     # rather than silently connecting as nobody.
     dotted = await _run(
         username=None,
@@ -568,10 +601,10 @@ async def test_external_cancellation_propagates_and_disposes_the_engine(
     whether or not the handler reads it."""
     probing = asyncio.Event()
 
-    async def _never_answers() -> pd.DataFrame:
+    async def _never_answers() -> list[dict[str, Any]]:
         probing.set()
         await asyncio.sleep(30)
-        return pd.DataFrame({"count": [0]})
+        return [{"count": 0}]
 
     source.answer(_TABLES_CHECK_SQL, _never_answers)
 
@@ -696,10 +729,10 @@ async def test_unanswered_probe_stays_inside_the_budget_and_cleans_up(
     nothing about whether it is readable."""
     probing = asyncio.Event()
 
-    async def _never_answers() -> pd.DataFrame:
+    async def _never_answers() -> list[dict[str, Any]]:
         probing.set()
         await asyncio.sleep(30)
-        return pd.DataFrame({"count": [0]})
+        return [{"count": 0}]
 
     source.answer(_TEST_AUTH_SQL, _never_answers)
 

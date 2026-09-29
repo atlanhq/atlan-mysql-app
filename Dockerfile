@@ -8,6 +8,11 @@ WORKDIR /app
 
 # Copy lock files first for dependency caching
 COPY --chown=appuser:appuser pyproject.toml uv.lock README.md ./
+# The api/ workspace member (the handler package) is a locked dependency, so
+# it must be present for `uv sync --locked` below. Its wheel force-includes the
+# contract configmaps from app/generated/, so those come along too.
+COPY --chown=appuser:appuser api/ api/
+COPY --chown=appuser:appuser app/generated/ app/generated/
 
 # Install dependencies (excluding the project itself) into a new venv
 RUN --mount=type=cache,target=/home/appuser/.cache/uv,uid=1000,gid=1000 \

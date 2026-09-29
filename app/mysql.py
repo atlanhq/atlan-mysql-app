@@ -8,7 +8,6 @@ from __future__ import annotations
 import math
 import os
 from functools import lru_cache
-from pathlib import Path
 from typing import Any, ClassVar
 
 import orjson
@@ -26,11 +25,13 @@ from application_sdk.templates.contracts.sql_metadata import (
 from application_sdk.templates.sql_app import SqlApp
 from pyatlan_v9.model.assets import Column, Database, Procedure, Schema, Table, View
 
-from app.client import SQLClient
-from app.constants import DATABASE_PLACEHOLDER, TENANT_ID
-from app.handler import (  # noqa: F401 — SDK discovers {AppClass}Handler by convention
+from atlan_mysql_api import SQL_DIR
+from atlan_mysql_api.handler import (  # noqa: F401 — SDK discovers {AppClass}Handler by convention
     MySQLAppHandler,
 )
+
+from app.client import SQLClient
+from app.constants import DATABASE_PLACEHOLDER, TENANT_ID
 
 logger = get_logger(__name__)
 
@@ -83,7 +84,8 @@ class MySQLExtractionOutput(Output):
 
 
 # Read SQL files at module level
-_SQL_DIR = Path(__file__).parent / "sql"
+# The SQL ships in atlan_mysql_api beside the handler that reads some of it.
+_SQL_DIR = SQL_DIR
 
 
 def _read_sql(filename: str) -> str:
@@ -182,7 +184,7 @@ class MySQLApp(SqlApp):
     """MySQL metadata extraction App.
 
     Extends SqlApp with:
-    - MySQL-specific SQL queries from app/sql/ files
+    - MySQL-specific SQL queries from atlan_mysql_api/sql/ files
     - Asset mapper functions for databases, schemas, tables, columns, views
     - SQLClient with basic + IAM user + IAM role authentication
     """
@@ -198,7 +200,7 @@ class MySQLApp(SqlApp):
 
     sql_client_class: ClassVar = SQLClient  # type: ignore[assignment]
 
-    # SQL templates from app/sql/ files
+    # SQL templates from atlan_mysql_api/sql/ files
     fetch_database_sql: ClassVar[str] = _read_sql("extract_database.sql")
     fetch_schema_sql: ClassVar[str] = _read_sql("extract_schema.sql")
     fetch_table_sql: ClassVar[str] = _read_sql("extract_table.sql")
