@@ -6,8 +6,8 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
-from application_sdk_api.errors import AppError, safe_traceback
-from application_sdk_api.handler import (
+from application_sdk.errors import AppError, safe_traceback
+from application_sdk.handler import (
     AuthInput,
     AuthOutput,
     AuthStatus,
@@ -21,9 +21,9 @@ from application_sdk_api.handler import (
     SqlMetadataObject,
     SqlMetadataOutput,
 )
-from application_sdk_api.observability.logger_adaptor import get_logger
+from application_sdk.observability.logger_adaptor import get_logger
 
-from atlan_mysql_api.client import MySQLHandlerClient
+from atlan_mysql_api.client import SQLClient
 from atlan_mysql_api.constants import DATABASE_PLACEHOLDER
 from atlan_mysql_api.failures import (
     MetadataFetchError,
@@ -120,7 +120,7 @@ class MySQLAppHandler(Handler):
 
     async def test_auth(self, input: AuthInput) -> AuthOutput:
         """Test MySQL connectivity with provided credentials."""
-        client = MySQLHandlerClient()
+        client = SQLClient()
         try:
             creds = _creds_to_dict(input.credentials)
             await client.load(credentials=creds)
@@ -179,7 +179,7 @@ class MySQLAppHandler(Handler):
         be classified as a source failure and reported as a verdict, which is
         the one thing it must never become.
         """
-        client = MySQLHandlerClient(probe_timeout=_connect_timeout(deadline))
+        client = SQLClient(probe_timeout=_connect_timeout(deadline))
         try:
             creds = _creds_to_dict(input.credentials)
             try:
@@ -236,7 +236,7 @@ class MySQLAppHandler(Handler):
         finally:
             await client.close()
 
-    async def _check_connectivity(self, client: MySQLHandlerClient) -> PreflightCheck:
+    async def _check_connectivity(self, client: SQLClient) -> PreflightCheck:
         """List accessible tables. A source failure becomes a failed row, never a raise."""
         try:
             result = await client.get_results(_TABLES_CHECK_SQL)
@@ -263,7 +263,7 @@ class MySQLAppHandler(Handler):
 
     async def fetch_metadata(self, input: MetadataInput) -> SqlMetadataOutput:
         """Fetch schema metadata for the UI tree."""
-        client = MySQLHandlerClient()
+        client = SQLClient()
         try:
             creds = _creds_to_dict(input.credentials)
             # Log credential keys (not values) so we can tell whether the
@@ -288,13 +288,13 @@ class MySQLAppHandler(Handler):
             row_count = 0 if result is None else len(result)
             logger.info(
                 "fetch_metadata: SQL returned %s (%d rows)",
-                "None" if result is None else "rows",
+                "None" if result is None else "DataFrame",
                 row_count,
             )
 
             objects = []
             if result is not None:
-                for row in result:
+                for _, row in result.iterrows():
                     objects.append(
                         SqlMetadataObject(
                             TABLE_CATALOG=str(

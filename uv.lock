@@ -217,8 +217,8 @@ wheels = [
 
 [[package]]
 name = "atlan-application-sdk"
-version = "3.39.0"
-source = { git = "https://github.com/atlanhq/application-sdk.git?rev=9c41eb79aeeb819ca28c841d38925ed3d4b7f457#9c41eb79aeeb819ca28c841d38925ed3d4b7f457" }
+version = "3.40.0"
+source = { git = "https://github.com/atlanhq/application-sdk.git?rev=e633c5b1fb7d4c7115097701c37423bfc940f268#e633c5b1fb7d4c7115097701c37423bfc940f268" }
 dependencies = [
     { name = "aiohttp" },
     { name = "atlan-application-sdk-api" },
@@ -265,21 +265,28 @@ workflows = [
 
 [[package]]
 name = "atlan-application-sdk-api"
-version = "3.39.0"
-source = { git = "https://github.com/atlanhq/application-sdk.git?subdirectory=packages%2Fapi&rev=9c41eb79aeeb819ca28c841d38925ed3d4b7f457#9c41eb79aeeb819ca28c841d38925ed3d4b7f457" }
+version = "3.40.0"
+source = { git = "https://github.com/atlanhq/application-sdk.git?subdirectory=packages%2Fapi&rev=e633c5b1fb7d4c7115097701c37423bfc940f268#e633c5b1fb7d4c7115097701c37423bfc940f268" }
 dependencies = [
     { name = "fastapi" },
+    { name = "httpx" },
+    { name = "loguru" },
+    { name = "opentelemetry-exporter-otlp-proto-grpc" },
+    { name = "opentelemetry-sdk" },
     { name = "orjson" },
     { name = "pydantic" },
-    { name = "starlette" },
+    { name = "python-dotenv" },
 ]
 
 [package.optional-dependencies]
 aws = [
     { name = "boto3" },
 ]
+pandas = [
+    { name = "pandas" },
+]
 sql = [
-    { name = "sqlalchemy" },
+    { name = "sqlalchemy", extra = ["asyncio"] },
 ]
 
 [[package]]
@@ -302,15 +309,15 @@ name = "atlan-mysql-api"
 version = "2.2.0"
 source = { editable = "api" }
 dependencies = [
-    { name = "atlan-application-sdk-api", extra = ["aws", "sql"] },
-    { name = "pymysql" },
+    { name = "aiomysql" },
+    { name = "atlan-application-sdk-api", extra = ["aws", "pandas", "sql"] },
     { name = "tenacity" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "atlan-application-sdk-api", extras = ["sql", "aws"], git = "https://github.com/atlanhq/application-sdk.git?subdirectory=packages%2Fapi&rev=9c41eb79aeeb819ca28c841d38925ed3d4b7f457" },
-    { name = "pymysql", specifier = ">=1.1.0" },
+    { name = "aiomysql", specifier = ">=0.3.0" },
+    { name = "atlan-application-sdk-api", extras = ["sql", "pandas", "aws"], git = "https://github.com/atlanhq/application-sdk.git?subdirectory=packages%2Fapi&rev=e633c5b1fb7d4c7115097701c37423bfc940f268" },
     { name = "tenacity", specifier = ">=8.0.0" },
 ]
 
@@ -350,7 +357,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "aiomysql", specifier = ">=0.3.0" },
-    { name = "atlan-application-sdk", extras = ["iam-auth", "pandas", "sql", "workflows"], git = "https://github.com/atlanhq/application-sdk.git?rev=9c41eb79aeeb819ca28c841d38925ed3d4b7f457" },
+    { name = "atlan-application-sdk", extras = ["iam-auth", "pandas", "sql", "workflows"], git = "https://github.com/atlanhq/application-sdk.git?rev=e633c5b1fb7d4c7115097701c37423bfc940f268" },
     { name = "atlan-application-sdk-conformance", marker = "extra == 'dev'", specifier = ">=0.17.0,<1.0.0" },
     { name = "atlan-mysql-api", editable = "api" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.6.1" },

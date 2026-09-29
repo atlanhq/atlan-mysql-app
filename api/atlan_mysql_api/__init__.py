@@ -1,9 +1,11 @@
 """The MySQL app's handler, served by both the worker and the consolidated host.
 
-Depends on ``atlan-application-sdk-api`` only — never on ``application_sdk`` —
-so the host can mount it without the worker's dependency tree. The worker
-(``app/``) imports the handler class from here; the host discovers ``handler``
-through the ``atlan.app_api`` entry point.
+Depends on ``atlan-application-sdk-api`` (the part of ``application_sdk`` the
+host installs), never on the full ``atlan-application-sdk``, so the host can
+mount it without the worker's dependency tree. Imports are the usual
+``application_sdk.*`` ones. The worker (``app/``) imports the handler and the
+SQL client from here; the host discovers ``handler`` through the
+``atlan.app_api`` entry point.
 """
 
 from __future__ import annotations

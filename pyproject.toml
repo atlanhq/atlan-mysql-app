@@ -181,5 +181,5 @@ atlan-mysql-api = { workspace = true }
 # The SDK's own path source for atlan-application-sdk-api is not inherited by a
 # consumer, so without the second entry its ==3.39.0 pin would look for an
 # unpublished version. Re-pin both to a released version before merge.
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk.git", rev = "9c41eb79aeeb819ca28c841d38925ed3d4b7f457" }
-atlan-application-sdk-api = { git = "https://github.com/atlanhq/application-sdk.git", rev = "9c41eb79aeeb819ca28c841d38925ed3d4b7f457", subdirectory = "packages/api" }
+atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk.git", rev = "e633c5b1fb7d4c7115097701c37423bfc940f268" }
+atlan-application-sdk-api = { git = "https://github.com/atlanhq/application-sdk.git", rev = "e633c5b1fb7d4c7115097701c37423bfc940f268", subdirectory = "packages/api" }

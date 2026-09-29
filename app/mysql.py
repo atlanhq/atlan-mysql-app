@@ -30,7 +30,7 @@ from atlan_mysql_api.handler import (  # noqa: F401 — SDK discovers {AppClass}
     MySQLAppHandler,
 )
 
-from app.client import SQLClient
+from atlan_mysql_api.client import SQLClient
 from app.constants import DATABASE_PLACEHOLDER, TENANT_ID
 
 logger = get_logger(__name__)

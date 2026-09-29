@@ -7,13 +7,12 @@ requires-python = ">=3.11"
 license = "Apache-2.0"
 # No worker dependencies: this is what the consolidated host installs per app.
 dependencies = [
-    # Pinned to an unreleased application-sdk branch commit. Re-pin to a
-    # released atlan-application-sdk-api version before this merges.
-    "atlan-application-sdk-api[sql,aws] @ git+https://github.com/atlanhq/application-sdk.git@9c41eb79aeeb819ca28c841d38925ed3d4b7f457#subdirectory=packages/api",
-    # Sync driver for the handler's client. Already in the lock via aiomysql.
-    "pymysql>=1.1.0",
-    # caching_sha2_password cold-cache retry, shared with the worker's client.
-    # Already in the lock via atlan-application-sdk.
+    # Pinned to an unreleased application-sdk commit (the api distribution's
+    # first release). Re-pin to a released atlan-application-sdk-api before merge.
+    "atlan-application-sdk-api[sql,pandas,aws] @ git+https://github.com/atlanhq/application-sdk.git@e633c5b1fb7d4c7115097701c37423bfc940f268#subdirectory=packages/api",
+    # The async MySQL driver the client's engine uses (was the app's own dep).
+    "aiomysql>=0.3.0",
+    # caching_sha2_password cold-cache retry in the client.
     "tenacity>=8.0.0",
 ]
 

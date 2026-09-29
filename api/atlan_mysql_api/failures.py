@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import ClassVar
 
-from application_sdk_api.errors import (
+from application_sdk.errors import (
     AppError,
     AppPermissionDeniedError,
     AuthError,

@@ -3,9 +3,10 @@
 * The worker (``app/mysql.py``) uses the very class the api package defines —
   the SDK's preflight gate and SDR workflows call that handler.
 * The consolidated host builds its ASGI app from ``atlan_mysql_api.handler``
-  with ``application_sdk_api.build_asgi_app`` and nothing from the worker.
-* Importing the api package never imports ``application_sdk``, which the host
-  does not install.
+  with ``application_sdk.handler.asgi.build_asgi_app`` and nothing from the worker.
+* Importing the api package loads no worker-only code: the host installs only
+  ``atlan-application-sdk-api``. (CI's api-member job proves it for real, in a
+  venv holding only the api distribution.)
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ import sys
 from pathlib import Path
 
 import atlan_mysql_api
-from application_sdk_api import build_asgi_app
+from application_sdk.handler.asgi import build_asgi_app
 from atlan_mysql_api.handler import MySQLAppHandler
 from fastapi.testclient import TestClient
 
@@ -46,7 +47,6 @@ def test_host_serves_the_handler_and_a_dead_source_is_a_verdict() -> None:
         atlan_mysql_api.handler,
         app_name="mysql",
         app_package="atlan_mysql_api",
-        generated_dir=REPO_ROOT / "app" / "generated",
     )
     client = TestClient(app, raise_server_exceptions=False)
 
@@ -72,17 +72,31 @@ def test_host_serves_the_handler_and_a_dead_source_is_a_verdict() -> None:
     assert "SyntheticPw0000" not in resp.text
 
 
-def test_importing_the_api_package_does_not_import_the_worker_sdk() -> None:
+#: Worker-only code the api distribution does not ship.
+_WORKER_ONLY = (
+    "application_sdk.app",
+    "application_sdk.execution",
+    "application_sdk.infrastructure",
+    "application_sdk.storage",
+    "application_sdk.templates",
+    "temporalio",
+    "dapr",
+    "obstore",
+)
+
+
+def test_importing_the_api_package_loads_no_worker_only_code() -> None:
     probe = (
         "import json, sys\n"
         "import atlan_mysql_api\n"
+        f"worker = {_WORKER_ONLY!r}\n"
         "leaked = sorted(m for m in sys.modules\n"
-        "    if m == 'application_sdk' or m.startswith('application_sdk.'))\n"
+        "    if any(m == w or m.startswith(w + '.') for w in worker))\n"
         "print(json.dumps(leaked))\n"
     )
-    # Same interpreter as the suite, where application_sdk IS installed — so an
+    # Same interpreter as the suite, where the full SDK IS installed — so an
     # empty list means nothing imported it, not that it was unavailable.
-    import application_sdk  # noqa: F401, PLC0415 — proves the probe can see it
+    import application_sdk.execution  # noqa: F401, PLC0415 — proves the probe can see it
 
     out = subprocess.run(
         [sys.executable, "-c", probe],
