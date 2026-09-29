@@ -1,0 +1,11 @@
+# Files of app/ shipped in the atlan-mysql-api wheel the consolidated API host
+# installs, as atlan_mysql_api/<path under app/>. They stay in app/ and are
+# edited there; imports between them are relative, so each file works both as
+# app.<name> (worker) and atlan_mysql_api.<name> (host).
+app/client.py
+app/constants.py
+app/failures.py
+app/handler.py
+app/sql/filter_metadata.sql
+app/sql/tables_check.sql
+app/sql/test_authentication.sql

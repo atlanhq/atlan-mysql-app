@@ -1,0 +1,32 @@
+[project]
+name = "atlan-mysql-api"
+version = "2.2.0"
+description = "The Atlan MySQL app's handler (auth, preflight, metadata) as the consolidated API host installs it"
+authors = [{ name = "Atlan Apps Team" }]
+requires-python = ">=3.11"
+license = "Apache-2.0"
+# No worker dependencies: this is what the consolidated host installs per app.
+dependencies = [
+    # Pinned to an unreleased application-sdk commit (application-sdk#4058).
+    # Re-pin to a released atlan-application-sdk-api before merge.
+    "atlan-application-sdk-api[sql,pandas,aws] @ git+https://github.com/atlanhq/application-sdk.git@38fdd3a0f82232d7dfbada731e7a943afcbc1bb2#subdirectory=packages/api",
+    "aiomysql>=0.3.0",
+    "tenacity>=8.0.0",
+]
+
+[project.entry-points."atlan.app_api"]
+mysql = "atlan_mysql_api:handler"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["atlan_mysql_api"]
+
+[tool.hatch.build.targets.wheel.hooks.custom]
+
+[tool.hatch.build.targets.sdist.hooks.custom]
