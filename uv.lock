@@ -212,9 +212,10 @@ wheels = [
 [[package]]
 name = "atlan-application-sdk"
 version = "3.40.0"
-source = { registry = "https://pypi.org/simple" }
+source = { git = "https://github.com/atlanhq/application-sdk.git?rev=82d9b4beb49b07bc336aa6985f39d6e916e11f14#82d9b4beb49b07bc336aa6985f39d6e916e11f14" }
 dependencies = [
     { name = "aiohttp" },
+    { name = "atlan-application-sdk-api" },
     { name = "azure-identity" },
     { name = "boto3" },
     { name = "fastapi", extra = ["standard"] },
@@ -235,10 +236,6 @@ dependencies = [
     { name = "temporalio" },
     { name = "uvloop", marker = "sys_platform != 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/37/32/948f088b176a17a09ca7491f09ad0be215938a8dd02be0a9d0f7788dd18f/atlan_application_sdk-3.40.0.tar.gz", hash = "sha256:a2a09f6f4199b090cd29f246d2482656dffb849bf1d1d93547a90f9f626c7974", size = 9019996, upload-time = "2026-09-29T00:36:01.479Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/1a/78/b02928b80377b45dd8a9185b962849318974b0ae2d53fe2725afaba9a4fc/atlan_application_sdk-3.40.0-py3-none-any.whl", hash = "sha256:06fff4cb818fb74b21264f8b6201ef75f42cd7de1da7c28e7603c3ac612220d2", size = 1885781, upload-time = "2026-09-29T00:35:58.872Z" },
-]
 
 [package.optional-dependencies]
 iam-auth = [
@@ -258,6 +255,16 @@ sql = [
 workflows = [
     { name = "orjson" },
     { name = "temporalio" },
+]
+
+[[package]]
+name = "atlan-application-sdk-api"
+version = "3.40.0"
+source = { git = "https://github.com/atlanhq/application-sdk.git?subdirectory=packages%2Fapi&rev=82d9b4beb49b07bc336aa6985f39d6e916e11f14#82d9b4beb49b07bc336aa6985f39d6e916e11f14" }
+dependencies = [
+    { name = "fastapi" },
+    { name = "orjson" },
+    { name = "pydantic" },
 ]
 
 [[package]]
@@ -310,7 +317,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "aiomysql", specifier = ">=0.3.0" },
-    { name = "atlan-application-sdk", extras = ["iam-auth", "pandas", "sql", "workflows"], specifier = ">=3.33.2,<4.0.0" },
+    { name = "atlan-application-sdk", extras = ["iam-auth", "pandas", "sql", "workflows"], git = "https://github.com/atlanhq/application-sdk.git?rev=82d9b4beb49b07bc336aa6985f39d6e916e11f14" },
     { name = "atlan-application-sdk-conformance", marker = "extra == 'dev'", specifier = ">=0.17.0,<1.0.0" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.6.1" },
     { name = "docker", marker = "extra == 'test'", specifier = ">=7.0.0" },
