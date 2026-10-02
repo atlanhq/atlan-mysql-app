@@ -217,6 +217,78 @@
       "type": "bool"
     },
     {
+      "contract": "MySQLExtractionOutput",
+      "field": "artifacts",
+      "status": "active",
+      "type": "dict[str, Any] | None"
+    },
+    {
+      "contract": "MySQLExtractionOutput",
+      "field": "connection_qualified_name",
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "MySQLExtractionOutput",
+      "field": "current_state_prefix",
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "MySQLExtractionOutput",
+      "field": "lineage_current_state_prefix",
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "MySQLExtractionOutput",
+      "field": "lineage_publish_state_prefix",
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "MySQLExtractionOutput",
+      "field": "lineage_stage_prefix",
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "MySQLExtractionOutput",
+      "field": "metrics",
+      "status": "active",
+      "type": "dict[str, Any] | None"
+    },
+    {
+      "contract": "MySQLExtractionOutput",
+      "field": "publish_state_prefix",
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "MySQLExtractionOutput",
+      "field": "status",
+      "status": "active",
+      "type": "OutputStatus"
+    },
+    {
+      "contract": "MySQLExtractionOutput",
+      "field": "storage_bucket",
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "MySQLExtractionOutput",
+      "field": "transformed_data_prefix",
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "MySQLExtractionOutput",
+      "field": "view_lineage_output_prefix",
+      "status": "active",
+      "type": "str"
+    },
+    {
       "contract": "QueryExtractionInput",
       "field": "batch_size",
       "status": "active",
