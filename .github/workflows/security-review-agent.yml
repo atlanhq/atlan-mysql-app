@@ -7,6 +7,11 @@ on:
 
 jobs:
   security-review:
+    # Release PRs only carry the bot's version/changelog/lock bump and are
+    # rebuilt on every merge to main, so each rebuild would re-run an LLM review
+    # of the same generated diff. This check isn't required, so skipping it
+    # blocks nothing.
+    if: "!contains(github.event.pull_request.labels.*.name, 'release')"
     uses: atlanhq/mothership/.github/workflows/security-review-reusable.yml@beta
     with:
       globalprotect-portal-url: ${{ vars.GLOBALPROTECT_PORTAL_URL }}

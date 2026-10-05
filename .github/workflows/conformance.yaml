@@ -1,7 +1,11 @@
 name: "Conformance"
 
 on:
-  pull_request: {}
+  pull_request:
+    # The first three are the defaults `pull_request: {}` had. `labeled` lets
+    # adding `e2e` start the suite on a release PR (see the job's `if`). Every
+    # other label add skips in seconds.
+    types: [opened, synchronize, reopened, labeled]
   merge_group: {}
   push:
     branches: [main]
@@ -23,6 +27,18 @@ permissions:
 
 jobs:
   suite:
+    # Release PRs (labelled `release` by the SDK's release-version-bump workflow)
+    # are rebuilt on every merge to main. Skip the suite on them until a human
+    # adds `e2e`, which Release Gate already requires before they can merge.
+    # Skipping this caller job leaves the required `suite / Conformance Gate`
+    # context unreported, so the PR stays blocked rather than passing on a skip.
+    if: >-
+      github.event_name != 'pull_request' ||
+      ( github.event.action != 'labeled' &&
+        ( !contains(github.event.pull_request.labels.*.name, 'release') ||
+          contains(github.event.pull_request.labels.*.name, 'e2e') ) ) ||
+      ( github.event.action == 'labeled' && github.event.label.name == 'e2e' &&
+        contains(github.event.pull_request.labels.*.name, 'release') )
     uses: atlanhq/application-sdk/.github/workflows/conformance-reusable.yaml@main
     with:
       event_name: ${{ github.event_name }}

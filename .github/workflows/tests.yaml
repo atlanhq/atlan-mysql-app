@@ -139,6 +139,16 @@ jobs:
       # any setting, so it only works when declared here. Inert — the fetch
       # chain self-skips — in a repo that does not use dataforge.
       id-token: write
+    # Release PRs (labelled `release` by the SDK's release-version-bump workflow)
+    # are rebuilt on every merge to main. Skip the whole tier on them until a
+    # human adds `e2e`, which Release Gate already requires before they can
+    # merge. Skipping this caller job leaves the required `tests / Tests Gate`
+    # context unreported, so the PR stays blocked rather than passing on a skip.
+    # Label filtering for `labeled` events stays in the reusable (FND-48).
+    if: >-
+      github.event_name != 'pull_request' ||
+      !contains(github.event.pull_request.labels.*.name, 'release') ||
+      contains(github.event.pull_request.labels.*.name, 'e2e')
     uses: atlanhq/application-sdk/.github/workflows/tests-reusable.yaml@main
     with:
       unit-coverage-fail-under: "90"

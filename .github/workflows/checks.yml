@@ -13,13 +13,28 @@ on:
   pull_request:
     branches:
       - main
+    # `labeled` lets adding `e2e` start pre-commit on a release PR (see the
+    # job's `if`). Every other label add skips in seconds.
+    types: [opened, synchronize, reopened, labeled]
   merge_group:
 
 jobs:
   pre-commit:
+    # Release PRs (labelled `release` by the SDK's release-version-bump workflow)
+    # are rebuilt on every merge to main. Skip pre-commit on them until a human
+    # adds `e2e`, which Release Gate already requires before they can merge.
+    # Skipping this caller job leaves the required `pre-commit / Pre-commit`
+    # context unreported, so the PR stays blocked rather than passing on a skip.
+    if: >-
+      github.event_name != 'pull_request' ||
+      ( github.event.action != 'labeled' &&
+        ( !contains(github.event.pull_request.labels.*.name, 'release') ||
+          contains(github.event.pull_request.labels.*.name, 'e2e') ) ) ||
+      ( github.event.action == 'labeled' && github.event.label.name == 'e2e' &&
+        contains(github.event.pull_request.labels.*.name, 'release') )
     uses: atlanhq/application-sdk/.github/workflows/checks-reusable.yaml@main
     permissions:
       contents: read
     concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
+      group: ${{ github.workflow }}-${{ github.ref }}${{ github.event.action == 'labeled' && format('-label-{0}', github.event.label.name) || '' }}
       cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
