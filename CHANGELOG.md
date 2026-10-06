@@ -1,5 +1,21 @@
 # Changelog
 
+## v2.3.0 (October 06, 2026)
+
+Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.2.0...v2.3.0
+
+### Features
+
+- MySQL API server package on atlan-server-sdk (ARUN-942) (#680) (by @SanilK2108 in [a2acf46](https://github.com/atlanhq/atlan-mysql-app/commit/a2acf46))
+
+### Bug Fixes
+
+- drop the re-annotated preflight_gate_mode ClassVar (#693) (by @cmgrote in [612dcb3](https://github.com/atlanhq/atlan-mysql-app/commit/612dcb3))
+- redact probe tracebacks and complete the F016 matrix (#717) (by @cmgrote in [6c08b3a](https://github.com/atlanhq/atlan-mysql-app/commit/6c08b3a))
+- FND-2501 return a typed test-auth error (#729) (by @sachi-atlan in [35de387](https://github.com/atlanhq/atlan-mysql-app/commit/35de387))
+- ignore ruff G201, which contradicts conformance L017 (#829) (by @vaibhavatlan in [7e0aff5](https://github.com/atlanhq/atlan-mysql-app/commit/7e0aff5))
+
+
 ## v2.2.0 (September 10, 2026)
 
 Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.1.0...v2.2.0
