@@ -3,9 +3,9 @@
   "resolvedDependencies": {
     "package://atlanhq.github.io/application-sdk/contracts/app-contract-toolkit@0": {
       "type": "remote",
-      "uri": "projectpackage://atlanhq.github.io/application-sdk/contracts/app-contract-toolkit@0.30.0",
+      "uri": "projectpackage://atlanhq.github.io/application-sdk/contracts/app-contract-toolkit@0.31.0",
       "checksums": {
-        "sha256": "a577e6df041bea284ee1dfa85c7764e1dd3d1ffbe0ae6499488857567c777eae"
+        "sha256": "25904fa22ef4211b297608070ce94eb6858472a48b93eb349e1f679af094f101"
       }
     }
   }
