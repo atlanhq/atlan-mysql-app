@@ -1,6 +1,132 @@
 {
   "fields": [
     {
+      "contract": "AppInputContract",
+      "field": "agent_json",
+      "status": "active",
+      "type": "AgentCredentialSpec | None"
+    },
+    {
+      "contract": "AppInputContract",
+      "field": "app_name",
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "AppInputContract",
+      "field": "checkpoint_dir",
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "AppInputContract",
+      "field": "connection",
+      "status": "active",
+      "type": "ConnectionRef"
+    },
+    {
+      "contract": "AppInputContract",
+      "field": "correlation_id",
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "AppInputContract",
+      "field": "credential_guid",
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "AppInputContract",
+      "field": "credential_ref",
+      "status": "active",
+      "type": "CredentialRef | None"
+    },
+    {
+      "contract": "AppInputContract",
+      "field": "exclude_filter",
+      "status": "active",
+      "type": "FilterMap | str"
+    },
+    {
+      "contract": "AppInputContract",
+      "field": "exclude_table_regex",
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "AppInputContract",
+      "field": "extraction_method",
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "AppInputContract",
+      "field": "include_filter",
+      "status": "active",
+      "type": "FilterMap | str"
+    },
+    {
+      "contract": "AppInputContract",
+      "field": "load_to_atlan",
+      "status": "active",
+      "type": "bool"
+    },
+    {
+      "contract": "AppInputContract",
+      "field": "output_dir",
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "AppInputContract",
+      "field": "output_path",
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "AppInputContract",
+      "field": "output_prefix",
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "AppInputContract",
+      "field": "preflight_check",
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "AppInputContract",
+      "field": "publish_dry_run",
+      "status": "active",
+      "type": "bool"
+    },
+    {
+      "contract": "AppInputContract",
+      "field": "source_tag_prefix",
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "AppInputContract",
+      "field": "temp_table_regex",
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "AppInputContract",
+      "field": "workflow_id",
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "AppInputContract",
+      "field": "workflow_slug",
+      "status": "active",
+      "type": "str"
+    },
+    {
       "contract": "ExtractionInput",
       "field": "agent_json",
       "status": "active",

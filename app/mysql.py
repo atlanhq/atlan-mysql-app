@@ -19,7 +19,6 @@ from application_sdk.contracts.storage import DeclaredFile, UploadRefsInput
 from application_sdk.execution import get_object_store_prefix
 from application_sdk.observability.logger_adaptor import get_logger
 from application_sdk.templates.contracts.sql_metadata import (
-    ExtractionInput,
     ExtractionTaskInput,
     TransformOutput,
 )
@@ -28,6 +27,7 @@ from pyatlan_v9.model.assets import Column, Database, Procedure, Schema, Table, 
 
 from app.client import SQLClient
 from app.constants import DATABASE_PLACEHOLDER, TENANT_ID
+from app.generated._input import AppInputContract
 from app.handler import (  # noqa: F401 — SDK discovers {AppClass}Handler by convention
     MySQLAppHandler,
 )
@@ -499,7 +499,7 @@ class MySQLApp(SqlApp):
         return asset
 
     async def run(  # type: ignore[override]
-        self, input: ExtractionInput
+        self, input: AppInputContract
     ) -> MySQLExtractionOutput:
         """MySQL extraction: standard assets + procedures + lineage pipeline outputs.
 
