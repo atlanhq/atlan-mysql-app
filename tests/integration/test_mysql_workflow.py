@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, cast
 
 import pytest
 from application_sdk.contracts.types import ConnectionRef
+from application_sdk.execution.settings import load_interceptor_settings
 from application_sdk.observability.logger_adaptor import get_logger
 from application_sdk.templates.contracts.sql_metadata import ExtractionInput
 from pyatlan.model.enums import AtlanConnectorType
@@ -39,6 +40,18 @@ _CONNECTION_NAME = "mysql-e2e-test"
 # Use the platform's canonical QN format, same as Connection.creator() produces:
 # default/{connector}/{epoch} — purely numerical last component, no prefix.
 _CONNECTION_QN = AtlanConnectorType.MYSQL.to_qualified_name()
+_ENTITIES = ("database", "schema", "table", "column")
+
+
+def _transformed_file(
+    store_root: Path, result: MySQLExtractionOutput, entity: str
+) -> Path:
+    """Where the run DELIVERED ``<entity>/entities.json`` in the object store.
+
+    Read from the LocalStore under ``transformed_data_prefix`` — what publish
+    reads — so the assertion holds after ``App.on_complete()`` cleanup.
+    """
+    return store_root / result.transformed_data_prefix / entity / "entities.json"
 
 
 class TestMySQLExtraction:
@@ -99,27 +112,23 @@ class TestMySQLExtraction:
         """Output should carry a non-empty transformed_data_prefix."""
         assert extraction_result.transformed_data_prefix
 
-    async def test_raw_artifacts_exist(
+    async def test_raw_intermediates_cleaned_up(
         self,
-        extraction_result: MySQLExtractionOutput,
+        extraction_result: MySQLExtractionOutput,  # noqa: ARG002 — runs the workflow
         store_root: Path,
     ) -> None:
-        """Raw JSONL files should exist for all four entity types.
+        """Raw records are TRANSIENT: ``App.on_complete()`` cleanup deletes them.
 
-        Files are preserved because the SDK fixture kit's default
-        KitOptions.preserve_artifacts disables the cleanup interceptor.
+        Pins the production behaviour — only the published transformed output
+        outlives a run.
         """
-        raw_files = list(store_root.rglob("raw/database/records.json"))
-        assert raw_files, (
-            f"No raw/database/records.json found under {store_root}. "
-            "Check that KitOptions.preserve_artifacts is enabled."
-        )
-        run_dir = raw_files[0].parent.parent.parent  # .../raw/database/records.json
+        if not load_interceptor_settings().enable_cleanup_interceptor:
+            pytest.skip(
+                "Cleanup disabled by APPLICATION_SDK_ENABLE_CLEANUP_INTERCEPTOR"
+            )
 
-        for entity in ("database", "schema", "table", "column"):
-            raw_file = run_dir / "raw" / entity / "records.json"
-            assert raw_file.exists(), f"Missing raw/{entity}/records.json"
-            assert raw_file.stat().st_size > 0, f"Empty raw/{entity}/records.json"
+        leftover = list(store_root.rglob("raw/*/records.json"))
+        assert not leftover, f"Raw intermediates survived cleanup: {leftover}"
 
     async def test_transformed_artifacts_content(
         self,
@@ -127,12 +136,8 @@ class TestMySQLExtraction:
         store_root: Path,
     ) -> None:
         """Transformed JSONL files should have valid Atlan entity shapes."""
-        raw_files = list(store_root.rglob("raw/database/records.json"))
-        assert raw_files, f"No raw/database/records.json found under {store_root}"
-        run_dir = raw_files[0].parent.parent.parent
-
-        for entity in ("database", "schema", "table", "column"):
-            transformed_file = run_dir / "transformed" / entity / "entities.json"
+        for entity in _ENTITIES:
+            transformed_file = _transformed_file(store_root, extraction_result, entity)
             assert transformed_file.exists(), (
                 f"Missing transformed/{entity}/entities.json"
             )
@@ -156,10 +161,6 @@ class TestMySQLExtraction:
         store_root: Path,
     ) -> None:
         """Each entity type in transformed output should match allowed Atlas types."""
-        raw_files = list(store_root.rglob("raw/database/records.json"))
-        assert raw_files, f"No raw/database/records.json found under {store_root}"
-        run_dir = raw_files[0].parent.parent.parent
-
         allowed_types = {
             "database": {"Database"},
             "schema": {"Schema"},
@@ -167,7 +168,7 @@ class TestMySQLExtraction:
             "column": {"Column"},
         }
         for entity, allowed in allowed_types.items():
-            transformed_file = run_dir / "transformed" / entity / "entities.json"
+            transformed_file = _transformed_file(store_root, extraction_result, entity)
             if not transformed_file.exists():
                 continue
             lines = transformed_file.read_text().strip().splitlines()
