@@ -3,381 +3,444 @@
     {
       "contract": "ExtractionInput",
       "field": "agent_json",
+      "required": null,
       "status": "active",
       "type": "AgentCredentialSpec | None"
     },
     {
       "contract": "ExtractionInput",
       "field": "connection",
+      "required": null,
       "status": "active",
       "type": "ConnectionRef"
     },
     {
       "contract": "ExtractionInput",
       "field": "credential_guid",
+      "required": null,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "ExtractionInput",
       "field": "credential_ref",
+      "required": null,
       "status": "active",
       "type": "CredentialRef | None"
     },
     {
       "contract": "ExtractionInput",
       "field": "exclude_filter",
+      "required": null,
       "status": "active",
       "type": "FilterMap | str"
     },
     {
       "contract": "ExtractionInput",
       "field": "extraction_method",
+      "required": null,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "ExtractionInput",
       "field": "include_filter",
+      "required": null,
       "status": "active",
       "type": "FilterMap | str"
     },
     {
       "contract": "ExtractionInput",
       "field": "output_path",
+      "required": null,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "ExtractionInput",
       "field": "output_prefix",
+      "required": null,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "ExtractionInput",
       "field": "source_tag_prefix",
+      "required": null,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "ExtractionInput",
       "field": "temp_table_regex",
+      "required": null,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "ExtractionInput",
       "field": "workflow_id",
+      "required": null,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "ExtractionOutput",
       "field": "columns_extracted",
+      "required": null,
       "status": "active",
       "type": "int"
     },
     {
       "contract": "ExtractionOutput",
       "field": "databases_extracted",
+      "required": null,
       "status": "active",
       "type": "int"
     },
     {
       "contract": "ExtractionOutput",
       "field": "error",
+      "required": null,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "ExtractionOutput",
       "field": "output_path",
+      "required": null,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "ExtractionOutput",
       "field": "procedures_extracted",
+      "required": null,
       "status": "active",
       "type": "int"
     },
     {
       "contract": "ExtractionOutput",
       "field": "processes_extracted",
+      "required": null,
       "status": "active",
       "type": "int"
     },
     {
       "contract": "ExtractionOutput",
       "field": "records_uploaded",
+      "required": null,
       "status": "active",
       "type": "int"
     },
     {
       "contract": "ExtractionOutput",
       "field": "schemas_extracted",
+      "required": null,
       "status": "active",
       "type": "int"
     },
     {
       "contract": "ExtractionOutput",
       "field": "success",
+      "required": null,
       "status": "active",
       "type": "bool"
     },
     {
       "contract": "ExtractionOutput",
       "field": "tables_extracted",
+      "required": null,
       "status": "active",
       "type": "int"
     },
     {
       "contract": "ExtractionOutput",
       "field": "views_extracted",
+      "required": null,
       "status": "active",
       "type": "int"
     },
     {
       "contract": "ExtractionOutput",
       "field": "workflow_id",
+      "required": null,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "IncrementalExtractionInput",
       "field": "column_batch_size",
+      "required": null,
       "status": "active",
       "type": "int"
     },
     {
       "contract": "IncrementalExtractionInput",
       "field": "column_chunk_size",
+      "required": null,
       "status": "active",
       "type": "int"
     },
     {
       "contract": "IncrementalExtractionInput",
       "field": "copy_workers",
+      "required": null,
       "status": "active",
       "type": "int"
     },
     {
       "contract": "IncrementalExtractionInput",
       "field": "incremental_extraction",
+      "required": null,
       "status": "active",
       "type": "bool"
     },
     {
       "contract": "IncrementalExtractionInput",
       "field": "prepone_marker_hours",
+      "required": null,
       "status": "active",
       "type": "int"
     },
     {
       "contract": "IncrementalExtractionInput",
       "field": "prepone_marker_timestamp",
+      "required": null,
       "status": "active",
       "type": "bool"
     },
     {
       "contract": "IncrementalExtractionOutput",
       "field": "backfill_tables",
+      "required": null,
       "status": "active",
       "type": "int"
     },
     {
       "contract": "IncrementalExtractionOutput",
       "field": "changed_tables",
+      "required": null,
       "status": "active",
       "type": "int"
     },
     {
       "contract": "IncrementalExtractionOutput",
       "field": "column_batches_executed",
+      "required": null,
       "status": "active",
       "type": "int"
     },
     {
       "contract": "IncrementalExtractionOutput",
       "field": "current_state_files",
+      "required": null,
       "status": "active",
       "type": "int"
     },
     {
       "contract": "IncrementalExtractionOutput",
       "field": "incremental_diff_files",
+      "required": null,
       "status": "active",
       "type": "int"
     },
     {
       "contract": "IncrementalExtractionOutput",
       "field": "marker_updated",
+      "required": null,
       "status": "active",
       "type": "bool"
     },
     {
       "contract": "MySQLExtractionOutput",
       "field": "artifacts",
+      "required": null,
       "status": "active",
       "type": "dict[str, Any] | None"
     },
     {
       "contract": "MySQLExtractionOutput",
       "field": "connection_qualified_name",
+      "required": false,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "MySQLExtractionOutput",
       "field": "current_state_prefix",
+      "required": false,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "MySQLExtractionOutput",
       "field": "lineage_current_state_prefix",
+      "required": false,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "MySQLExtractionOutput",
       "field": "lineage_publish_state_prefix",
+      "required": false,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "MySQLExtractionOutput",
       "field": "lineage_stage_prefix",
+      "required": false,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "MySQLExtractionOutput",
       "field": "metrics",
+      "required": null,
       "status": "active",
       "type": "dict[str, Any] | None"
     },
     {
       "contract": "MySQLExtractionOutput",
       "field": "publish_state_prefix",
+      "required": false,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "MySQLExtractionOutput",
       "field": "status",
+      "required": null,
       "status": "active",
       "type": "OutputStatus"
     },
     {
       "contract": "MySQLExtractionOutput",
       "field": "storage_bucket",
+      "required": false,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "MySQLExtractionOutput",
       "field": "transformed_data_prefix",
+      "required": false,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "MySQLExtractionOutput",
       "field": "view_lineage_output_prefix",
+      "required": false,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "QueryExtractionInput",
       "field": "batch_size",
+      "required": null,
       "status": "active",
       "type": "int"
     },
     {
       "contract": "QueryExtractionInput",
       "field": "connection",
+      "required": null,
       "status": "active",
       "type": "ConnectionRef"
     },
     {
       "contract": "QueryExtractionInput",
       "field": "credential_guid",
+      "required": null,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "QueryExtractionInput",
       "field": "credential_ref",
+      "required": null,
       "status": "active",
       "type": "CredentialRef | None"
     },
     {
       "contract": "QueryExtractionInput",
       "field": "exclude_users",
+      "required": null,
       "status": "active",
       "type": "list[str]"
     },
     {
       "contract": "QueryExtractionInput",
       "field": "lookback_days",
+      "required": null,
       "status": "active",
       "type": "int"
     },
     {
       "contract": "QueryExtractionInput",
       "field": "output_path",
+      "required": null,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "QueryExtractionInput",
       "field": "output_prefix",
+      "required": null,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "QueryExtractionInput",
       "field": "workflow_id",
+      "required": null,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "QueryExtractionOutput",
       "field": "error",
+      "required": null,
       "status": "active",
       "type": "str"
     },
     {
       "contract": "QueryExtractionOutput",
       "field": "records_uploaded",
+      "required": null,
       "status": "active",
       "type": "int"
     },
     {
       "contract": "QueryExtractionOutput",
       "field": "success",
+      "required": null,
       "status": "active",
       "type": "bool"
     },
     {
       "contract": "QueryExtractionOutput",
       "field": "total_batches",
+      "required": null,
       "status": "active",
       "type": "int"
     },
     {
       "contract": "QueryExtractionOutput",
       "field": "total_queries",
+      "required": null,
       "status": "active",
       "type": "int"
     },
     {
       "contract": "QueryExtractionOutput",
       "field": "workflow_id",
+      "required": null,
       "status": "active",
       "type": "str"
     }
   ],
-  "version": 1
+  "version": 2
 }
