@@ -10,7 +10,6 @@ from application_sdk.errors import (
     InternalError,
     InvalidInputError,
     PreconditionError,
-    RateLimitedError,
     SourceUnavailableError,
 )
 
@@ -76,14 +75,22 @@ class TableListingError(AppPermissionDeniedError):
 
 
 @dataclass(kw_only=True)
-class ConnectionLimitError(RateLimitedError):
-    code: ClassVar[str] = "RATE_LIMITED_MYSQL_CONNECTIONS"
+class ConnectionLimitError(SourceUnavailableError):
+    """The server refused a connection because its connection table is full.
+
+    A retryable source-unavailable leaf, not a rate limit: the preflight gate
+    treats a raised RATE_LIMITED leaf as the deprecated fail-open request, while
+    a raised retryable SOURCE_UNAVAILABLE leaf is the supported way to say "ask
+    me again" without blocking the run.
+    """
+
+    code: ClassVar[str] = "SOURCE_UNAVAILABLE_MYSQL_CONNECTIONS"
     message: str = "The MySQL server is at its connection limit."
     suggested_action: str | None = (
         "Wait for open connections to close, or raise max_connections on the "
         "server, then run the workflow again."
     )
-    limit_type: str | None = "connections"
+    source_type: str | None = "mysql"
 
 
 @dataclass(kw_only=True)

@@ -12,6 +12,7 @@ from application_sdk.common.aws_utils import (
 from application_sdk.common.aws_utils_errors import AwsAssumeRoleError
 from application_sdk.credentials.utils import parse_credentials_extra
 from application_sdk.common.concurrency import run_in_thread
+from application_sdk.common.logger import get_logger
 from .failures import (
     CredentialFieldMissingError,
     EngineCreationError,
@@ -22,6 +23,8 @@ from sqlalchemy import event
 from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import create_async_engine
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_random
+
+logger = get_logger(__name__)
 
 
 class SQLClient(AsyncBaseSQLClient):
@@ -143,6 +146,15 @@ class SQLClient(AsyncBaseSQLClient):
 
         region = self._extract_region_from_hostname(host)
 
+        logger.info(
+            "IAM user auth — access_key_id=%.10s..., host=%s, port=%s, region=%s, user=%s",
+            aws_access_key_id or "None",
+            host,
+            port,
+            region,
+            user,
+        )
+
         if not aws_access_key_id:
             raise CredentialFieldMissingError(
                 message="username (AWS access key ID) is required for IAM user authentication",
@@ -193,6 +205,7 @@ class SQLClient(AsyncBaseSQLClient):
                 message="AWS RDS IAM token generation returned an empty token",
                 failure_reason="empty_token",
             )
+        logger.info("IAM token generated successfully (length: %d)", len(token))
         return token
 
     def get_iam_role_token(self) -> str:
@@ -227,6 +240,16 @@ class SQLClient(AsyncBaseSQLClient):
         host = self.credentials.get("host")
         port = self.credentials.get("port")
         region = self._extract_region_from_hostname(host)
+
+        logger.info(
+            "IAM role auth — role_arn=%s, host=%s, port=%s, region=%s, user=%s, has_external_id=%s",
+            aws_role_arn,
+            host,
+            port,
+            region,
+            username,
+            bool(external_id),
+        )
 
         if not aws_role_arn:
             raise CredentialFieldMissingError(
@@ -283,6 +306,7 @@ class SQLClient(AsyncBaseSQLClient):
                     message="AWS RDS IAM token generation returned an empty token",
                     failure_reason="empty_token",
                 )
+            logger.info("IAM token generated successfully (length: %d)", len(token))
             return token
         except AwsAssumeRoleError as e:
             # STS rejected the assume-role call — re-raise with a message that
@@ -453,6 +477,7 @@ class SQLClient(AsyncBaseSQLClient):
 
             # Inject token into connection parameters
             cparams["password"] = token
+            logger.debug("IAM token refreshed for connection (length: %d)", len(token))
 
         # Test connection briefly to validate credentials
         try:

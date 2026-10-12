@@ -1,6 +1,6 @@
 [project]
 name = "atlan-mysql-app"
-version = "2.2.0"
+version = "2.3.0"
 description = "Atlan MySQL App: Built using Atlan Application SDK"
 authors = [{ name = "Atlan Apps Team" }]
 requires-python = ">=3.11"
@@ -149,7 +149,9 @@ preview = true
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "PLC0415", "G", "T201", "LOG"]
 # G002 suppressed: %-style is correct via the SDK adapter's _format_printf_args bridge
-ignore = ["G002"]
+# G201 suppressed: it asks for .exception(...) over .error(..., exc_info=True), the
+# inverse of conformance L017 (errors carry exc_info; .exception is not sanctioned)
+ignore = ["G002", "G201"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/unit/test_mysql_app.py" = ["PLC0415"]
@@ -186,5 +188,5 @@ extras = ["sql", "pandas", "aws"]
 # Both SDK distributions pinned to the same unreleased application-sdk commit
 # (application-sdk#4058): the SDK pins atlan-application-sdk-api at its own,
 # unpublished version. Re-pin both to a released version before merge.
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk.git", rev = "82d9b4beb49b07bc336aa6985f39d6e916e11f14" }
-atlan-application-sdk-api = { git = "https://github.com/atlanhq/application-sdk.git", rev = "82d9b4beb49b07bc336aa6985f39d6e916e11f14", subdirectory = "packages/api" }
+atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk.git", rev = "b22d0cc58ad09245dc13fdfbaeefceacce5c750d" }
+atlan-application-sdk-api = { git = "https://github.com/atlanhq/application-sdk.git", rev = "b22d0cc58ad09245dc13fdfbaeefceacce5c750d", subdirectory = "packages/api" }
