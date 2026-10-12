@@ -203,7 +203,10 @@ class TestMySQLHandlerPreflight:
     @pytest.mark.parametrize(
         ("driver_error", "expected_category"),
         [
-            (_wrapped(1040, "Too many connections"), FailureCategory.RATE_LIMITED),
+            (
+                _wrapped(1040, "Too many connections"),
+                FailureCategory.SOURCE_UNAVAILABLE,
+            ),
             (
                 pymysql_err.OperationalError(2013, "Lost connection to MySQL server"),
                 FailureCategory.SOURCE_UNAVAILABLE,
@@ -276,7 +279,7 @@ class TestMySQLHandlerPreflight:
 
         assert result.status == PreflightStatus.READY
         tables_check = next(c for c in result.checks if c.name == "connectivity")
-        assert tables_check.error.category == FailureCategory.RATE_LIMITED
+        assert tables_check.error.category == FailureCategory.SOURCE_UNAVAILABLE
         assert tables_check.error.retryable is True
 
     @pytest.mark.asyncio
@@ -311,6 +314,16 @@ class TestTransientClassification:
                 raise RuntimeError("engine load failed") from inner
         except RuntimeError as outer:
             assert isinstance(transient_failure(outer), ConnectionLimitError)
+
+    def test_connection_limit_is_not_a_deprecated_fail_open_category(self):
+        """The gate deprecated raising RATE_LIMITED from preflight to fail open;
+        a full connection table is a retryable source-unavailable leaf instead."""
+        leaf = transient_failure(_wrapped(1040, "Too many connections"))
+        assert isinstance(leaf, ConnectionLimitError)
+        assert leaf.category == FailureCategory.SOURCE_UNAVAILABLE
+        details = leaf.to_failure_details()
+        assert details.retryable is True
+        assert details.code == "SOURCE_UNAVAILABLE_MYSQL_CONNECTIONS"
 
     def test_definitive_errors_are_not_transient(self):
         assert transient_failure(_wrapped(1045, "Access denied for user")) is None
