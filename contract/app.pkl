@@ -43,6 +43,8 @@ deploy = new DeployConfig {
   // Stages auto-progress based on workflow success rate on selected tenants.
   // Pattern ported from atlan-teradata-app.
   overrides {
+    // Let Karpenter repack idle worker nodes; eviction drains via the worker grace period.
+    ["workerDoNotDisrupt"] = false
     ["canary_enabled"] = true
     ["canary_mode"] = "auto"
     ["stages"] = new Mapping {
