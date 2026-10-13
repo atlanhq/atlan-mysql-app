@@ -186,8 +186,7 @@ extras = ["sql", "pandas", "aws"]
 [tool.uv.sources]
 # atlan-application-sdk = { path = "../application-sdk", editable = true }
 # Both SDK distributions pinned to the same unreleased application-sdk commit
-# (application-sdk#4058, and #4343 stacked on it, which serves the metadata,
-# config and file routes on the host): the SDK pins atlan-application-sdk-api at its own,
+# (application-sdk#4058): the SDK pins atlan-application-sdk-api at its own,
 # unpublished version. Re-pin both to a released version before merge.
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk.git", rev = "45b6133616980ea8bf74f8f39946e896871a2568" }
-atlan-application-sdk-api = { git = "https://github.com/atlanhq/application-sdk.git", rev = "45b6133616980ea8bf74f8f39946e896871a2568", subdirectory = "packages/api" }
+atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk.git", rev = "6349c750f9b469d3246aa2cbcd90600d6909dab1" }
+atlan-application-sdk-api = { git = "https://github.com/atlanhq/application-sdk.git", rev = "6349c750f9b469d3246aa2cbcd90600d6909dab1", subdirectory = "packages/api" }
