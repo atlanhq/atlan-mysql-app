@@ -16,7 +16,9 @@
  *     - Storage engine information
  *
  * Notes:
- *   - Only includes regular tables and views (TABLE_TYPE IN ('BASE TABLE', 'VIEW'))
+ *   - Only includes regular tables and views (TABLE_TYPE IN ('BASE TABLE', 'SYSTEM VERSIONED', 'VIEW'))
+ *   - MariaDB reports system-versioned tables with their own TABLE_TYPE; extract_column.sql,
+ *     tables_check.sql and extract_schema.sql must use the same list so columns never lack a parent table
  *   - Excludes system schemas (mysql, performance_schema, information_schema, sys)
  *   - Uses information_schema for metadata extraction
  */
@@ -83,4 +85,4 @@ WHERE T.TABLE_SCHEMA NOT IN ('mysql', 'performance_schema', 'information_schema'
 AND CONCAT(COALESCE(DATABASE(), '{database_placeholder}'), CONCAT('.', T.TABLE_SCHEMA)) NOT REGEXP '{normalized_exclude_regex}'
 AND CONCAT(COALESCE(DATABASE(), '{database_placeholder}'), CONCAT('.', T.TABLE_SCHEMA)) REGEXP '{normalized_include_regex}'
 {temp_table_regex_sql}
-AND T.TABLE_TYPE IN ('BASE TABLE', 'VIEW');
+AND T.TABLE_TYPE IN ('BASE TABLE', 'SYSTEM VERSIONED', 'VIEW');

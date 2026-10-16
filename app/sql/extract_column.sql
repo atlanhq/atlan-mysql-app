@@ -136,5 +136,8 @@ WHERE
     AND CONCAT(COALESCE(DATABASE(), '{database_placeholder}'), CONCAT('.', C.TABLE_SCHEMA)) NOT REGEXP '{normalized_exclude_regex}'
     AND CONCAT(COALESCE(DATABASE(), '{database_placeholder}'), CONCAT('.', C.TABLE_SCHEMA)) REGEXP '{normalized_include_regex}'
     {temp_table_regex_sql}
+    -- Same list as extract_table.sql: MariaDB reports system-versioned tables with their own
+    -- TABLE_TYPE, and columns must only be extracted for tables the table crawl keeps.
+    AND T.TABLE_TYPE IN ('BASE TABLE', 'SYSTEM VERSIONED', 'VIEW')
 ORDER BY
     C.TABLE_SCHEMA, C.TABLE_NAME, C.ORDINAL_POSITION;
