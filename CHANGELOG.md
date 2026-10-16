@@ -1,5 +1,23 @@
 # Changelog
 
+## v2.4.1 (October 16, 2026)
+
+Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.4.0...v2.4.1
+
+### Bug Fixes
+
+- crawl MariaDB system-versioned tables, and extract columns only for the table types the crawl keeps (#894) (by @connectivity-ai[bot] in [7e68082](https://github.com/atlanhq/atlan-mysql-app/commit/7e68082))
+
+### Chores
+
+- lock file maintenance (#888) (by @atlan-app-fleet[bot] in [e1ab996](https://github.com/atlanhq/atlan-mysql-app/commit/e1ab996))
+- update atlan framework dependencies (#887) (by @atlan-app-fleet[bot] in [2f4d7ba](https://github.com/atlanhq/atlan-mysql-app/commit/2f4d7ba))
+- lock file maintenance (#890) (by @atlan-app-fleet[bot] in [b60f79e](https://github.com/atlanhq/atlan-mysql-app/commit/b60f79e))
+- lock file maintenance (#892) (by @atlan-app-fleet[bot] in [76e5300](https://github.com/atlanhq/atlan-mysql-app/commit/76e5300))
+- lock file maintenance (#893) (by @atlan-app-fleet[bot] in [57b375d](https://github.com/atlanhq/atlan-mysql-app/commit/57b375d))
+- update atlan framework dependencies (#895) (by @atlan-app-fleet[bot] in [2d74bbc](https://github.com/atlanhq/atlan-mysql-app/commit/2d74bbc))
+
+
 ## v2.4.0 (October 14, 2026)
 
 Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.3.0...v2.4.0
