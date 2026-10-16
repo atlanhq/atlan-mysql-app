@@ -1,6 +1,6 @@
 [project]
 name = "atlan-mysql-app"
-version = "2.3.0"
+version = "2.4.0"
 description = "Atlan MySQL App: Built using Atlan Application SDK"
 authors = [{ name = "Atlan Apps Team" }]
 requires-python = ">=3.11"
@@ -188,5 +188,5 @@ extras = ["sql", "pandas", "aws"]
 # Both SDK distributions pinned to the same unreleased application-sdk commit
 # (application-sdk#4058): the SDK pins atlan-application-sdk-api at its own,
 # unpublished version. Re-pin both to a released version before merge.
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk.git", rev = "2f9e86fc49a864707773de77dc27ebfabe2cb1ce" }
-atlan-application-sdk-api = { git = "https://github.com/atlanhq/application-sdk.git", rev = "2f9e86fc49a864707773de77dc27ebfabe2cb1ce", subdirectory = "packages/api" }
+atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk.git", rev = "2e063e45170b3ba5179b37a76a86a25c15dcbfd5" }
+atlan-application-sdk-api = { git = "https://github.com/atlanhq/application-sdk.git", rev = "2e063e45170b3ba5179b37a76a86a25c15dcbfd5", subdirectory = "packages/api" }

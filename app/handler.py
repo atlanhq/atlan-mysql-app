@@ -241,10 +241,6 @@ class MySQLAppHandler(Handler):
         client = SQLClient()
         try:
             creds = _creds_to_dict(input.credentials)
-            # Log credential keys (not values) so we can tell whether the
-            # marketplace credential-resolution layer populated the input.
-            # Values would leak secrets; keys alone are enough to diagnose.
-
             if not creds.get("host"):
                 raise MetadataHostMissingError(
                     message="fetch_metadata called with no host in credentials — "
