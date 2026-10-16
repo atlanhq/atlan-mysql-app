@@ -254,7 +254,7 @@ wheels = [
 [[package]]
 name = "atlan-application-sdk"
 version = "3.49.1"
-source = { git = "https://github.com/atlanhq/application-sdk.git?rev=2e063e45170b3ba5179b37a76a86a25c15dcbfd5#2e063e45170b3ba5179b37a76a86a25c15dcbfd5" }
+source = { git = "https://github.com/atlanhq/application-sdk.git?rev=7ada10d8c3517269378fd4c0e7de5454ad121fdc#7ada10d8c3517269378fd4c0e7de5454ad121fdc" }
 dependencies = [
     { name = "aiohttp" },
     { name = "atlan-application-sdk-api" },
@@ -303,7 +303,7 @@ workflows = [
 [[package]]
 name = "atlan-application-sdk-api"
 version = "3.49.1"
-source = { git = "https://github.com/atlanhq/application-sdk.git?subdirectory=packages%2Fapi&rev=2e063e45170b3ba5179b37a76a86a25c15dcbfd5#2e063e45170b3ba5179b37a76a86a25c15dcbfd5" }
+source = { git = "https://github.com/atlanhq/application-sdk.git?subdirectory=packages%2Fapi&rev=7ada10d8c3517269378fd4c0e7de5454ad121fdc#7ada10d8c3517269378fd4c0e7de5454ad121fdc" }
 dependencies = [
     { name = "fastapi" },
     { name = "orjson" },
@@ -361,7 +361,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "aiomysql", specifier = ">=0.3.0" },
-    { name = "atlan-application-sdk", extras = ["iam-auth", "pandas", "sql", "workflows"], git = "https://github.com/atlanhq/application-sdk.git?rev=2e063e45170b3ba5179b37a76a86a25c15dcbfd5" },
+    { name = "atlan-application-sdk", extras = ["iam-auth", "pandas", "sql", "workflows"], git = "https://github.com/atlanhq/application-sdk.git?rev=7ada10d8c3517269378fd4c0e7de5454ad121fdc" },
     { name = "atlan-application-sdk-conformance", marker = "extra == 'dev'", specifier = ">=0.17.0,<1.0.0" },
     { name = "coverage", marker = "extra == 'test'", specifier = ">=7.6.1" },
     { name = "docker", marker = "extra == 'test'", specifier = ">=7.0.0" },
