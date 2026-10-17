@@ -57,3 +57,6 @@ remediation/
 
 
 .mothership/.cache/
+
+# The serving package builds its own venv for its test job.
+server/.venv/
