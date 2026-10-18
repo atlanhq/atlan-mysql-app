@@ -383,15 +383,16 @@ class TestMySQLClient:
         """Test loading with missing credentials."""
         client = SQLClient()
 
-        # SDK v3.12+ wraps the missing-credentials failure in
-        # ``SqlClientAuthFailedError`` (cause=``SqlCredentialsParseError``
-        # or ``SqlClientConfigError``); accept the legacy ValueError /
-        # ClientError too so this test survives across SDK versions.
+        # Newer SDKs raise the typed ``MissingSqlParamError`` unwrapped;
+        # SDK v3.12+ before that wrapped it in ``SqlClientAuthFailedError``;
+        # older SDKs raised ValueError / ClientError. Accept all so this test
+        # survives across SDK versions.
         with pytest.raises((
             ValueError,
             ClientError,
             SqlClientConfigError,
             SqlCredentialsParseError,
+            MissingSqlParamError,
             SqlClientAuthFailedError,
         )):
             await client.load({})
