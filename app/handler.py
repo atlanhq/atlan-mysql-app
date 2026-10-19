@@ -113,6 +113,19 @@ def _creds_to_dict(credentials: list[HandlerCredential]) -> dict[str, Any]:
     return cred_dict
 
 
+async def _query_rows(client: SQLClient, query: str) -> list[dict[str, Any]]:
+    """Every row of *query* as a dict.
+
+    ``run_query`` rather than ``get_results``: it yields plain dicts, so serving
+    this handler needs no pandas, and the consolidated host does not have to
+    install the SDK's ``pandas<3`` pin into an environment it shares.
+    """
+    rows: list[dict[str, Any]] = []
+    async for batch in client.run_query(query):
+        rows.extend(batch)
+    return rows
+
+
 class MySQLAppHandler(Handler):
     """MySQL v3 handler for auth, preflight, and metadata endpoints."""
 
@@ -122,7 +135,7 @@ class MySQLAppHandler(Handler):
         try:
             creds = _creds_to_dict(input.credentials)
             await client.load(credentials=creds)
-            await client.get_results(_TEST_AUTH_SQL)
+            await _query_rows(client, _TEST_AUTH_SQL)
             return AuthOutput(
                 status=AuthStatus.SUCCESS, message="Authentication successful"
             )
@@ -178,7 +191,7 @@ class MySQLAppHandler(Handler):
             creds = _creds_to_dict(input.credentials)
             try:
                 await client.load(credentials=creds)
-                await client.get_results(_TEST_AUTH_SQL)
+                await _query_rows(client, _TEST_AUTH_SQL)
             except Exception as e:
                 transient = transient_failure(e)
                 if transient is not None:
@@ -220,7 +233,7 @@ class MySQLAppHandler(Handler):
     async def _check_connectivity(self, client: SQLClient) -> PreflightCheck:
         """List accessible tables. A source failure becomes a failed row, never a raise."""
         try:
-            result = await client.get_results(_TABLES_CHECK_SQL)
+            result = await _query_rows(client, _TABLES_CHECK_SQL)
         except Exception as e:
             blip = transient_failure(e)
             listing_failure = blip if blip is not None else TableListingError(cause=e)
@@ -229,7 +242,7 @@ class MySQLAppHandler(Handler):
                 passed=False,
                 error=listing_failure.to_failure_details(),
             )
-        count = len(result) if result is not None else 0
+        count = len(result)
         return PreflightCheck(
             name="connectivity",
             passed=True,
@@ -249,19 +262,13 @@ class MySQLAppHandler(Handler):
 
             await client.load(credentials=creds)
 
-            result = await client.get_results(_FILTER_METADATA_SQL)
-
-            objects = []
-            if result is not None:
-                for _, row in result.iterrows():
-                    objects.append(
-                        SqlMetadataObject(
-                            TABLE_CATALOG=str(
-                                row.get("database_name", DATABASE_PLACEHOLDER)
-                            ),
-                            TABLE_SCHEMA=str(row.get("schema_name", "")),
-                        )
-                    )
+            objects = [
+                SqlMetadataObject(
+                    TABLE_CATALOG=str(row.get("database_name", DATABASE_PLACEHOLDER)),
+                    TABLE_SCHEMA=str(row.get("schema_name", "")),
+                )
+                for row in await _query_rows(client, _FILTER_METADATA_SQL)
+            ]
 
             return SqlMetadataOutput(objects=objects)
         except Exception as e:

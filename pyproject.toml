@@ -181,7 +181,7 @@ data = [
     "app/sql/test_authentication.sql",
 ]
 dependencies = ["aiomysql>=0.3.0", "tenacity>=8.0.0"]
-extras = ["sql", "pandas", "aws"]
+extras = ["sql", "aws"]
 
 [tool.uv.sources]
 # atlan-application-sdk = { path = "../application-sdk", editable = true }
