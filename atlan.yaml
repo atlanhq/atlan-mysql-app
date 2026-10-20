@@ -28,6 +28,7 @@ deploy:
   env:
     ATLAN_TENANT_ID: default
   workerDoNotDisrupt: false
+  routeToCommonAPIServer: true
   canary_enabled: true
   canary_mode: auto
   stages:

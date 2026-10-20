@@ -45,6 +45,8 @@ deploy = new DeployConfig {
   overrides {
     // Let Karpenter repack idle worker nodes; eviction drains via the worker grace period.
     ["workerDoNotDisrupt"] = false
+    // BETA TEST ONLY (tenant-targeted release): serve mysql's API from common-app-server.
+    ["routeToCommonAPIServer"] = true
     ["canary_enabled"] = true
     ["canary_mode"] = "auto"
     ["stages"] = new Mapping {
