@@ -1,5 +1,33 @@
 # Changelog
 
+## v2.4.2 (October 21, 2026)
+
+Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.4.1...v2.4.2
+
+### Chores
+
+- lock file maintenance (#896) (by @atlan-app-fleet[bot] in [17b8832](https://github.com/atlanhq/atlan-mysql-app/commit/17b8832))
+- lock file maintenance (#898) (by @atlan-app-fleet[bot] in [a22212c](https://github.com/atlanhq/atlan-mysql-app/commit/a22212c))
+- lock file maintenance (#899) (by @atlan-app-fleet[bot] in [b2b1cce](https://github.com/atlanhq/atlan-mysql-app/commit/b2b1cce))
+- lock file maintenance (#900) (by @atlan-app-fleet[bot] in [666ba7c](https://github.com/atlanhq/atlan-mysql-app/commit/666ba7c))
+- lock file maintenance (#902) (by @atlan-app-fleet[bot] in [9bd5869](https://github.com/atlanhq/atlan-mysql-app/commit/9bd5869))
+- lock file maintenance (#903) (by @atlan-app-fleet[bot] in [ecf39ef](https://github.com/atlanhq/atlan-mysql-app/commit/ecf39ef))
+- lock file maintenance (#904) (by @atlan-app-fleet[bot] in [e97b911](https://github.com/atlanhq/atlan-mysql-app/commit/e97b911))
+- update dependency atlan-application-sdk to v3.50.0 (#906) (by @atlan-app-fleet[bot] in [45f146a](https://github.com/atlanhq/atlan-mysql-app/commit/45f146a))
+- lock file maintenance (#907) (by @atlan-app-fleet[bot] in [af9eee1](https://github.com/atlanhq/atlan-mysql-app/commit/af9eee1))
+- update atlan framework dependencies (#908) (by @atlan-app-fleet[bot] in [00faa99](https://github.com/atlanhq/atlan-mysql-app/commit/00faa99))
+- lock file maintenance (#909) (by @atlan-app-fleet[bot] in [79677b8](https://github.com/atlanhq/atlan-mysql-app/commit/79677b8))
+- lock file maintenance (#910) (by @atlan-app-fleet[bot] in [806e49b](https://github.com/atlanhq/atlan-mysql-app/commit/806e49b))
+- lock file maintenance (#911) (by @atlan-app-fleet[bot] in [e90c103](https://github.com/atlanhq/atlan-mysql-app/commit/e90c103))
+- update dependency atlan-application-sdk to v3.51.0 (#912) (by @atlan-app-fleet[bot] in [b5da824](https://github.com/atlanhq/atlan-mysql-app/commit/b5da824))
+- update dependency atlan-application-sdk to v3.51.1 (#915) (by @atlan-app-fleet[bot] in [03c6dd5](https://github.com/atlanhq/atlan-mysql-app/commit/03c6dd5))
+- lock file maintenance (#916) (by @atlan-app-fleet[bot] in [790c32e](https://github.com/atlanhq/atlan-mysql-app/commit/790c32e))
+
+### Other Changes
+
+- test(client): accept unwrapped MissingSqlParamError from load() (#901) (by @cmgrote in [751cefb](https://github.com/atlanhq/atlan-mysql-app/commit/751cefb))
+
+
 ## v2.4.1 (October 16, 2026)
 
 Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.4.0...v2.4.1
