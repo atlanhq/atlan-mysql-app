@@ -253,6 +253,125 @@
       "type": "bool"
     },
     {
+      "contract": "MySQLExtractionInput",
+      "field": "agent_json",
+      "required": null,
+      "status": "active",
+      "type": "AgentCredentialSpec | None"
+    },
+    {
+      "contract": "MySQLExtractionInput",
+      "field": "app_name",
+      "required": null,
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "MySQLExtractionInput",
+      "field": "connection",
+      "required": null,
+      "status": "active",
+      "type": "ConnectionRef"
+    },
+    {
+      "contract": "MySQLExtractionInput",
+      "field": "correlation_id",
+      "required": null,
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "MySQLExtractionInput",
+      "field": "credential_guid",
+      "required": null,
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "MySQLExtractionInput",
+      "field": "credential_ref",
+      "required": null,
+      "status": "active",
+      "type": "CredentialRef | None"
+    },
+    {
+      "contract": "MySQLExtractionInput",
+      "field": "exclude_filter",
+      "required": null,
+      "status": "active",
+      "type": "FilterMap | str"
+    },
+    {
+      "contract": "MySQLExtractionInput",
+      "field": "exclude_table_regex",
+      "required": null,
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "MySQLExtractionInput",
+      "field": "extraction_method",
+      "required": null,
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "MySQLExtractionInput",
+      "field": "include_filter",
+      "required": null,
+      "status": "active",
+      "type": "FilterMap | str"
+    },
+    {
+      "contract": "MySQLExtractionInput",
+      "field": "output_path",
+      "required": null,
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "MySQLExtractionInput",
+      "field": "output_prefix",
+      "required": null,
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "MySQLExtractionInput",
+      "field": "redact_sql_text",
+      "required": false,
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "MySQLExtractionInput",
+      "field": "source_tag_prefix",
+      "required": null,
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "MySQLExtractionInput",
+      "field": "temp_table_regex",
+      "required": null,
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "MySQLExtractionInput",
+      "field": "workflow_id",
+      "required": null,
+      "status": "active",
+      "type": "str"
+    },
+    {
+      "contract": "MySQLExtractionInput",
+      "field": "workflow_slug",
+      "required": null,
+      "status": "active",
+      "type": "str"
+    },
+    {
       "contract": "MySQLExtractionOutput",
       "field": "artifacts",
       "required": null,

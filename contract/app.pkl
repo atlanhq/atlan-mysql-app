@@ -354,6 +354,15 @@ uiConfig = new UIConfig {
           placeholderText = ".*_TMP|.*_TEMP|TMP:*|TEMP:*"
           width = 8
         }
+        // Rendered for both extraction methods: on SDR the same app code runs in
+        // the customer's runtime, so redaction applies there too.
+        ["redact-sql-text"] = new ConditionalInput {
+          title = "Redact SQL Text"
+          helpText = "Replaces string and numeric literals in extracted SQL definitions with placeholders, in memory, before anything is written to disk. SQL that can't be parsed is kept as-is. Query structure and lineage are preserved. Note: Increases extraction runtime."
+          baseWidgetType = "boolean"
+          default = false
+          width = 4
+        }
         ["preflight-check"] = new ConditionalInput {
           title = ""
           baseWidgetType = "sageV2"
