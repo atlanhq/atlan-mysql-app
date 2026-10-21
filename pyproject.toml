@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 license = "Apache-2.0"
 readme = "README.md"
 dependencies = [
-    "atlan-application-sdk[iam-auth,pandas,sql,workflows]>=3.33.2,<4.0.0",
+    "atlan-application-sdk[iam-auth,pandas,sql,workflows]>=3.51.0,<4.0.0",
     "aiomysql>=0.3.0",
 ]
 
@@ -185,8 +185,3 @@ extras = ["sql", "aws"]
 
 [tool.uv.sources]
 # atlan-application-sdk = { path = "../application-sdk", editable = true }
-# Both SDK distributions pinned to the same unreleased application-sdk commit
-# (application-sdk#4058): the SDK pins atlan-application-sdk-api at its own,
-# unpublished version. Re-pin both to a released version before merge.
-atlan-application-sdk = { git = "https://github.com/atlanhq/application-sdk.git", rev = "9b501e1ad099ce843705d153c4a3b1d11d56c237" }
-atlan-application-sdk-api = { git = "https://github.com/atlanhq/application-sdk.git", rev = "9b501e1ad099ce843705d153c4a3b1d11d56c237", subdirectory = "packages/api" }
