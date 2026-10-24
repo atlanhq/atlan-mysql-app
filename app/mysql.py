@@ -7,29 +7,43 @@ from __future__ import annotations
 
 import math
 import os
+from collections.abc import Awaitable, Callable
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, TypeVar
 
 import orjson
 import pandas as pd
+from application_sdk.app import task
 from application_sdk.common.asset_serialization import entity_bytes
 from application_sdk.contracts.base import Output
 from application_sdk.contracts.storage import DeclaredFile, UploadRefsInput
+from application_sdk.credentials.ref import CredentialRef
 from application_sdk.execution import get_object_store_prefix
 from application_sdk.observability.logger_adaptor import get_logger
 from application_sdk.templates.contracts.sql_metadata import (
     ExtractionInput,
     ExtractionTaskInput,
+    ExtractionTaskOutput,
     TransformOutput,
 )
 from application_sdk.templates.sql_app import SqlApp
 from pyatlan_v9.model.assets import Column, Database, Procedure, Schema, Table, View
+from pydantic import field_validator
 
 from app.client import SQLClient
 from app.constants import DATABASE_PLACEHOLDER, TENANT_ID
 from app.handler import (  # noqa: F401 — SDK discovers {AppClass}Handler by convention
     MySQLAppHandler,
+)
+from app.redaction import (
+    PROCEDURE_SQL_PATHS,
+    TABLE_SQL_PATHS,
+    emit_redaction_metrics,
+    redaction_config,
+    redaction_scope,
+    toggle_as_text,
+    toggle_on,
 )
 
 logger = get_logger(__name__)
@@ -80,6 +94,25 @@ class MySQLExtractionOutput(Output):
 
     # Forwarded to QI + lineage-app via manifest JSONPath
     storage_bucket: str = ""
+
+
+class MySQLExtractionInput(ExtractionInput):
+    """Workflow input plus the ``redact-sql-text`` form toggle."""
+
+    redact_sql_text: str = "false"
+
+    _redact_sql_text_as_text = field_validator("redact_sql_text", mode="before")(
+        toggle_as_text
+    )
+
+
+# Declared, not stashed: the SDK task inputs drop undeclared keys on
+# activity-side reconstruction, so the toggle must be a typed field.
+class MySQLExtractionTaskInput(ExtractionTaskInput):
+    redact_sql_text: str = "false"
+
+
+_ET = TypeVar("_ET", bound=ExtractionTaskInput)
 
 
 # Read SQL files at module level
@@ -176,6 +209,23 @@ def _table_qn(name: str, schema_qn: str, is_view: bool) -> str:
     qn = cls.creator(name=name, schema_qualified_name=schema_qn).qualified_name
     assert isinstance(qn, str)
     return qn
+
+
+async def _extract_redacted(
+    extract: Callable[[MySQLExtractionTaskInput], Awaitable[ExtractionTaskOutput]],
+    input: MySQLExtractionTaskInput,
+    sql_paths: tuple[str, ...],
+) -> ExtractionTaskOutput:
+    """Run ``extract`` inside a redaction scope when the toggle is on."""
+    config = redaction_config(input.redact_sql_text, sql_paths)
+    if config is None:
+        return await extract(input)
+    with redaction_scope(config) as stats:
+        result = await extract(input)
+    counts = stats.as_dict()
+    logger.info("%s: SQL redaction %s", result.typename, counts)
+    emit_redaction_metrics(counts)
+    return result
 
 
 class MySQLApp(SqlApp):
@@ -498,8 +548,51 @@ class MySQLApp(SqlApp):
 
         return asset
 
+    # ── SQL redaction ───────────────────────────────────────────────────
+    # SqlApp's extract has no per-batch hook, so redaction uses three public
+    # seams: build_task_input carries the toggle, the two SQL-bearing extract
+    # tasks open a redaction scope, and SQLClient.run_query redacts each batch
+    # inside it, before SqlApp serialises the batch to raw/<entity>/records.json.
+
+    @staticmethod
+    def build_task_input(
+        input_cls: type[_ET],
+        src: ExtractionInput,
+        *,
+        cred_ref: CredentialRef | None = None,
+    ) -> _ET:
+        """SqlApp's task input, carrying the redaction toggle when it is on."""
+        task_input = SqlApp.build_task_input(input_cls, src, cred_ref=cred_ref)
+        redact_sql_text = getattr(src, "redact_sql_text", "false")
+        # Only when on, so a toggle-off run sends the SDK's payloads unchanged.
+        if input_cls is not ExtractionTaskInput or not toggle_on(redact_sql_text):
+            return task_input
+        return MySQLExtractionTaskInput(  # type: ignore[return-value]
+            **task_input.model_dump(), redact_sql_text=redact_sql_text
+        )
+
+    @task(
+        timeout_seconds=1800, heartbeat_timeout_seconds=120, auto_heartbeat_seconds=30
+    )
+    async def extract_tables(  # type: ignore[override]
+        self, input: MySQLExtractionTaskInput
+    ) -> ExtractionTaskOutput:
+        """SqlApp's table extract, with view SQL redacted when the toggle is on."""
+        return await _extract_redacted(super().extract_tables, input, TABLE_SQL_PATHS)
+
+    @task(
+        timeout_seconds=1800, heartbeat_timeout_seconds=120, auto_heartbeat_seconds=30
+    )
+    async def extract_procedures(  # type: ignore[override]
+        self, input: MySQLExtractionTaskInput
+    ) -> ExtractionTaskOutput:
+        """SqlApp's procedure extract, with routine SQL redacted when the toggle is on."""
+        return await _extract_redacted(
+            super().extract_procedures, input, PROCEDURE_SQL_PATHS
+        )
+
     async def run(  # type: ignore[override]
-        self, input: ExtractionInput
+        self, input: MySQLExtractionInput
     ) -> MySQLExtractionOutput:
         """MySQL extraction: standard assets + procedures + lineage pipeline outputs.
 
@@ -534,7 +627,8 @@ class MySQLApp(SqlApp):
             # infra.storage (objectstore) for task-to-task durability.
             # The explicit App.upload_refs() below handles the final hand-off
             # of the declared transformed files to upstream_storage (S3).
-            proc_extract_result = await self.extract_procedures(proc_input)
+            # The activity rebuilds this input as MySQLExtractionTaskInput.
+            proc_extract_result = await self.extract_procedures(proc_input)  # type: ignore[arg-type]
             proc_transform_input = self.build_transform_input(
                 proc_input, proc_extract_result.raw_file
             )

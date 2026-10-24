@@ -1,9 +1,10 @@
 import re
 import ssl
-from typing import Any, Dict, Optional
+from collections.abc import AsyncGenerator, Mapping
+from typing import Any, Dict, List, Optional
 
 from application_sdk.clients.models import DatabaseConfig
-from application_sdk.clients.sql import AsyncBaseSQLClient
+from application_sdk.clients.sql import AsyncBaseSQLClient, SqlBindValue
 from application_sdk.clients.sql_errors import SqlClientAuthFailedError
 from application_sdk.common.aws_utils import (
     generate_aws_rds_token_with_iam_role,
@@ -19,6 +20,7 @@ from app.failures import (
     IamTokenGenerationError,
     RegionExtractionError,
 )
+from app.redaction import redacting
 from sqlalchemy import event
 from sqlalchemy.engine import URL
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -79,6 +81,16 @@ class SQLClient(AsyncBaseSQLClient):
                     }
                 },
             )
+
+    def run_query(  # type: ignore[override]
+        self,
+        query: str,
+        batch_size: int = 100000,
+        params: Mapping[str, SqlBindValue] | None = None,
+    ) -> AsyncGenerator[List[Dict[str, Any]], None]:
+        """The SDK's batches, redacted in memory when an extract task opened a
+        redaction scope; the redaction seam, as SqlApp's extract has no batch hook."""
+        return redacting(super().run_query(query, batch_size, params))
 
     @staticmethod
     def _create_ssl_context() -> ssl.SSLContext:

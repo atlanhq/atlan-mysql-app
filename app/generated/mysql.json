@@ -269,6 +269,18 @@
           "grid": 8
         }
       },
+      "redact-sql-text": {
+        "type": "conditional",
+        "required": false,
+        "ui": {
+          "widget": "boolean",
+          "label": "Redact SQL Text",
+          "hidden": false,
+          "help": "Replaces string and numeric literals in extracted SQL definitions with placeholders, in memory, before anything is written to disk. SQL that can't be parsed is kept as-is. Query structure and lineage are preserved. Note: Increases extraction runtime.",
+          "grid": 4
+        },
+        "default": false
+      },
       "preflight-check": {
         "type": "conditional",
         "required": false,
@@ -367,6 +379,7 @@
           "include-filter",
           "exclude-filter",
           "exclude-table-regex",
+          "redact-sql-text",
           "preflight-check"
         ]
       }

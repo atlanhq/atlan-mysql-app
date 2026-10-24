@@ -9,10 +9,16 @@ WORKDIR /app
 # Copy lock files first for dependency caching
 COPY --chown=appuser:appuser pyproject.toml uv.lock README.md ./
 
-# Install dependencies (excluding the project itself) into a new venv
-RUN --mount=type=cache,target=/home/appuser/.cache/uv,uid=1000,gid=1000 \
+# Install dependencies (excluding the project itself) into a new venv.
+# Private git dep (query-redaction): GitHub remotes are rewritten to token https
+# from a BuildKit secret, removed in-layer; its LFS jar is not needed.
+RUN --mount=type=secret,id=git_token,uid=1000 \
+    --mount=type=cache,target=/home/appuser/.cache/uv,uid=1000,gid=1000 \
+    git config --global url."https://x-access-token:$(cat /run/secrets/git_token)@github.com/".insteadOf "ssh://git@github.com/" && \
+    git config --global --add url."https://x-access-token:$(cat /run/secrets/git_token)@github.com/".insteadOf "https://github.com/" && \
     uv venv .venv && \
-    uv sync --locked --no-install-project --no-dev
+    GIT_LFS_SKIP_SMUDGE=1 uv sync --locked --no-install-project --no-dev && \
+    rm -f "$HOME/.gitconfig"
 
 # Copy application code
 COPY --chown=appuser:appuser app/ app/

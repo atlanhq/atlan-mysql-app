@@ -9,6 +9,7 @@ readme = "README.md"
 dependencies = [
     "atlan-application-sdk[iam-auth,pandas,sql,workflows]>=3.33.2,<4.0.0",
     "aiomysql>=0.3.0",
+    "query-redaction",  # QI-owned in-memory SQL literal redaction; source pinned in [tool.uv.sources]
 ]
 
 # Optional dependencies for specific functionality - Install using: uv sync --extra dev
@@ -172,3 +173,4 @@ default = true
 
 [tool.uv.sources]
 # atlan-application-sdk = { path = "../application-sdk", editable = true }
+query-redaction = { git = "ssh://git@github.com/atlanhq/atlan-query-intelligence-app.git", subdirectory = "packages/query-redaction", tag = "query-redaction-v0.2.2" }
