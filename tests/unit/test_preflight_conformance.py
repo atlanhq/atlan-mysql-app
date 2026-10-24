@@ -226,6 +226,13 @@ def source(monkeypatch: pytest.MonkeyPatch) -> SyntheticMySQL:
         return await adapter._get_results(query)
 
     monkeypatch.setattr(SQLClient, "get_results", _get_results)
+
+    async def _run_query(self: SQLClient, query: str, *args: Any, **kwargs: Any):
+        frame = await adapter._get_results(query)
+        if frame is not None:
+            yield frame.to_dict("records")
+
+    monkeypatch.setattr(SQLClient, "run_query", _run_query)
     return adapter
 
 

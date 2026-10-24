@@ -6,7 +6,7 @@ import asyncio
 from pathlib import Path
 from typing import Any
 
-from application_sdk.errors import AppError, safe_traceback
+from application_sdk.errors import AppError
 from application_sdk.handler import (
     AuthInput,
     AuthOutput,
@@ -21,11 +21,10 @@ from application_sdk.handler import (
     SqlMetadataObject,
     SqlMetadataOutput,
 )
-from application_sdk.observability.logger_adaptor import get_logger
 
-from app.client import SQLClient
-from app.constants import DATABASE_PLACEHOLDER
-from app.failures import (
+from .client import SQLClient
+from .constants import DATABASE_PLACEHOLDER
+from .failures import (
     MetadataFetchError,
     MetadataHostMissingError,
     PreflightAuthError,
@@ -34,7 +33,6 @@ from app.failures import (
     transient_failure,
 )
 
-logger = get_logger(__name__)
 
 # SQL for handler endpoints
 _TEST_AUTH_SQL = (
@@ -115,6 +113,19 @@ def _creds_to_dict(credentials: list[HandlerCredential]) -> dict[str, Any]:
     return cred_dict
 
 
+async def _query_rows(client: SQLClient, query: str) -> list[dict[str, Any]]:
+    """Every row of *query* as a dict.
+
+    ``run_query`` rather than ``get_results``: it yields plain dicts, so serving
+    this handler needs no pandas, and the consolidated host does not have to
+    install the SDK's ``pandas<3`` pin into an environment it shares.
+    """
+    rows: list[dict[str, Any]] = []
+    async for batch in client.run_query(query):
+        rows.extend(batch)
+    return rows
+
+
 class MySQLAppHandler(Handler):
     """MySQL v3 handler for auth, preflight, and metadata endpoints."""
 
@@ -124,15 +135,11 @@ class MySQLAppHandler(Handler):
         try:
             creds = _creds_to_dict(input.credentials)
             await client.load(credentials=creds)
-            await client.get_results(_TEST_AUTH_SQL)
+            await _query_rows(client, _TEST_AUTH_SQL)
             return AuthOutput(
                 status=AuthStatus.SUCCESS, message="Authentication successful"
             )
-        # safe_traceback, not exc_info: this is ERROR, so it is emitted in
-        # production, and a SQLAlchemy connection error carries the password in
-        # its text. Same redaction as the preflight probes below.
         except Exception as e:
-            logger.error("MySQL auth test failed: %s", safe_traceback(e))
             err = transient_failure(e) or PreflightAuthError(cause=e)
             return AuthOutput(status=AuthStatus.FAILED, error=err.to_failure_details())
         finally:
@@ -184,21 +191,8 @@ class MySQLAppHandler(Handler):
             creds = _creds_to_dict(input.credentials)
             try:
                 await client.load(credentials=creds)
-                await client.get_results(_TEST_AUTH_SQL)
+                await _query_rows(client, _TEST_AUTH_SQL)
             except Exception as e:
-                # DEBUG, not WARNING: the preflight gate owns the customer-facing
-                # outcome row and levels it from the verdict — ERROR when the run is
-                # blocked, as it is here. A handler-authored WARNING is both a
-                # duplicate of that row and invisible under the customer's default
-                # ERROR filter (F005 / FND-901). DEBUG keeps the traceback for
-                # engineers without adding a second customer-visible record.
-                #
-                # safe_traceback, not exc_info: SQLAlchemy embeds the whole
-                # connection string — password included — in its error text, so
-                # a raw traceback puts the credential in the log. The SDK omits
-                # exc_info at its own load() failure site for this reason; this
-                # keeps the frames and redacts the userinfo instead.
-                logger.debug("Auth preflight check failed: %s", safe_traceback(e))
                 transient = transient_failure(e)
                 if transient is not None:
                     # A blip is "ask me later", not a verdict. Raising the typed
@@ -239,14 +233,8 @@ class MySQLAppHandler(Handler):
     async def _check_connectivity(self, client: SQLClient) -> PreflightCheck:
         """List accessible tables. A source failure becomes a failed row, never a raise."""
         try:
-            result = await client.get_results(_TABLES_CHECK_SQL)
+            result = await _query_rows(client, _TABLES_CHECK_SQL)
         except Exception as e:
-            # DEBUG, not WARNING: this check is advisory, so the gate emits the
-            # single WARNING outcome row itself (keyed on any failed check) —
-            # F005 bans the handler from logging it. DEBUG keeps the traceback
-            # for engineers without duplicating the gate's record.
-            # safe_traceback, not exc_info — see the auth probe above.
-            logger.debug("Connectivity preflight check failed: %s", safe_traceback(e))
             blip = transient_failure(e)
             listing_failure = blip if blip is not None else TableListingError(cause=e)
             return PreflightCheck(
@@ -254,7 +242,7 @@ class MySQLAppHandler(Handler):
                 passed=False,
                 error=listing_failure.to_failure_details(),
             )
-        count = len(result) if result is not None else 0
+        count = len(result)
         return PreflightCheck(
             name="connectivity",
             passed=True,
@@ -266,16 +254,6 @@ class MySQLAppHandler(Handler):
         client = SQLClient()
         try:
             creds = _creds_to_dict(input.credentials)
-            # Log credential keys (not values) so we can tell whether the
-            # marketplace credential-resolution layer populated the input.
-            # Values would leak secrets; keys alone are enough to diagnose.
-            logger.info(
-                "fetch_metadata: %d credentials received, keys=%s, host=%s",
-                len(input.credentials),
-                sorted(creds.keys()),
-                creds.get("host", "<missing>"),
-            )
-
             if not creds.get("host"):
                 raise MetadataHostMissingError(
                     message="fetch_metadata called with no host in credentials — "
@@ -284,25 +262,13 @@ class MySQLAppHandler(Handler):
 
             await client.load(credentials=creds)
 
-            result = await client.get_results(_FILTER_METADATA_SQL)
-            row_count = 0 if result is None else len(result)
-            logger.info(
-                "fetch_metadata: SQL returned %s (%d rows)",
-                "None" if result is None else "DataFrame",
-                row_count,
-            )
-
-            objects = []
-            if result is not None:
-                for _, row in result.iterrows():
-                    objects.append(
-                        SqlMetadataObject(
-                            TABLE_CATALOG=str(
-                                row.get("database_name", DATABASE_PLACEHOLDER)
-                            ),
-                            TABLE_SCHEMA=str(row.get("schema_name", "")),
-                        )
-                    )
+            objects = [
+                SqlMetadataObject(
+                    TABLE_CATALOG=str(row.get("database_name", DATABASE_PLACEHOLDER)),
+                    TABLE_SCHEMA=str(row.get("schema_name", "")),
+                )
+                for row in await _query_rows(client, _FILTER_METADATA_SQL)
+            ]
 
             return SqlMetadataOutput(objects=objects)
         except Exception as e:
