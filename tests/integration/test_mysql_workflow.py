@@ -186,8 +186,7 @@ def _view_definitions(store_root: Path, result: MySQLExtractionOutput) -> list[s
 
 
 class TestRedactionToggle:
-    """Both toggle branches through the real workflow: the toggle has to cross
-    the Temporal boundary into the table extract and reach the client seam."""
+    """The toggle crosses the Temporal boundary and reaches the client seam."""
 
     async def _run(self, executor, credential_ref, redact_sql_text):
         if not os.environ.get("MYSQL_HOST"):

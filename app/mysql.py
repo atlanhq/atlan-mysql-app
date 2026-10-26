@@ -106,8 +106,7 @@ class MySQLExtractionInput(ExtractionInput):
     )
 
 
-# Declared, not stashed: the SDK task inputs drop undeclared keys on
-# activity-side reconstruction, so the toggle must be a typed field.
+# The SDK drops undeclared keys when it rebuilds a task input.
 class MySQLExtractionTaskInput(ExtractionTaskInput):
     redact_sql_text: str = "false"
 
@@ -548,11 +547,7 @@ class MySQLApp(SqlApp):
 
         return asset
 
-    # ── SQL redaction ───────────────────────────────────────────────────
-    # SqlApp's extract has no per-batch hook, so redaction uses three public
-    # seams: build_task_input carries the toggle, the two SQL-bearing extract
-    # tasks open a redaction scope, and SQLClient.run_query redacts each batch
-    # inside it, before SqlApp serialises the batch to raw/<entity>/records.json.
+    # SqlApp's extract has no per-batch hook; SQLClient.run_query redacts in the scope.
 
     @staticmethod
     def build_task_input(
@@ -564,7 +559,6 @@ class MySQLApp(SqlApp):
         """SqlApp's task input, carrying the redaction toggle when it is on."""
         task_input = SqlApp.build_task_input(input_cls, src, cred_ref=cred_ref)
         redact_sql_text = getattr(src, "redact_sql_text", "false")
-        # Only when on, so a toggle-off run sends the SDK's payloads unchanged.
         if input_cls is not ExtractionTaskInput or not toggle_on(redact_sql_text):
             return task_input
         return MySQLExtractionTaskInput(  # type: ignore[return-value]

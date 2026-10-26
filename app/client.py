@@ -88,8 +88,7 @@ class SQLClient(AsyncBaseSQLClient):
         batch_size: int = 100000,
         params: Mapping[str, SqlBindValue] | None = None,
     ) -> AsyncGenerator[List[Dict[str, Any]], None]:
-        """The SDK's batches, redacted in memory when an extract task opened a
-        redaction scope; the redaction seam, as SqlApp's extract has no batch hook."""
+        """The SDK's batches, redacted inside a ``redaction_scope``."""
         return redacting(super().run_query(query, batch_size, params))
 
     @staticmethod

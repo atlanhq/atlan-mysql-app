@@ -1,7 +1,4 @@
-"""Best-effort redaction behind the ``redact-sql-text`` toggle: literals in view and
-routine SQL are replaced in memory before the first write, keeping query structure
-and lineage; SQL the library can't redact is kept as-is and no record is ever dropped.
-"""
+"""SQL-literal redaction behind the ``redact-sql-text`` toggle; no record is ever dropped."""
 
 from __future__ import annotations
 
@@ -17,15 +14,13 @@ from query_redaction import RedactionConfig, RedactionStats, Status, redact_one
 
 logger = get_logger(__name__)
 
-#: SQL-bearing key in a raw table record (``extract_table.sql``); views carry
-#: their SELECT body here, plain tables NULL.
+#: SQL-bearing key in a raw table record; NULL for plain tables.
 TABLE_SQL_PATHS: tuple[str, ...] = ("view_definition",)
 
-#: SQL-bearing key in a raw procedure / function record (``extract_procedure.sql``).
+#: SQL-bearing key in a raw procedure / function record.
 PROCEDURE_SQL_PATHS: tuple[str, ...] = ("procedure_definition",)
 
-#: The config and stats of the extract task running in this context, or None.
-#: ``SQLClient.run_query`` reads it; ``redaction_scope`` sets it.
+#: Set by ``redaction_scope``, read by ``SQLClient.run_query``.
 _ACTIVE: ContextVar[tuple[RedactionConfig, RedactionStats] | None] = ContextVar(
     "active_sql_redaction", default=None
 )
@@ -53,15 +48,13 @@ def redaction_config(
 def redact_sql(
     record: dict[str, Any], config: RedactionConfig, stats: RedactionStats
 ) -> None:
-    """Redact ``record``'s SQL keys in place. A key the engine drops keeps its
-    original SQL, so the record is always kept."""
+    """Redact ``record``'s SQL keys in place; a dropped key keeps its original SQL."""
     for key in config.columns:
         sql = record.get(key)
-        # Plain tables arrive with view_definition NULL; the engine drops empty input.
+        # The engine drops empty input.
         if not isinstance(sql, str) or not sql.strip():
             continue
-        # Every knob is forwarded: redact_one's own defaults differ from
-        # RedactionConfig's (comments and formatting are off there).
+        # redact_one's defaults differ from RedactionConfig's, so forward every knob.
         result = redact_one(
             sql,
             config.dialect,

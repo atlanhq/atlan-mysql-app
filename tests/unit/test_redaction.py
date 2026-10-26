@@ -1,5 +1,4 @@
-"""SQL-text redaction: the gate, the toggle plumbing, the per-record helpers and
-the extract seam (task override + SQLClient.run_query)."""
+"""SQL-text redaction: gate, toggle plumbing, per-record helpers and the extract seam."""
 
 from __future__ import annotations
 
@@ -59,8 +58,7 @@ class TestRedactionGate:
 
 
 class TestTogglePlumbing:
-    """The form default is a JSON boolean but the field is ``str``, and the SDK
-    rebuilds each input from the method annotation, dropping undeclared keys."""
+    """The form sends a bool, and the SDK drops undeclared keys."""
 
     @pytest.mark.parametrize(
         "payload, expected",
