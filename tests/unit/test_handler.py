@@ -28,6 +28,22 @@ from app.failures import (
 from app.handler import MySQLAppHandler, _creds_to_dict
 
 
+def _rows_via(mock_client: AsyncMock) -> AsyncMock:
+    """Serve the handler's ``run_query`` from the test's ``get_results`` stub.
+
+    The handler reads rows with ``run_query`` (plain dicts, no pandas on the
+    host); the tests keep describing results as DataFrames.
+    """
+
+    async def run_query(query: str, *args: object, **kwargs: object):
+        frame = await mock_client.get_results(query)
+        if frame is not None:
+            yield frame.to_dict("records")
+
+    mock_client.run_query = run_query
+    return mock_client
+
+
 def _wrapped(errno: int, text: str) -> Exception:
     """A driver error as SQLAlchemy delivers it — the real shape the handler sees."""
     return sqlalchemy_exc.OperationalError(
@@ -90,7 +106,7 @@ class TestMySQLHandlerAuth:
         mock_client.get_results = AsyncMock(return_value=pd.DataFrame({"1": [1]}))
         mock_client.close = AsyncMock()
 
-        with patch("app.handler.SQLClient", return_value=mock_client):
+        with patch("app.handler.SQLClient", return_value=_rows_via(mock_client)):
             result = await handler.test_auth(AuthInput(credentials=valid_creds))
 
         assert result.status == AuthStatus.SUCCESS
@@ -102,7 +118,7 @@ class TestMySQLHandlerAuth:
         mock_client.load = AsyncMock(side_effect=Exception("Connection refused"))
         mock_client.close = AsyncMock()
 
-        with patch("app.handler.SQLClient", return_value=mock_client):
+        with patch("app.handler.SQLClient", return_value=_rows_via(mock_client)):
             result = await handler.test_auth(AuthInput(credentials=valid_creds))
 
         assert result.status == AuthStatus.FAILED
@@ -123,7 +139,7 @@ class TestMySQLHandlerAuth:
         mock_client.load = AsyncMock(side_effect=_wrapped(errno, "driver text"))
         mock_client.close = AsyncMock()
 
-        with patch("app.handler.SQLClient", return_value=mock_client):
+        with patch("app.handler.SQLClient", return_value=_rows_via(mock_client)):
             result = await handler.test_auth(AuthInput(credentials=valid_creds))
 
         assert result.status == AuthStatus.FAILED
@@ -138,7 +154,7 @@ class TestMySQLHandlerAuth:
         mock_client.load = AsyncMock(side_effect=ValueError("Missing credentials"))
         mock_client.close = AsyncMock()
 
-        with patch("app.handler.SQLClient", return_value=mock_client):
+        with patch("app.handler.SQLClient", return_value=_rows_via(mock_client)):
             result = await handler.test_auth(AuthInput(credentials=[]))
         assert result.status == AuthStatus.FAILED
 
@@ -166,7 +182,7 @@ class TestMySQLHandlerPreflight:
         mock_client.get_results = AsyncMock(return_value=pd.DataFrame({"count": [42]}))
         mock_client.close = AsyncMock()
 
-        with patch("app.handler.SQLClient", return_value=mock_client):
+        with patch("app.handler.SQLClient", return_value=_rows_via(mock_client)):
             result = await handler.preflight_check(
                 PreflightInput(credentials=valid_creds)
             )
@@ -181,7 +197,7 @@ class TestMySQLHandlerPreflight:
         mock_client.load = AsyncMock(side_effect=Exception("Connection refused"))
         mock_client.close = AsyncMock()
 
-        with patch("app.handler.SQLClient", return_value=mock_client):
+        with patch("app.handler.SQLClient", return_value=_rows_via(mock_client)):
             result = await handler.preflight_check(
                 PreflightInput(credentials=valid_creds)
             )
@@ -224,7 +240,7 @@ class TestMySQLHandlerPreflight:
         mock_client.load = AsyncMock(side_effect=driver_error)
         mock_client.close = AsyncMock()
 
-        with patch("app.handler.SQLClient", return_value=mock_client):
+        with patch("app.handler.SQLClient", return_value=_rows_via(mock_client)):
             with pytest.raises(AppError) as raised:
                 await handler.preflight_check(PreflightInput(credentials=valid_creds))
 
@@ -244,7 +260,7 @@ class TestMySQLHandlerPreflight:
         )
         mock_client.close = AsyncMock()
 
-        with patch("app.handler.SQLClient", return_value=mock_client):
+        with patch("app.handler.SQLClient", return_value=_rows_via(mock_client)):
             result = await handler.preflight_check(
                 PreflightInput(credentials=valid_creds)
             )
@@ -272,7 +288,7 @@ class TestMySQLHandlerPreflight:
         )
         mock_client.close = AsyncMock()
 
-        with patch("app.handler.SQLClient", return_value=mock_client):
+        with patch("app.handler.SQLClient", return_value=_rows_via(mock_client)):
             result = await handler.preflight_check(
                 PreflightInput(credentials=valid_creds)
             )
@@ -289,7 +305,7 @@ class TestMySQLHandlerPreflight:
         mock_client.get_results = AsyncMock(return_value=pd.DataFrame({"count": [42]}))
         mock_client.close = AsyncMock()
 
-        with patch("app.handler.SQLClient", return_value=mock_client):
+        with patch("app.handler.SQLClient", return_value=_rows_via(mock_client)):
             result = await handler.preflight_check(
                 PreflightInput(
                     credentials=valid_creds,
@@ -370,7 +386,7 @@ class TestMySQLHandlerMetadata:
         )
         mock_client.close = AsyncMock()
 
-        with patch("app.handler.SQLClient", return_value=mock_client):
+        with patch("app.handler.SQLClient", return_value=_rows_via(mock_client)):
             result = await handler.fetch_metadata(
                 MetadataInput(credentials=valid_creds)
             )
