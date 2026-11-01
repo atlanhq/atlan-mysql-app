@@ -253,7 +253,7 @@ wheels = [
 
 [[package]]
 name = "atlan-application-sdk"
-version = "3.53.1"
+version = "3.53.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "aiohttp" },
@@ -274,17 +274,20 @@ dependencies = [
     { name = "orjson" },
     { name = "packaging" },
     { name = "prometheus-client" },
+    { name = "protobuf" },
     { name = "pyatlan" },
     { name = "pydantic" },
+    { name = "pyjwt" },
     { name = "python-dotenv" },
+    { name = "python-multipart" },
     { name = "pyyaml" },
     { name = "rocksdict" },
     { name = "temporalio" },
     { name = "uvloop", marker = "sys_platform != 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/aa/05/2ea236ca2f5a775b666752f8d47537a98245213e18cc69ebb18b58c289df/atlan_application_sdk-3.53.1.tar.gz", hash = "sha256:a33dc06c7134e7663f81443432a37ba74cb6d03641cbcb81f45d54e4d1171817", size = 11256409, upload-time = "2026-10-29T17:21:11.685Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/32/7a/43041170ae61d7da1306388cfc4f42ae97f06bd6a99bb39f523062b34e1b/atlan_application_sdk-3.53.2.tar.gz", hash = "sha256:eec480e282255dad76ddb9e9c53a847f433b51ae2c888d578866f6c2d152b074", size = 11287664, upload-time = "2026-11-01T23:04:49.79Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/33/71/9d50aa476bef98abf44663c23c4a705ea7ef72eabafc0ef929a2c45b1ccb/atlan_application_sdk-3.53.1-py3-none-any.whl", hash = "sha256:3e0cc1dd92b9233c85654fe7266bfc02e076840d12132e3e77301cc145a53558", size = 1809570, upload-time = "2026-10-29T17:21:09.773Z" },
+    { url = "https://files.pythonhosted.org/packages/95/75/2b5c991951aa171228542d7d0cbd69def5dcf574ec63da7ca1dec032831d/atlan_application_sdk-3.53.2-py3-none-any.whl", hash = "sha256:860de4182b85e5b0aac56012ae7d1b1c1b437c411653d8dfe24023873d3f7479", size = 1809628, upload-time = "2026-11-01T23:04:47.394Z" },
 ]
 
 [package.optional-dependencies]
@@ -309,7 +312,7 @@ workflows = [
 
 [[package]]
 name = "atlan-application-sdk-api"
-version = "3.53.1"
+version = "3.53.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -319,14 +322,14 @@ dependencies = [
     { name = "pydantic" },
     { name = "python-multipart" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/9d/d1/06f004f134fec981927ff607785c6c4579ab298e03fc19edae3358ff435c/atlan_application_sdk_api-3.53.1.tar.gz", hash = "sha256:c27ffc19cbe447e46279655af87967451d014eb6e7f6a218d1bcab818ea5be4e", size = 288786, upload-time = "2026-10-29T17:21:03.839Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e0/7e/9ab6be8a41626c054ec87f385b6c6e8f996e5bd7751d0ad7f1557d7aee21/atlan_application_sdk_api-3.53.2.tar.gz", hash = "sha256:70b484e215b2fdef1f1c5149eac71d268451364ec796999a4b97b3248ac2f31c", size = 288806, upload-time = "2026-11-01T23:04:41.34Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/97/17/9aae6c7eafdc6d0affecec0252cf8cdfa6ca9a89662b9291bb2b84754891/atlan_application_sdk_api-3.53.1-py3-none-any.whl", hash = "sha256:14fa50972077ebc973b8da9b65b28ae1e834ab3d62049a62584cff8beba5ea1e", size = 326875, upload-time = "2026-10-29T17:21:02.477Z" },
+    { url = "https://files.pythonhosted.org/packages/70/c9/d919307db29c13f3581b85fcfee13a650d4305dd1e834fb5a45d5dbb2e1f/atlan_application_sdk_api-3.53.2-py3-none-any.whl", hash = "sha256:621c992683623ce36c0bad715de0fabb228cee1294be5c8ed0e515d9f837f28c", size = 326877, upload-time = "2026-11-01T23:04:40.078Z" },
 ]
 
 [[package]]
 name = "atlan-application-sdk-conformance"
-version = "0.53.0"
+version = "0.53.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jinja2" },
@@ -334,9 +337,9 @@ dependencies = [
     { name = "packaging" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/45/ca/585c6678d2cb381e73a0b942f5314903edb6855e69f2c7de5af029b2912b/atlan_application_sdk_conformance-0.53.0.tar.gz", hash = "sha256:063b28872c052e9f89ab4e140401e952e159f5bbd17f1658e120e42a6ab2db74", size = 2602289, upload-time = "2026-10-29T17:46:19.561Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/06/9b/6cc605a0feaea0b9a1b9650584c555aa2849a7e53d4fbc484b4b3054797d/atlan_application_sdk_conformance-0.53.1.tar.gz", hash = "sha256:98461378c0c33ecac1031911a8643322a657f2ba31fc0709886032fe37f064cd", size = 2618595, upload-time = "2026-11-01T23:05:20.462Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9f/9e/365483e1a107a34cf8faf07f77b3bbfc6be638999ac6b4baaed1efb51ce2/atlan_application_sdk_conformance-0.53.0-py3-none-any.whl", hash = "sha256:f7ede614c2fcfed83b17475fb48ae2c71e36af37d6d1deb2f064b8e4952df7a0", size = 2196015, upload-time = "2026-10-29T17:46:17.645Z" },
+    { url = "https://files.pythonhosted.org/packages/e5/36/2b59fc721f9e4fd3da2ed0a9c10edd8f4b65d5e790f1631afb80a7c0a03b/atlan_application_sdk_conformance-0.53.1-py3-none-any.whl", hash = "sha256:713610f5f7e180205a041d39e7556d088d622045cdb6611353ed89690238761e", size = 2210044, upload-time = "2026-11-01T23:05:19.022Z" },
 ]
 
 [[package]]
@@ -1056,7 +1059,7 @@ wheels = [
 
 [[package]]
 name = "fastapi"
-version = "0.143.5"
+version = "0.162.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "annotated-doc" },
@@ -1066,9 +1069,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "typing-inspection" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/8f/6a/ac6ec87026038fb7583018e0905f6c9d55bc8ee07d30d44c743f18b19435/fastapi-0.143.5.tar.gz", hash = "sha256:0b5c8e52d243cd2f015376b41e78db5bee585578782481abd145e1ab5a62a3ba", size = 470247, upload-time = "2026-10-18T09:12:55.556Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e9/eb/2cf8c80abf09b2800aef0a83b41066fbfda8ee5495b7a08b9d1af40f7046/fastapi-0.162.0.tar.gz", hash = "sha256:6a22c1e2e6e32e0633ee7e170f00009a29b8228b16feb219ee42f32fd8d88a8f", size = 527867, upload-time = "2026-10-23T18:47:33.264Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/eb/4e/5f7d1268900eb14a6697a42d94c8f7e3b8450d27301761f231672f928419/fastapi-0.143.5-py3-none-any.whl", hash = "sha256:09cc38ed8c6a95f407783ef4d98ceeb350e192fe8fbb8ed711070bcd5208fdfa", size = 144894, upload-time = "2026-10-18T09:12:54.125Z" },
+    { url = "https://files.pythonhosted.org/packages/b4/4f/3f2c25c9b43970b5e9a08beb5e04776247edea684ddc0930f4f02f0bb6cb/fastapi-0.162.0-py3-none-any.whl", hash = "sha256:3785963de305dd09912426cb81f2d230fce98ab3521cdfe97265c8d14983128c", size = 148912, upload-time = "2026-10-23T18:47:31.734Z" },
 ]
 
 [package.optional-dependencies]
