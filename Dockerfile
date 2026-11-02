@@ -22,5 +22,7 @@ ENV ATLAN_CONTRACT_GENERATED_DIR=/app/app/generated
 
 # Copy Dapr component YAMLs from the installed application-sdk wheel into the
 # image. Inlined (rather than `poe download-components`) so the build needs no
-# dev tooling — poethepoet stays out of the production image.
-RUN uv run python -c "import application_sdk, pathlib, shutil; shutil.copytree(pathlib.Path(application_sdk.__file__).parent / 'components', 'components', dirs_exist_ok=True)"
+# dev tooling — poethepoet stays out of the production image. --no-sync: a
+# plain `uv run` re-syncs the project's default groups (dev included) into
+# .venv, undoing the --no-dev sync above; the entrypoint runs --no-sync too.
+RUN uv run --no-sync python -c "import application_sdk, pathlib, shutil; shutil.copytree(pathlib.Path(application_sdk.__file__).parent / 'components', 'components', dirs_exist_ok=True)"
