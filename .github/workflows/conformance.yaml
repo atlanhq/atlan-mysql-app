@@ -63,8 +63,11 @@ jobs:
     # required checks. No `labeled` trigger: a label add on the same commit
     # started a second run that evicted the first (FND-3839).
     uses: atlanhq/application-sdk/.github/workflows/conformance-reusable.yaml@main
+    secrets:
+      ORG_PAT_GITHUB: ${{ secrets.ORG_PAT_GITHUB }}
     with:
       event_name: ${{ github.event_name }}
+      private-git-deps: true  # the D-series leg's uv sync clones query-redaction
       skip-on-bump-pr: true
       # Scheduled/manual force-refresh runs have no PR base to diff against
       # and nothing to block — always run every series, and never fail the

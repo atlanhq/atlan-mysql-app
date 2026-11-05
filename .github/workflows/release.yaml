@@ -9,4 +9,6 @@ jobs:
   bump:
     if: github.event.pull_request.merged == true && !startsWith(github.event.pull_request.head.ref, 'bump-version')
     uses: atlanhq/application-sdk/.github/workflows/release-version-bump.yaml@main
+    with:
+      private_git_auth: true  # the bump's uv lock re-resolves the private query-redaction dep
     secrets: inherit

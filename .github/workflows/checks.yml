@@ -37,5 +37,8 @@ jobs:
     concurrency:
       group: ${{ github.workflow }}-${{ github.ref }}
       cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+    secrets:
+      ORG_PAT_GITHUB: ${{ secrets.ORG_PAT_GITHUB }}
     with:
       skip-on-bump-pr: true
+      private-git-deps: true  # setup-deps' uv sync clones the private query-redaction dep

@@ -21,6 +21,7 @@
           "include_filter": "{{include-filter}}",
           "exclude_filter": "{{exclude-filter}}",
           "exclude_table_regex": "{{exclude-table-regex}}",
+          "redact_sql_text": "{{redact-sql-text}}",
           "preflight_check": "{{preflight-check}}"
         }
       },

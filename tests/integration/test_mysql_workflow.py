@@ -25,7 +25,7 @@ from application_sdk.observability.logger_adaptor import get_logger
 from application_sdk.templates.contracts.sql_metadata import ExtractionInput
 from pyatlan.model.enums import AtlanConnectorType
 
-from app.mysql import MySQLApp, MySQLExtractionOutput
+from app.mysql import MySQLApp, MySQLExtractionInput, MySQLExtractionOutput
 
 if TYPE_CHECKING:
     from application_sdk.credentials.ref import CredentialRef
@@ -177,3 +177,50 @@ class TestMySQLExtraction:
             assert not unexpected, (
                 f"{entity} has unexpected typeName values: {unexpected}"
             )
+
+
+def _view_definitions(store_root: Path, result: MySQLExtractionOutput) -> list[str]:
+    lines = _transformed_file(store_root, result, "table").read_text().splitlines()
+    entities = [json.loads(line) for line in lines]
+    return [e["attributes"]["definition"] for e in entities if e["typeName"] == "View"]
+
+
+class TestRedactionToggle:
+    """The toggle crosses the Temporal boundary and reaches the client seam."""
+
+    async def _run(self, executor, credential_ref, redact_sql_text):
+        if not os.environ.get("MYSQL_HOST"):
+            pytest.skip("No MySQL available — set MYSQL_HOST or provide Docker")
+        return cast(
+            "MySQLExtractionOutput",
+            await executor.execute_app(
+                MySQLApp,
+                MySQLExtractionInput(
+                    credential_ref=credential_ref,
+                    connection=ConnectionRef.model_validate({
+                        "typeName": "Connection",
+                        "attributes": {
+                            "qualifiedName": _CONNECTION_QN,
+                            "name": _CONNECTION_NAME,
+                        },
+                    }),
+                    include_filter="",
+                    redact_sql_text=redact_sql_text,
+                ),
+                execution_id_prefix=f"mysql-redact-{uuid.uuid4().hex[:8]}",
+            ),
+        )
+
+    @pytest.mark.parametrize("redact_sql_text, header", [(True, True), (False, False)])
+    async def test_view_definitions_follow_the_toggle(
+        self,
+        mysql_executor: "AppExecutor",
+        mysql_credential_ref: "CredentialRef",
+        store_root: Path,
+        redact_sql_text: bool,
+        header: bool,
+    ) -> None:
+        result = await self._run(mysql_executor, mysql_credential_ref, redact_sql_text)
+        definitions = _view_definitions(store_root, result)
+        assert definitions
+        assert all(("/* redacted: " in d) is header for d in definitions)

@@ -180,6 +180,8 @@ jobs:
       unit-coverage-fail-under: "90"
       app-name: "mysql"
       app-image-name: "atlan-mysql-app"
+      private-git-deps: true  # query-redaction; ORG_PAT_GITHUB arrives via secrets: inherit
+      git-lfs-skip-smudge: true  # its repo LFS-tracks a jar the tests never need
 
 
       # services-script: .github/test/setup-services.sh

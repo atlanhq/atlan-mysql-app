@@ -17,6 +17,8 @@ class AppInputContract(ExtractionInput):
 
     exclude_table_regex: str = ""
     """Regular expression to exclude temporary tables and views."""
+    redact_sql_text: str = "false"
+    """Replaces string and numeric literals in extracted SQL definitions with placeholders, in memory, before anything is written to disk. SQL that can't be parsed is kept as-is. Query structure and lineage are preserved. Note: Increases extraction runtime."""
     preflight_check: str = ""
     output_dir: str = ""
     """Directory for output JSONL files."""
