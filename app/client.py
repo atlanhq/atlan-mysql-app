@@ -1,30 +1,33 @@
 import re
 import ssl
 from typing import Any, Dict, Optional
+from urllib.parse import quote
 
 from application_sdk.clients.models import DatabaseConfig
 from application_sdk.clients.sql import AsyncBaseSQLClient
-from application_sdk.clients.sql_errors import SqlClientAuthFailedError
+from application_sdk.clients.sql_errors import (
+    SqlClientAuthFailedError,
+    SqlClientConfigError,
+)
 from application_sdk.common.aws_utils import (
     generate_aws_rds_token_with_iam_role,
     generate_aws_rds_token_with_iam_user,
 )
 from application_sdk.common.aws_utils_errors import AwsAssumeRoleError
 from application_sdk.credentials.utils import parse_credentials_extra
-from application_sdk.execution.heartbeat import run_in_thread
 from application_sdk.observability.logger_adaptor import get_logger
 from app.failures import (
     CredentialFieldMissingError,
-    EngineCreationError,
     IamTokenGenerationError,
     RegionExtractionError,
 )
-from sqlalchemy import event
-from sqlalchemy.engine import URL
-from sqlalchemy.ext.asyncio import create_async_engine
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_random
 
 logger = get_logger(__name__)
+
+#: ``authType`` values whose password is a short-lived RDS IAM auth token. The
+#: SDK refreshes that token on new connections for exactly these values.
+_IAM_AUTH_TYPES = frozenset({"iam_user", "iam_role"})
 
 
 class SQLClient(AsyncBaseSQLClient):
@@ -50,8 +53,9 @@ class SQLClient(AsyncBaseSQLClient):
             "connect_timeout": 5,
             "charset": "utf8mb4",
         },
-        # SSL will be enabled in load() method using SSL context (like IAM auth)
-        # This avoids class-level initialization issues and allows proper SSL context creation
+        # TLS (and, for IAM, the clear-password auth plugin) is wired in load(),
+        # on an instance copy of DB_CONFIG: this class-level one is shared by
+        # every client in the worker and must stay untouched.
         connect_args={},
     )
 
@@ -319,183 +323,131 @@ class SQLClient(AsyncBaseSQLClient):
                 cause=e,
             ) from e
 
-    async def load(self, credentials: Dict[str, Any]) -> None:
-        """Override load to handle IAM authentication.
+    def get_sqlalchemy_connection_string(self) -> str:
+        """Build the SQLAlchemy URL, putting the MySQL user in it for IAM auth.
 
-        For IAM authentication, we create the engine directly similar to Redshift,
-        ensuring the IAM token is properly passed to the underlying driver.
+        Basic auth uses the SDK's builder unchanged. For IAM auth the URL
+        carries the MySQL database user and the RDS IAM token as the password:
+
+        - ``iam_user``: the SDK would fill ``{username}`` from
+          ``credentials["username"]``, which is the AWS access key ID. The
+          MySQL user is ``extra.username``.
+        - ``iam_role``: the MySQL user is ``credentials["username"]``.
+
+        The token has to travel in the URL, not ``connect_args``: the SDK's
+        token refresh rebuilds this string about every 10 minutes and swaps in
+        only the driver arguments the URL changes.
+
+        Called again by that refresh, on a worker thread, for as long as the
+        engine lives. It only reads credentials, so it is safe to call
+        repeatedly and from any thread; keep it free of ``self.*`` writes.
         """
-        self.credentials = credentials
-        auth_type = credentials.get("authType", "basic").lower()
+        if self.credentials.get("authType") not in _IAM_AUTH_TYPES:
+            return super().get_sqlalchemy_connection_string()
+        if not self.DB_CONFIG:
+            raise SqlClientConfigError()
 
-        if auth_type in ("iam_user", "iam_role"):
+        # Validates every field the URL needs (and generates the token) before
+        # any of them is read below; URL-quoted.
+        token = self.get_auth_token()
+
+        if self.credentials["authType"] == "iam_user":
+            db_user = parse_credentials_extra(self.credentials)["username"]
+        else:
+            db_user = self.credentials["username"]
+
+        conn_str = self.DB_CONFIG.template.format(
+            username=quote(str(db_user), safe=""),
+            password=token,
+            host=self.credentials["host"],
+            port=self.credentials["port"],
+        )
+        if self.DB_CONFIG.defaults:
+            conn_str = self.add_connection_params(conn_str, self.DB_CONFIG.defaults)
+        return conn_str
+
+    def _use_connect_args(self, *, iam: bool) -> None:
+        """Point this client at TLS ``connect_args``, on an instance copy of DB_CONFIG.
+
+        TLS is on for every auth type (matching the legacy JDBC driver). IAM
+        auth also needs ``mysql_clear_password``: RDS reads the token as a
+        plain-text password, which TLS protects in transit. Nothing else goes
+        in ``connect_args`` — the SDK's token refresh never touches them, so a
+        user or password here would never be refreshed.
+        """
+        if not self.DB_CONFIG:
+            return
+        connect_args = {
+            **self.DB_CONFIG.connect_args,
+            "ssl": self._create_ssl_context(),
+        }
+        if iam:
+            connect_args["auth_plugin"] = "mysql_clear_password"
+        else:
+            connect_args.pop("auth_plugin", None)
+        # Shallow is enough: only connect_args changes, and it is a fresh dict.
+        self.DB_CONFIG = self.DB_CONFIG.model_copy(
+            update={"connect_args": connect_args}
+        )
+
+    async def load(self, credentials: Dict[str, Any]) -> None:
+        """Create the engine through the SDK, for every auth type.
+
+        For IAM auth the SDK also installs its RDS IAM token refresh: once the
+        token in the URL is 10 minutes old, the next new connection rebuilds
+        it on a worker thread, so an STS call never runs on the event loop.
+        """
+        auth_type = str(credentials.get("authType", "basic")).lower()
+
+        if auth_type in _IAM_AUTH_TYPES:
+            if credentials.get("authType") != auth_type:
+                # The SDK matches authType exactly when it builds the token
+                # and decides whether to refresh it.
+                credentials = {**credentials, "authType": auth_type}
+            self._use_connect_args(iam=True)
             try:
-                await self._load_iam(credentials, auth_type)
-            except IamTokenGenerationError:
-                raise
+                await super().load(credentials)
             except AwsAssumeRoleError as e:
-                # Defense-in-depth: any AwsAssumeRoleError that escapes the
-                # inner catch in get_iam_role_token() (or the do_connect event
-                # listener) is translated here so the SDK auth-cache prime
-                # classifier (_classify_prime_failure auth_msg_hints) routes
-                # this to AuthError rather than the InternalError fallback.
+                # Defense-in-depth: get_iam_role_token() already types STS
+                # rejections, at load time and on every later refresh. Any that
+                # escapes is translated here so the SDK auth-cache prime
+                # classifier routes it to AuthError.
                 raise IamTokenGenerationError(
                     message="AWS IAM role authentication failed — could not assume the configured role",
                     failure_reason="assume_role_denied",
                     cause=e,
                 ) from e
-        else:
-            # For basic auth, enable SSL by default (matching legacy JDBC driver behavior)
-            # Create SSL context and modify DB_CONFIG.connect_args before calling base class
-            ssl_context = self._create_ssl_context()
+            return
 
-            # Temporarily add SSL context to DB_CONFIG.connect_args
-            # Base class will use this when creating the engine
-            if self.DB_CONFIG:
-                self.DB_CONFIG.connect_args["ssl"] = ssl_context
+        # Basic auth: TLS on by default (matching legacy JDBC driver behavior).
+        self._use_connect_args(iam=False)
 
-            # SDR / agent mode: agent_json uses "basic.username" / "basic.password" dot
-            # notation. Flatten them to top-level so the base class finds username/password.
-            if "basic.username" in credentials or "basic.password" in credentials:
-                credentials = {
-                    **credentials,
-                    "username": credentials.get("basic.username")
-                    or credentials.get("username"),
-                    "password": credentials.get("basic.password")
-                    or credentials.get("password"),
-                }
+        # SDR / agent mode: agent_json uses "basic.username" / "basic.password" dot
+        # notation. Flatten them to top-level so the base class finds username/password.
+        if "basic.username" in credentials or "basic.password" in credentials:
+            credentials = {
+                **credentials,
+                "username": credentials.get("basic.username")
+                or credentials.get("username"),
+                "password": credentials.get("basic.password")
+                or credentials.get("password"),
+            }
 
-            # Use base class - it will use the modified DB_CONFIG.connect_args.
-            # Tenacity retry for MySQL 8 caching_sha2_password cold-cache:
-            # the server-side cache can require several failed connection
-            # attempts before it is warm enough for a subsequent attempt to
-            # take the fast path and succeed. Each failed attempt progressively
-            # populates the cache. Jitter spreads retries to avoid thundering-
-            # herd when multiple workers start simultaneously on a cold server.
-            @retry(
-                retry=retry_if_exception_type(SqlClientAuthFailedError),
-                stop=stop_after_attempt(5),
-                wait=wait_random(min=0, max=0.5),
-                reraise=True,
-            )
-            async def _load_with_retry():
-                if self.engine:
-                    await self.engine.dispose()
-                await super(SQLClient, self).load(credentials)
-
-            await _load_with_retry()
-
-    async def _load_iam(self, credentials: Dict[str, Any], auth_type: str) -> None:
-        """Load engine for IAM (user or role) authentication.
-
-        Extracted from ``load`` so the outer caller can wrap this entire
-        path in a single ``try/except AwsAssumeRoleError`` — STS failures
-        raised from any inner call site (initial token gen, do_connect
-        event listener, connection test) are translated to
-        ``IamTokenGenerationError`` before they leave the mysql app
-        boundary.
-        """
-        # Get raw IAM token (not URL-encoded). boto3 (in get_iam_*_token) is
-        # synchronous, so run it in the SDK's blocking-thread pool to keep the
-        # activity's auto-heartbeat alive while STS/RDS is contacted.
-        if auth_type == "iam_user":
-            raw_token = await run_in_thread(self.get_iam_user_token)
-        else:  # iam_role
-            raw_token = await run_in_thread(self.get_iam_role_token)
-
-        # Determine username based on auth type
-        extra = parse_credentials_extra(credentials)
-        if auth_type == "iam_user":
-            username = extra.get("username")
-            if not username:
-                raise CredentialFieldMissingError(
-                    message="extra.username (MySQL database user) is required for IAM user authentication",
-                    field="extra.username",
-                )
-        else:  # iam_role
-            username = credentials.get("username")
-            if not username:
-                raise CredentialFieldMissingError(
-                    message="username (MySQL database user) is required for IAM role authentication",
-                    field="username",
-                )
-
-        host = credentials.get("host")
-        port = credentials.get("port")
-        if not host or not port:
-            raise CredentialFieldMissingError(
-                message="host and port are required for IAM authentication",
-                field="host",
-            )
-
-        # Build query parameters
-        query_params: Dict[str, str] = {}
-        if self.DB_CONFIG and self.DB_CONFIG.defaults:
-            for key, value in self.DB_CONFIG.defaults.items():
-                if value is not None:
-                    query_params[key] = str(value)
-
-        url_kwargs = {
-            "drivername": "mysql+aiomysql",
-            "host": host,
-            "port": int(port),
-        }
-        if query_params:
-            url_kwargs["query"] = query_params
-
-        engine_url = URL.create(**url_kwargs)
-
-        # Create SSL context without certificate verification for RDS IAM auth
-        ssl_context = self._create_ssl_context()
-
-        # Create async engine with all auth parameters in connect_args
-        connect_args = dict(self.DB_CONFIG.connect_args if self.DB_CONFIG else {})
-        connect_args["user"] = username
-        connect_args["password"] = raw_token
-        connect_args["auth_plugin"] = "mysql_clear_password"
-        connect_args["ssl"] = ssl_context
-
-        self.engine = create_async_engine(
-            str(engine_url),
-            connect_args=connect_args,
-            pool_pre_ping=True,
+        # Tenacity retry for MySQL 8 caching_sha2_password cold-cache:
+        # the server-side cache can require several failed connection
+        # attempts before it is warm enough for a subsequent attempt to
+        # take the fast path and succeed. Each failed attempt progressively
+        # populates the cache. Jitter spreads retries to avoid thundering-
+        # herd when multiple workers start simultaneously on a cold server.
+        @retry(
+            retry=retry_if_exception_type(SqlClientAuthFailedError),
+            stop=stop_after_attempt(5),
+            wait=wait_random(min=0, max=0.5),
+            reraise=True,
         )
+        async def _load_with_retry():
+            if self.engine:
+                await self.engine.dispose()
+            await super(SQLClient, self).load(credentials)
 
-        if not self.engine:
-            raise EngineCreationError()
-
-        # Register event listener as additional safety to ensure token is injected
-        # This ensures fresh tokens on each connection (tokens expire)
-        @event.listens_for(self.engine.sync_engine, "do_connect")
-        def provide_token(dialect, conn_rec, cargs, cparams):
-            """Event listener to inject/refresh IAM token before connecting."""
-            # Get fresh token (tokens expire, so regenerate for each connection)
-            if auth_type == "iam_user":
-                token = self.get_iam_user_token()
-            else:  # iam_role
-                token = self.get_iam_role_token()
-
-            # Inject token into connection parameters
-            cparams["password"] = token
-            logger.debug("IAM token refreshed for connection (length: %d)", len(token))
-
-        # Test connection briefly to validate credentials
-        try:
-            async with self.engine.connect() as _:
-                pass  # Connection test successful
-        except IamTokenGenerationError:
-            raise  # already typed from event listener; propagate as-is
-        except AwsAssumeRoleError:
-            raise  # let load()'s outer wrapper translate it
-        except Exception as e:
-            # The token was generated successfully, so a connection-test
-            # failure here is almost always MySQL rejecting the IAM token
-            # (e.g. "Access denied" or "Lost connection" from auth-plugin
-            # negotiation).  Re-raise with "authentication failed" in the
-            # message so the SDK auth-cache prime classifier routes it to
-            # AuthError rather than DependencyUnavailableError.
-            raise IamTokenGenerationError(
-                message="AWS IAM authentication failed — MySQL rejected the connection after token injection",
-                failure_reason="connection_rejected",
-                cause=e,
-            ) from e
+        await _load_with_retry()
