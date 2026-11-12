@@ -6,6 +6,13 @@ from typing import ClassVar
 
 from application_sdk.templates.contracts import ExtractionInput
 
+# ExtractionInput declares these fields only from atlan-application-sdk
+# 3.39.1. On an older SDK the form values would be dropped, so fail
+# at import instead.
+_SDK_FLOOR_FIELDS = {"exclude_table_regex"}
+if not _SDK_FLOOR_FIELDS <= ExtractionInput.model_fields.keys():
+    raise ImportError("This input contract requires atlan-application-sdk>=3.39.1")
+
 
 class AppInputContract(ExtractionInput):
     _config_hash_exclude: ClassVar[set[str]] = {
@@ -15,8 +22,6 @@ class AppInputContract(ExtractionInput):
         "publish_dry_run",
     }
 
-    exclude_table_regex: str = ""
-    """Regular expression to exclude temporary tables and views."""
     preflight_check: str = ""
     output_dir: str = ""
     """Directory for output JSONL files."""
