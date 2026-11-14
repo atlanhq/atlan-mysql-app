@@ -1,20 +1,30 @@
 import os
 import ssl
+import time
+from types import SimpleNamespace
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from urllib.parse import quote_plus
 
+import application_sdk.clients.sql as sdk_sql
+import pymysql
 import pytest
+import sqlalchemy.ext.asyncio as sa_asyncio
 from application_sdk.clients.sql_errors import (
     MissingSqlParamError,
     SqlClientAuthFailedError,
     SqlClientConfigError,
+    SqlClientSourceUnavailableError,
     SqlCredentialsParseError,
 )
 from application_sdk.common.aws_utils_errors import AwsAssumeRoleError
 from application_sdk.common.error_codes import ClientError
+from sqlalchemy import event
+from sqlalchemy.engine import make_url
 
 from app.client import SQLClient
 from app.failures import IamTokenGenerationError
+from tests.unit.loop_probe import LoopProbe
 
 
 class TestMySQLClient:
@@ -172,92 +182,55 @@ class TestMySQLClient:
             f"Expected exactly 5 attempts (tenacity max) before propagating, got {call_count}"
         )
 
+    @staticmethod
+    def _mock_engine() -> MagicMock:
+        """An async-engine double whose connect() is a no-op context manager."""
+        mock_engine = MagicMock()
+        ctx = AsyncMock()
+        ctx.__aenter__ = AsyncMock(return_value=AsyncMock())
+        ctx.__aexit__ = AsyncMock(return_value=None)
+        mock_engine.connect.return_value = ctx
+        mock_engine.dispose = AsyncMock()
+        return mock_engine
+
+    @pytest.mark.parametrize(
+        ("auth_fixture", "token_fn", "db_user"),
+        [
+            ("iam_user_credentials", "generate_aws_rds_token_with_iam_user", "db_user"),
+            ("iam_role_credentials", "generate_aws_rds_token_with_iam_role", "db_user"),
+        ],
+        ids=["iam_user", "iam_role"],
+    )
     @pytest.mark.asyncio
-    async def test_load_iam_user_auth_success(self, iam_user_credentials):
-        """Test successful loading with IAM user authentication."""
+    async def test_load_iam_goes_through_the_sdk_with_the_token_in_the_url(
+        self, request, auth_fixture, token_fn, db_user
+    ):
+        """IAM auth builds its engine through the SDK's load(): the MySQL user
+        and the token travel in the URL, and connect_args carry only TLS and the
+        clear-password plugin — nothing the SDK's token refresh would skip."""
+        credentials = request.getfixturevalue(auth_fixture)
         with (
-            patch(
-                "app.client.generate_aws_rds_token_with_iam_user",
-                return_value="mock_token_12345",
-            ) as mock_token,
-            patch("app.client.create_async_engine") as mock_create_engine,
-            patch("sqlalchemy.event.listens_for") as mock_listens_for,
+            patch(f"app.client.{token_fn}", return_value=TOKEN_0) as mock_token,
+            patch("sqlalchemy.ext.asyncio.create_async_engine") as mock_create_engine,
         ):
-            mock_engine = MagicMock()
-            mock_connection = AsyncMock()
-            # Mock async context manager for engine.connect()
-            mock_connection_context = AsyncMock()
-            mock_connection_context.__aenter__ = AsyncMock(return_value=mock_connection)
-            mock_connection_context.__aexit__ = AsyncMock(return_value=None)
-            # connect() is a regular method that returns an async context manager
-            mock_engine.connect.return_value = mock_connection_context
-            mock_sync_engine = MagicMock()
-            mock_engine.sync_engine = mock_sync_engine  # For event listener
-            mock_engine.dispose = AsyncMock()
-            mock_create_engine.return_value = mock_engine
+            mock_create_engine.return_value = self._mock_engine()
 
             client = SQLClient()
-            await client.load(iam_user_credentials)
+            await client.load(credentials)
 
-            assert client.credentials == iam_user_credentials
-            mock_token.assert_called_once()
-            mock_create_engine.assert_called_once()
-            # Verify event listener was registered
-            mock_listens_for.assert_called()
-
-    @pytest.mark.asyncio
-    async def test_load_iam_role_auth_success(self, iam_role_credentials):
-        """Test successful loading with IAM role authentication."""
-        with (
-            patch("boto3.Session") as mock_boto3_session,
-            patch("app.client.create_async_engine") as mock_create_engine,
-            patch("sqlalchemy.event.listens_for") as mock_listens_for,
-            patch(
-                "application_sdk.common.aws_utils.create_aws_client"
-            ) as mock_create_client,
-        ):
-            # Mock STS assume_role response
-            mock_sts_client = MagicMock()
-            mock_sts_client.assume_role.return_value = {
-                "Credentials": {
-                    "AccessKeyId": "temp_key",
-                    "SecretAccessKey": "temp_secret",
-                    "SessionToken": "temp_token",
-                }
-            }
-
-            # Mock boto3.Session().client("sts")
-            mock_session_instance = MagicMock()
-            mock_session_instance.client.return_value = mock_sts_client
-            mock_boto3_session.return_value = mock_session_instance
-
-            # Mock RDS client for token generation
-            mock_rds_client = MagicMock()
-            mock_rds_client.generate_db_auth_token.return_value = "mock_token_67890"
-            mock_create_client.return_value = mock_rds_client
-
-            # Mock SQLAlchemy async engine
-            mock_engine = MagicMock()
-            mock_connection = AsyncMock()
-            # Mock async context manager for engine.connect()
-            mock_connection_context = AsyncMock()
-            mock_connection_context.__aenter__ = AsyncMock(return_value=mock_connection)
-            mock_connection_context.__aexit__ = AsyncMock(return_value=None)
-            # connect() is a regular method that returns an async context manager
-            mock_engine.connect.return_value = mock_connection_context
-            mock_sync_engine = MagicMock()
-            mock_engine.sync_engine = mock_sync_engine  # For event listener
-            mock_engine.dispose = AsyncMock()
-            mock_create_engine.return_value = mock_engine
-
-            client = SQLClient()
-            await client.load(iam_role_credentials)
-
-            assert client.credentials == iam_role_credentials
-            mock_boto3_session.assert_called()
-            mock_create_engine.assert_called_once()
-            # Verify event listener was registered
-            mock_listens_for.assert_called()
+        assert client.credentials == credentials
+        mock_token.assert_called_once()
+        mock_create_engine.assert_called_once()
+        url = make_url(mock_create_engine.call_args.args[0])
+        assert url.username == db_user
+        assert url.password == TOKEN_0
+        connect_args = mock_create_engine.call_args.kwargs["connect_args"]
+        assert connect_args["auth_plugin"] == "mysql_clear_password"
+        assert isinstance(connect_args["ssl"], ssl.SSLContext)
+        assert "password" not in connect_args
+        assert "user" not in connect_args
+        # The class-level DB_CONFIG is shared by every client in the worker.
+        assert SQLClient.DB_CONFIG.connect_args == {}
 
     @pytest.mark.asyncio
     async def test_load_iam_role_translates_assume_role_error(
@@ -270,52 +243,6 @@ class TestMySQLClient:
             "app.client.generate_aws_rds_token_with_iam_role",
             side_effect=AwsAssumeRoleError(cause=Exception("STS denied")),
         ):
-            client = SQLClient()
-            with pytest.raises(IamTokenGenerationError) as exc_info:
-                await client.load(iam_role_credentials)
-            assert "authentication failed" in str(exc_info.value).lower()
-            assert exc_info.value.failure_reason == "assume_role_denied"
-
-    @pytest.mark.asyncio
-    async def test_load_iam_role_event_listener_translates_assume_role_error(
-        self, iam_role_credentials
-    ):
-        """AwsAssumeRoleError raised from the do_connect event listener
-        (token refresh after initial load succeeded) is translated by
-        load()'s outer wrapper to IamTokenGenerationError."""
-        token_calls = {"n": 0}
-
-        def fake_token(*args, **kwargs):
-            token_calls["n"] += 1
-            if token_calls["n"] == 1:
-                return "initial_token"
-            raise AwsAssumeRoleError(cause=Exception("STS denied on refresh"))
-
-        with (
-            patch(
-                "app.client.generate_aws_rds_token_with_iam_role",
-                side_effect=fake_token,
-            ),
-            patch("app.client.create_async_engine") as mock_create_engine,
-            patch("sqlalchemy.event.listens_for"),
-        ):
-            mock_engine = MagicMock()
-
-            # connect() returns an async context manager whose __aenter__
-            # simulates the do_connect listener firing on the second
-            # token-gen call.
-            def _connect():
-                fake_token()  # trigger the refresh path that raises
-                ctx = AsyncMock()
-                ctx.__aenter__ = AsyncMock(return_value=AsyncMock())
-                ctx.__aexit__ = AsyncMock(return_value=None)
-                return ctx
-
-            mock_engine.connect.side_effect = _connect
-            mock_engine.sync_engine = MagicMock()
-            mock_engine.dispose = AsyncMock()
-            mock_create_engine.return_value = mock_engine
-
             client = SQLClient()
             with pytest.raises(IamTokenGenerationError) as exc_info:
                 await client.load(iam_role_credentials)
@@ -452,12 +379,8 @@ class TestMySQLClient:
             client.get_sqlalchemy_connection_string()
 
     def test_get_sqlalchemy_connection_string_iam_user(self, iam_user_credentials):
-        """Test connection string generation for IAM user authentication.
-
-        Note: get_sqlalchemy_connection_string() is not used for IAM auth in production
-        (we create the engine directly in load()). This test verifies the base class
-        behavior, which uses extra.username (DB user) as the username in the connection string.
-        """
+        """For IAM user auth the URL user is extra.username (the MySQL user),
+        not credentials.username (the AWS access key ID)."""
         client = SQLClient()
         client.credentials = iam_user_credentials
 
@@ -465,14 +388,28 @@ class TestMySQLClient:
             result = client.get_sqlalchemy_connection_string()
             encoded_token = quote_plus("iam_token_12345")
 
-            # Base class uses credentials["username"] (AWS access key) in the template.
-            # In production, IAM auth uses load() which creates engine directly, not this method.
             expected = (
-                f"mysql+aiomysql://{iam_user_credentials['username']}:{encoded_token}@"
+                f"mysql+aiomysql://{iam_user_credentials['extra']['username']}:{encoded_token}@"
                 f"{iam_user_credentials['host']}:{iam_user_credentials['port']}?connect_timeout=5&charset=utf8mb4"
             )
 
             assert result == expected
+            assert iam_user_credentials["username"] not in result
+
+    def test_get_sqlalchemy_connection_string_iam_quotes_token_and_user(
+        self, iam_role_credentials
+    ):
+        """A real RDS token is a presigned URL; it and the user must survive
+        the round trip through the SQLAlchemy URL unchanged."""
+        client = SQLClient()
+        client.credentials = {**iam_role_credentials, "username": "db:user@x"}
+
+        with patch.object(client, "get_iam_role_token", return_value=TOKEN_0):
+            url = make_url(client.get_sqlalchemy_connection_string())
+
+        assert url.username == "db:user@x"
+        assert url.password == TOKEN_0
+        assert url.host == iam_role_credentials["host"]
 
     def test_get_sqlalchemy_connection_string_iam_role(self, iam_role_credentials):
         """Test connection string generation for IAM role authentication."""
@@ -861,32 +798,212 @@ class TestMySQLClient:
     # load() — connection-test failure path
     # ------------------------------------------------------------------
 
+    @pytest.mark.parametrize(
+        ("driver_error", "expected", "retryable"),
+        [
+            (
+                pymysql.err.OperationalError(
+                    1045,
+                    "Access denied for user 'db_user'@'10.0.0.1' (using password: YES)",
+                ),
+                SqlClientAuthFailedError,
+                False,
+            ),
+            (
+                pymysql.err.OperationalError(
+                    2003,
+                    "Can't connect to MySQL server on 'test-instance' ([Errno 111] Connection refused)",
+                ),
+                SqlClientSourceUnavailableError,
+                True,
+            ),
+        ],
+        ids=["access_denied", "unreachable"],
+    )
     @pytest.mark.asyncio
-    async def test_load_iam_role_connection_test_generic_failure_translates(
-        self, iam_role_credentials
+    async def test_load_iam_connection_test_failure_uses_the_sdk_classifier(
+        self, iam_role_credentials, driver_error, expected, retryable
     ):
-        """A non-AwsAssumeRole, non-IamToken exception from engine.connect()
-        (i.e. MySQL rejecting the token at auth-plugin negotiation) is
-        translated to IamTokenGenerationError(connection_rejected)."""
+        """A failed connection test is typed by the SDK, as it is for basic
+        auth. MySQL rejecting the token stays a non-retryable auth failure;
+        an unreachable server is no longer misreported as one, and is retried.
+        """
         with (
             patch(
                 "app.client.generate_aws_rds_token_with_iam_role",
-                return_value="initial_token",
+                return_value=TOKEN_0,
             ),
-            patch("app.client.create_async_engine") as mock_create_engine,
-            patch("sqlalchemy.event.listens_for"),
+            patch("sqlalchemy.ext.asyncio.create_async_engine") as mock_create_engine,
         ):
-            mock_engine = MagicMock()
-
-            def _connect():
-                raise RuntimeError("MySQL rejected the token (auth_plugin negotiation)")
-
-            mock_engine.connect.side_effect = _connect
-            mock_engine.sync_engine = MagicMock()
-            mock_engine.dispose = AsyncMock()
+            mock_engine = self._mock_engine()
+            mock_engine.connect.side_effect = driver_error
             mock_create_engine.return_value = mock_engine
 
             client = SQLClient()
-            with pytest.raises(IamTokenGenerationError) as exc_info:
+            with pytest.raises(expected) as exc_info:
                 await client.load(iam_role_credentials)
-            assert exc_info.value.failure_reason == "connection_rejected"
+
+        assert exc_info.value.effective_retryable is retryable
+
+
+# ----------------------------------------------------------------------
+# The SDK's RDS IAM token refresh, on the app's own async engine
+# ----------------------------------------------------------------------
+
+#: Shaped like a real RDS auth token: a presigned query string with characters
+#: that must survive URL quoting.
+TOKEN_0 = (
+    "test-instance.us-east-1.rds.amazonaws.com:3306/?Action=connect"
+    "&DBUser=db_user&X-Amz-Credential=AKIA%2F20261109&X-Amz-Signature=a+b/0"
+)
+TOKEN_1 = TOKEN_0.replace("a+b/0", "c+d/1")
+
+
+class _StopConnect(Exception):
+    """Raised by the recorder so no connect ever reaches a socket."""
+
+
+class _Ping:
+    """Stands in for load()'s connection test."""
+
+    async def __aenter__(self) -> None:
+        return None
+
+    async def __aexit__(self, *exc: object) -> None:
+        return None
+
+
+async def _load_on_a_real_engine(
+    client: SQLClient, credentials: dict, *, token_age: float = 0.0
+) -> Any:
+    """Run the real load() on a real aiomysql engine; return that engine.
+
+    Only load()'s connection test is stubbed. ``token_age`` backdates load()'s
+    token issue time; the refresh measures it against the real clock, so an
+    age past 10 minutes makes the next new connection rebuild the token.
+    """
+    real_create = sa_asyncio.create_async_engine
+    engines: list[Any] = []
+
+    def _create(url: str, **kwargs: Any) -> Any:
+        real = real_create(url, **kwargs)
+        engines.append(real)
+        wrapper = MagicMock()
+        wrapper.sync_engine = real.sync_engine
+        wrapper.connect = MagicMock(return_value=_Ping())
+        wrapper.dispose = AsyncMock()
+        return wrapper
+
+    aged = SimpleNamespace(monotonic=lambda: time.monotonic() - token_age)
+    with (
+        patch("sqlalchemy.ext.asyncio.create_async_engine", side_effect=_create),
+        patch.object(sdk_sql, "time", aged),
+    ):
+        await client.load(credentials)
+    return engines[0]
+
+
+def _record_connect_params(sync_engine: Any) -> list[dict[str, Any]]:
+    seen: list[dict[str, Any]] = []
+
+    def _record(dialect, conn_rec, cargs, cparams) -> None:
+        seen.append(dict(cparams))
+        raise _StopConnect
+
+    event.listen(sync_engine, "do_connect", _record)
+    return seen
+
+
+IAM_ROLE_CREDENTIALS = {
+    "username": "db_user",
+    "host": "test-instance.us-east-1.rds.amazonaws.com",
+    "port": "3306",
+    "extra": {"aws_role_arn": "arn:aws:iam::123456789012:role/test-role"},
+    "authType": "iam_role",
+}
+
+
+@pytest.mark.asyncio
+async def test_an_aged_iam_token_is_rebuilt_off_the_event_loop() -> None:
+    """A new connection after the token aged gets a fresh one, built on a
+    worker thread: the STS AssumeRole never holds the event loop."""
+    probe = LoopProbe()
+    calls: list[dict[str, Any]] = []
+
+    def _sts_token(**kwargs: Any) -> str:
+        calls.append(kwargs)
+        if len(calls) == 1:
+            return TOKEN_0  # load(): run_in_thread, outside the probe
+        probe.block()  # stands in for the STS AssumeRole on refresh
+        return TOKEN_1
+
+    client = SQLClient()
+    with patch(
+        "app.client.generate_aws_rds_token_with_iam_role", side_effect=_sts_token
+    ):
+        engine = await _load_on_a_real_engine(
+            client, dict(IAM_ROLE_CREDENTIALS), token_age=11 * 60
+        )
+        seen = _record_connect_params(engine.sync_engine)
+
+        async def _connect() -> None:
+            with pytest.raises(_StopConnect):
+                async with engine.connect():
+                    pass
+
+        await probe.run(_connect)
+    await engine.dispose()
+
+    probe.assert_loop_stayed_free("refreshing the RDS IAM token on an app connect")
+    assert len(calls) == 2
+    assert seen[0]["password"] == TOKEN_1
+    assert seen[0]["user"] == "db_user"
+    assert seen[0]["auth_plugin"] == "mysql_clear_password"
+    assert isinstance(seen[0]["ssl"], ssl.SSLContext)
+
+
+@pytest.mark.asyncio
+async def test_a_fresh_iam_token_is_reused_without_calling_sts() -> None:
+    """Unlike the old per-connect listener, a token under 10 minutes old is
+    reused: no STS call on the connect path at all."""
+    client = SQLClient()
+    with patch(
+        "app.client.generate_aws_rds_token_with_iam_role", return_value=TOKEN_0
+    ) as mock_token:
+        engine = await _load_on_a_real_engine(client, dict(IAM_ROLE_CREDENTIALS))
+        seen = _record_connect_params(engine.sync_engine)
+        with pytest.raises(_StopConnect):
+            async with engine.connect():
+                pass
+    await engine.dispose()
+
+    assert mock_token.call_count == 1
+    assert seen[0]["password"] == TOKEN_0
+
+
+@pytest.mark.asyncio
+async def test_an_sts_rejection_on_refresh_is_typed_as_iam_auth_failure() -> None:
+    """An STS failure now surfaces from a later connect, not load(); it still
+    arrives as IamTokenGenerationError(assume_role_denied)."""
+    calls = {"n": 0}
+
+    def _sts_token(**kwargs: Any) -> str:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            return TOKEN_0
+        raise AwsAssumeRoleError(cause=Exception("STS denied on refresh"))
+
+    client = SQLClient()
+    with patch(
+        "app.client.generate_aws_rds_token_with_iam_role", side_effect=_sts_token
+    ):
+        engine = await _load_on_a_real_engine(
+            client, dict(IAM_ROLE_CREDENTIALS), token_age=11 * 60
+        )
+        with pytest.raises(IamTokenGenerationError) as exc_info:
+            async with engine.connect():
+                pass
+    await engine.dispose()
+
+    assert exc_info.value.failure_reason == "assume_role_denied"
+    assert "authentication failed" in str(exc_info.value).lower()

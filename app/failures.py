@@ -32,13 +32,6 @@ class IamTokenGenerationError(AuthError):
 
 
 @dataclass(kw_only=True)
-class EngineCreationError(InternalError):
-    code: ClassVar[str] = "INTERNAL_MYSQL_ENGINE_CREATE"
-    message: str = "Failed to create async SQLAlchemy engine"
-    component: str | None = "sql_client"
-
-
-@dataclass(kw_only=True)
 class MetadataHostMissingError(PreconditionError):
     code: ClassVar[str] = "PRECONDITION_MYSQL_METADATA_HOST"
     resource: str | None = "credentials"
