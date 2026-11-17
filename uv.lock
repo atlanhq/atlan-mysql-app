@@ -70,7 +70,7 @@ wheels = [
 
 [[package]]
 name = "atlan-application-sdk"
-version = "3.57.0"
+version = "3.58.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "atlan-application-sdk-api" },
@@ -104,9 +104,9 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "uvicorn", extra = ["standard"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/6a/a5/e264ebb187670b6d8a4f03a8cc4ab0c628ff7651cfae1a32b12ab31638f2/atlan_application_sdk-3.57.0.tar.gz", hash = "sha256:90e54472a94f94fac1e0de422a183a7e709c83e1b543c76d4dae416a5694dca7", size = 11819814, upload-time = "2026-11-13T12:16:44.152Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ab/17/e7b3e5d8283b0fdb5421f6e8ec3068a6b82ff83503d65ea9ba1f68cb9a37/atlan_application_sdk-3.58.0.tar.gz", hash = "sha256:96060a05fe7cc5a1ee793b808646f5f2098729f5d21359b9962b20c37a300881", size = 11890528, upload-time = "2026-11-17T06:56:15.761Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ed/79/a3c473139ab825d89a78afbfc002008809713c8332c46d80f79dd2c50983/atlan_application_sdk-3.57.0-py3-none-any.whl", hash = "sha256:6103a86794cfe2e46e7abd6a9c09054937dd8a5aeea188b257c0b526b757cc2a", size = 1908655, upload-time = "2026-11-13T12:16:42.149Z" },
+    { url = "https://files.pythonhosted.org/packages/e5/a9/580f0076fd690d09431e12aafe896e39a893104c44f335d44d6382683550/atlan_application_sdk-3.58.0-py3-none-any.whl", hash = "sha256:bbfaf2a01f473d68b586c8b890f5b966f85e471e29f38c31651eb7c5b3b23dbc", size = 1928671, upload-time = "2026-11-17T06:56:13.822Z" },
 ]
 
 [package.optional-dependencies]
@@ -130,7 +130,7 @@ workflows = [
 
 [[package]]
 name = "atlan-application-sdk-api"
-version = "3.57.0"
+version = "3.58.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -141,14 +141,14 @@ dependencies = [
     { name = "python-multipart" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/47/de/7f70f784f878f6b6e41a2e3fd720e15d944c46feac4c5f4a738e08d59fef/atlan_application_sdk_api-3.57.0.tar.gz", hash = "sha256:3177c3cd0bb689c96451f26adacfa4afc73c0d45ad65e9036e0cbb0d7e7b72b9", size = 334008, upload-time = "2026-11-13T12:16:37.231Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/6f/61/60a874817a668841b42d4888ad1805eb456134c6f539a5ca0f4dc981aad8/atlan_application_sdk_api-3.58.0.tar.gz", hash = "sha256:d2e77dfbd6b2c45bffa8a451773f9a977162271afb996b865f5576ba35521c22", size = 336420, upload-time = "2026-11-17T06:56:07.561Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/34/d0/1be0a358069d9b84001d1be6e807f1e41ba3ab4e4a2c224467ccd404fa5c/atlan_application_sdk_api-3.57.0-py3-none-any.whl", hash = "sha256:25946a535737688b1f317e3d64d9328a4e5f9de7f93deab19e83d59491620bd8", size = 375196, upload-time = "2026-11-13T12:16:35.919Z" },
+    { url = "https://files.pythonhosted.org/packages/11/96/251cff2144921fb9d27e84a3bfd5ecc2f3eff15aba871ffecc5696b2a1ac/atlan_application_sdk_api-3.58.0-py3-none-any.whl", hash = "sha256:87c34d920ebad5514d25c0645e1077a437867b06246f9418cdb5989cfcb8d0b5", size = 377726, upload-time = "2026-11-17T06:56:06.181Z" },
 ]
 
 [[package]]
 name = "atlan-application-sdk-conformance"
-version = "0.58.0"
+version = "0.59.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "jinja2" },
@@ -156,9 +156,9 @@ dependencies = [
     { name = "packaging" },
     { name = "pydantic" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a3/6b/9ea9376238a20df7ddbc97983c4209d6b2fac69b98f2b6a2423bd25d32fa/atlan_application_sdk_conformance-0.58.0.tar.gz", hash = "sha256:60ae3b55d85f753f1a91fde182fb7bf1569d30a2dace06968bd339f6e9a29ff8", size = 2651177, upload-time = "2026-11-13T12:18:53.003Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/bf/d1/13d11d3faca08862d533e59712587b477ade13f8e9a75e8af16eb257f597/atlan_application_sdk_conformance-0.59.0.tar.gz", hash = "sha256:b7824c86e8959bfd4761c49e898f056f84cfb5a25b73d3a132d44e4303bfd28c", size = 2661386, upload-time = "2026-11-17T06:56:40.6Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/19/e0/bcff38aa43acf9018eeda8c4d6394f2d51123e8b34cc5d6145ea32e8535d/atlan_application_sdk_conformance-0.58.0-py3-none-any.whl", hash = "sha256:8b7f78bc7892e48f4284f37077d639b57c45278ca6347a3328757bef1a4b575b", size = 2319690, upload-time = "2026-11-13T12:18:51.333Z" },
+    { url = "https://files.pythonhosted.org/packages/ff/d4/a19d12c6dbca320c4279e423f2af6f7b310d79a8fe4239b5f81577c0e429/atlan_application_sdk_conformance-0.59.0-py3-none-any.whl", hash = "sha256:0d56a9e1b2fcd15206af9d5f60ab031a4a2be048b4a064b32c20631e34b1b86a", size = 2328245, upload-time = "2026-11-17T06:56:39.307Z" },
 ]
 
 [[package]]
@@ -228,15 +228,15 @@ wheels = [
 
 [[package]]
 name = "authlib"
-version = "1.9.5"
+version = "1.9.8"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "cryptography" },
     { name = "joserfc" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/04/96/6e7ed72bb49762a9b65d51c4cb235d793f0485cd8d6f7e9404ce955a4808/authlib-1.9.5.tar.gz", hash = "sha256:3f031d5e9b6486089e91e8f7f1b68f36275f3151c66460d650fc90d420545fd7", size = 183564, upload-time = "2026-11-05T16:13:18.409Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/7e/9d/4260bc37e6b859f654394c4815a75c92f3505b42b53135a4603bba60d52d/authlib-1.9.8.tar.gz", hash = "sha256:879735216a0b805a4dfedb4fdd19e7d75ebb8debd70cc7566da9d813db34458d", size = 184126, upload-time = "2026-11-16T10:39:38.943Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/58/d7/d384e7a639dd1d018767ba0fe39601b61cded066bb7af38db31ec998252d/authlib-1.9.5-py2.py3-none-any.whl", hash = "sha256:e32a63e3d869196b61816b2602231862179a2ffc29358c009d1f022c8b86a8b2", size = 267074, upload-time = "2026-11-05T16:13:16.766Z" },
+    { url = "https://files.pythonhosted.org/packages/09/d3/c22999bcbc6c0207bdf4c8de47a65c01a2c4c5818701162a6f6bbdb94ebe/authlib-1.9.8-py2.py3-none-any.whl", hash = "sha256:de0b0138d398d0058f3139d8332bc8f674143dca0b446116ff285c7f417a4f7e", size = 267514, upload-time = "2026-11-16T10:39:37.475Z" },
 ]
 
 [[package]]
@@ -1313,15 +1313,15 @@ wheels = [
 
 [[package]]
 name = "loguru"
-version = "0.7.3"
+version = "0.8.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "colorama", marker = "sys_platform == 'win32'" },
     { name = "win32-setctime", marker = "sys_platform == 'win32'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/3a/05/a1dae3dffd1116099471c643b8924f5aa6524411dc6c63fdae648c4f1aca/loguru-0.7.3.tar.gz", hash = "sha256:19480589e77d47b8d85b2c827ad95d49bf31b0dcde16593892eb51dd18706eb6", size = 63559, upload-time = "2024-12-06T11:20:56.608Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/61/ce/b5bb93d4d9fc7a067f69140b3bb3782f6ad6360bc76e99b6e3d386cb1320/loguru-0.8.0.tar.gz", hash = "sha256:fb3e4623288e37700a0577f6e0ce776cc1860b5d95c657d67f07a2476b304867", size = 71232, upload-time = "2026-11-11T18:50:26.248Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0c/29/0348de65b8cc732daa3e33e67806420b2ae89bdce2b04af740289c5c6c8c/loguru-0.7.3-py3-none-any.whl", hash = "sha256:31a33c10c8e1e10422bfd431aeb5d351c7cf7fa671e3c4df004162264b28220c", size = 61595, upload-time = "2024-12-06T11:20:54.538Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/00/9ee7c8da7342b1a5524bca9d036f89e7d1d1e5a6345c9623763eeeac941f/loguru-0.8.0-py3-none-any.whl", hash = "sha256:e0fba09d6f76ba2d2f4bd1757122942f5a670c702e988b5efaeab99dacba0069", size = 69409, upload-time = "2026-11-11T18:50:24.148Z" },
 ]
 
 [[package]]
