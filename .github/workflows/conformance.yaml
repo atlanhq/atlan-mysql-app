@@ -62,8 +62,12 @@ jobs:
     # forever, because GitHub does not count a dispatched run toward a PR's
     # required checks. No `labeled` trigger: a label add on the same commit
     # started a second run that evicted the first (FND-3839).
-    uses: atlanhq/application-sdk/.github/workflows/conformance-reusable.yaml@main
+    # TRIAL ONLY (FND-5029, application-sdk#4947) - do not merge. Points this
+    # repo's gate at the SDK branch that grades a PR on the blocking findings
+    # it introduces, and runs that branch's conformance package.
+    uses: atlanhq/application-sdk/.github/workflows/conformance-reusable.yaml@vaibhavchopra/fnd-5029-conformance-pr-introduced-blocking
     with:
+      conformance-ref: vaibhavchopra/fnd-5029-conformance-pr-introduced-blocking
       event_name: ${{ github.event_name }}
       skip-on-bump-pr: true
       # Scheduled/manual force-refresh runs have no PR base to diff against
