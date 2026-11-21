@@ -1,5 +1,20 @@
 # Changelog
 
+## v2.4.9 (November 21, 2026)
+
+Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.4.8...v2.4.9
+
+### Chores
+
+- lock file maintenance (#1006) (by @atlan-app-fleet[bot] in [b306a5b](https://github.com/atlanhq/atlan-mysql-app/commit/b306a5b))
+- lock file maintenance (#1008) (by @atlan-app-fleet[bot] in [2f5b023](https://github.com/atlanhq/atlan-mysql-app/commit/2f5b023))
+- lock file maintenance (#1009) (by @atlan-app-fleet[bot] in [1f4801a](https://github.com/atlanhq/atlan-mysql-app/commit/1f4801a))
+- lock file maintenance (#1010) (by @atlan-app-fleet[bot] in [ea356d1](https://github.com/atlanhq/atlan-mysql-app/commit/ea356d1))
+- lock file maintenance (#1011) (by @atlan-app-fleet[bot] in [9e6764c](https://github.com/atlanhq/atlan-mysql-app/commit/9e6764c))
+- lock file maintenance (#1012) (by @atlan-app-fleet[bot] in [148099d](https://github.com/atlanhq/atlan-mysql-app/commit/148099d))
+- lock file maintenance (#1013) (by @atlan-app-fleet[bot] in [a633d25](https://github.com/atlanhq/atlan-mysql-app/commit/a633d25))
+
+
 ## v2.4.8 (November 17, 2026)
 
 Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.4.7...v2.4.8

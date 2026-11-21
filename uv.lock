@@ -163,7 +163,7 @@ wheels = [
 
 [[package]]
 name = "atlan-mysql-app"
-version = "2.4.8"
+version = "2.4.9"
 source = { editable = "." }
 dependencies = [
     { name = "aiomysql" },
