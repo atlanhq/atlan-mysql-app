@@ -7,7 +7,7 @@ requires-python = ">=3.11"
 license = "Apache-2.0"
 readme = "README.md"
 dependencies = [
-    "atlan-application-sdk[iam-auth,pandas,sql,workflows]>=3.33.2,<4.0.0",
+    "atlan-application-sdk[iam-auth,pandas,sql,workflows]>=3.51.0,<4.0.0",
     "aiomysql>=0.3.0",
 ]
 
@@ -169,6 +169,19 @@ ignore = ["G002", "G201"]
 name = "pypi"
 url = "https://pypi.org/simple"
 default = true
+
+# The handler the consolidated API host serves. The code stays in app/; the
+# host's wheel is built from it by application-sdk's gen_app_api.py (nothing
+# else is committed). CI builds it, installs it alone and serves it.
+[tool.atlan-app-api]
+handler = "app.handler:MySQLAppHandler"
+data = [
+    "app/sql/filter_metadata.sql",
+    "app/sql/tables_check.sql",
+    "app/sql/test_authentication.sql",
+]
+dependencies = ["aiomysql>=0.3.0", "tenacity>=8.0.0"]
+extras = ["sql", "aws"]
 
 [tool.uv.sources]
 # atlan-application-sdk = { path = "../application-sdk", editable = true }
