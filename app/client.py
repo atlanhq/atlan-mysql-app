@@ -373,14 +373,12 @@ class SQLClient(AsyncBaseSQLClient):
             # populates the cache. Jitter spreads retries to avoid thundering-
             # herd when multiple workers start simultaneously on a cold server.
             @retry(
-                retry=retry_if_exception_type(SqlClientAuthFailedError),
-                stop=stop_after_attempt(5),
+                retry=retry_if_exception_type(Exception),
+                stop=stop_after_attempt(20),
                 wait=wait_random(min=0, max=0.5),
                 reraise=True,
             )
             async def _load_with_retry():
-                if self.engine:
-                    await self.engine.dispose()
                 await super(SQLClient, self).load(credentials)
 
             await _load_with_retry()
