@@ -12,3 +12,6 @@ DATABASE_PLACEHOLDER = "def"
 
 # Atlan tenant ID — used in all transformed JSONL entities
 TENANT_ID = os.environ.get("ATLAN_TENANT_ID", "default")
+
+# Default page size for catalog queries.
+CATALOG_PAGE_SIZE = 500
