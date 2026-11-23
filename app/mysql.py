@@ -319,13 +319,10 @@ class MySQLApp(SqlApp):
         # View-specific fields
         if isinstance(asset, View):
             view_body = record.get("view_definition", "") or ""
-            if view_body:
-                # Prepend CREATE VIEW so QI/gudusoft can identify the target view
-                # and generate view→table lineage edges. MySQL's VIEW_DEFINITION
-                # stores only the SELECT body without the CREATE VIEW prefix.
-                asset.definition = f"CREATE OR REPLACE VIEW {table_name} AS {view_body}"
-            else:
-                asset.definition = ""
+            # Prepend CREATE VIEW so QI/gudusoft can identify the target view
+            # and generate view→table lineage edges. MySQL's VIEW_DEFINITION
+            # stores only the SELECT body without the CREATE VIEW prefix.
+            asset.definition = f"CREATE OR REPLACE VIEW {table_name} AS {view_body}"
 
         # Source timestamps
         source_created = _epoch_ms(record.get("create_time"))
