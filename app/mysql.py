@@ -86,6 +86,17 @@ class MySQLExtractionOutput(Output):
 _SQL_DIR = Path(__file__).parent / "sql"
 
 
+# MySQL-specific table metadata copied into a table's customAttributes.
+_TABLE_CUSTOM_ATTRIBUTE_KEYS = (
+    "engine",
+    "version",
+    "row_format",
+    "data_length",
+    "table_collation",
+    "create_options",
+)
+
+
 def _read_sql(filename: str) -> str:
     """Read a SQL file and replace database placeholder."""
     path = _SQL_DIR / filename
@@ -323,14 +334,7 @@ class MySQLApp(SqlApp):
 
         # Custom attributes (MySQL-specific metadata)
         custom: dict[str, Any] = {}
-        for key in (
-            "engine",
-            "version",
-            "row_format",
-            "data_length",
-            "table_collation",
-            "create_options",
-        ):
+        for key in _TABLE_CUSTOM_ATTRIBUTE_KEYS:
             custom[key] = _safe_str(record.get(key))
         custom["is_transient"] = ""
         asset.custom_attributes = custom
