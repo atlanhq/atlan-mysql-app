@@ -379,8 +379,6 @@ class SQLClient(AsyncBaseSQLClient):
                 reraise=True,
             )
             async def _load_with_retry():
-                if self.engine:
-                    await self.engine.dispose()
                 await super(SQLClient, self).load(credentials)
 
             await _load_with_retry()
