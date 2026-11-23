@@ -120,9 +120,7 @@ def _coerce_numeric(v: Any, default: int = 0) -> int | float:
     pandas represents SQL NULLs as NaN in numeric columns. Python's ``x or 0``
     guard doesn't catch NaN because ``bool(float('nan'))`` is True.
     """
-    if v is None:
-        return default
-    if isinstance(v, float) and (math.isnan(v) or math.isinf(v)):
+    if v is None or (isinstance(v, float) and (math.isnan(v) or math.isinf(v))):
         return default
     return v
 
