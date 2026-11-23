@@ -535,14 +535,18 @@ class MySQLApp(SqlApp):
             # infra.storage (objectstore) for task-to-task durability.
             # The explicit App.upload_refs() below handles the final hand-off
             # of the declared transformed files to upstream_storage (S3).
-            proc_extract_result = await self.extract_procedures(proc_input)
-            proc_transform_input = self.build_transform_input(
-                proc_input, proc_extract_result.raw_file
-            )
-            proc_transform_result = await self.transform_procedures(
-                proc_transform_input
-            )
-            extra_transforms.append(proc_transform_result)
+            try:
+                proc_extract_result = await self.extract_procedures(proc_input)
+                proc_transform_input = self.build_transform_input(
+                    proc_input, proc_extract_result.raw_file
+                )
+                proc_transform_result = await self.transform_procedures(
+                    proc_transform_input
+                )
+                extra_transforms.append(proc_transform_result)
+            except Exception:
+                logger.warning("procedure extraction failed, continuing without it")
+                extra_transforms = []
 
         # The procedure transform runs *here*, not inside SqlApp.run(), so its
         # ref is absent from base_result.transformed_files — and super().run()
