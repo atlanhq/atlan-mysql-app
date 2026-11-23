@@ -483,7 +483,7 @@ class MySQLApp(SqlApp):
         asset.tenant_id = TENANT_ID
         asset.status = "ACTIVE"
         # ROUTINE_COMMENT (extract_procedure.sql aliases it "remarks"); empty when unset.
-        asset.description = record.get("remarks", "") or ""
+        asset.description = record.get("remarks") or ""
 
         source_owner = record.get("source_owner", "") or ""
         if source_owner:
