@@ -142,7 +142,7 @@ def _safe_str(v: Any) -> str:
             return ""
         if v.is_integer():
             return str(int(v))
-    return str(v) if not isinstance(v, str) else v
+    return v if isinstance(v, str) else str(v)
 
 
 @lru_cache(maxsize=4096)
