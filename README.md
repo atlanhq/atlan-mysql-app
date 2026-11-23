@@ -201,3 +201,5 @@ uv run poe generate                                 # Regenerate PKL contract ar
 uv run poe download-components                      # Download Dapr components (production parity)
 docker build -t atlan-mysql-app:latest .            # Build image
 ```
+
+<!-- docs-only test line (FND-5314), never merged -->
