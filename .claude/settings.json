@@ -1,16 +1,5 @@
 {
   "hooks": {
-    "SessionStart": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": ".claude/hooks/connector-review-reminder.sh",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
     "PreToolUse": []
   }
 }
