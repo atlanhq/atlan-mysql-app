@@ -65,7 +65,7 @@ jobs:
     uses: atlanhq/application-sdk/.github/workflows/conformance-reusable.yaml@main
     with:
       event_name: ${{ github.event_name }}
-      skip-on-bump-pr: true
+      skip-on-bump-pr: false
       # Scheduled/manual force-refresh runs have no PR base to diff against
       # and nothing to block — always run every series, and never fail the
       # run itself. The SARIF still records the real result, so the
