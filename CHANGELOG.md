@@ -1201,3 +1201,5 @@ Bumps SDK pin to `e086acb5`.
 ## 0.1.0
 
 - Initial MySQL connector with basic auth support
+
+<!-- FND-5321 test line, never merged. -->
