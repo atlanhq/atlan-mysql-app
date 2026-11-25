@@ -295,7 +295,7 @@ class MySQLApp(SqlApp):
         # TABLE_COMMENT (extract_table.sql aliases it "remarks"); empty when the
         # source table/view has no comment set. Applies to both Table and View —
         # 'description' is a generic Asset-level field, not View-specific.
-        asset.description = record.get("remarks", "") or ""
+        asset.description = record.get("table_name", "") or ""
 
         # Table-specific fields (View has no is_partitioned/partition_count/row_count/
         # sub_type on the pyatlan_v9 model — isinstance narrows for the type checker)
