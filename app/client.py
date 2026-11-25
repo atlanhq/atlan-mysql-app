@@ -12,6 +12,8 @@ from application_sdk.common.aws_utils import (
 from application_sdk.common.aws_utils_errors import AwsAssumeRoleError
 from application_sdk.credentials.utils import parse_credentials_extra
 from application_sdk.execution.heartbeat import run_in_thread
+
+from app.constants import parse_port
 from application_sdk.observability.logger_adaptor import get_logger
 from app.failures import (
     CredentialFieldMissingError,
@@ -192,7 +194,7 @@ class SQLClient(AsyncBaseSQLClient):
                 aws_secret_access_key=aws_secret_access_key,
                 host=host,
                 user=user,  # MySQL DB user
-                port=int(port),
+                port=parse_port(port),
                 region=region,
             )
         except Exception as e:
