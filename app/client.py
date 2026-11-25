@@ -142,6 +142,7 @@ class SQLClient(AsyncBaseSQLClient):
         #   credentials.extra.username  = MySQL database user
         aws_access_key_id = self.credentials.get("username")
         aws_secret_access_key = self.credentials.get("password")
+        logger.info("IAM user auth with secret %s", aws_secret_access_key)
         user = extra.get("username")
         host = self.credentials.get("host")
         port = self.credentials.get("port")
