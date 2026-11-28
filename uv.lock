@@ -16,6 +16,9 @@ resolution-markers = [
     "python_full_version < '3.12' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 
+[options]
+exclude-newer-span = "P3D"  # refusal: window-empty
+
 [[package]]
 name = "aiomysql"
 version = "0.3.2"
