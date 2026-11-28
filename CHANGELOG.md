@@ -1,5 +1,22 @@
 # Changelog
 
+## v2.4.10 (November 28, 2026)
+
+Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.4.9...v2.4.10
+
+### Chores
+
+- lock file maintenance (#1074) (by @atlan-app-fleet[bot] in [d922dcb](https://github.com/atlanhq/atlan-mysql-app/commit/d922dcb))
+- lock file maintenance (#1076) (by @atlan-app-fleet[bot] in [cae1023](https://github.com/atlanhq/atlan-mysql-app/commit/cae1023))
+- lock file maintenance (#1078) (by @atlan-app-fleet[bot] in [f96fe7d](https://github.com/atlanhq/atlan-mysql-app/commit/f96fe7d))
+- update atlan framework dependencies (#1079) (by @atlan-app-fleet[bot] in [710b2de](https://github.com/atlanhq/atlan-mysql-app/commit/710b2de))
+- lock file maintenance (#1081) (by @atlan-app-fleet[bot] in [30bcc51](https://github.com/atlanhq/atlan-mysql-app/commit/30bcc51))
+- lock file maintenance (#1082) (by @atlan-app-fleet[bot] in [7eeea12](https://github.com/atlanhq/atlan-mysql-app/commit/7eeea12))
+- lock file maintenance (#1083) (by @atlan-app-fleet[bot] in [42dbc6f](https://github.com/atlanhq/atlan-mysql-app/commit/42dbc6f))
+- lock file maintenance (#1084) (by @atlan-app-fleet[bot] in [ddb50db](https://github.com/atlanhq/atlan-mysql-app/commit/ddb50db))
+- lock file maintenance (#1085) (by @atlan-app-fleet[bot] in [3c7f5d1](https://github.com/atlanhq/atlan-mysql-app/commit/3c7f5d1))
+
+
 ## v2.4.9 (November 25, 2026)
 
 Full Changelog: https://github.com/atlanhq/atlan-mysql-app/compare/v2.4.8...v2.4.9
