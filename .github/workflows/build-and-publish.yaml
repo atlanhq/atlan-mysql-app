@@ -30,7 +30,7 @@ on:
 
 jobs:
   build-and-publish:
-    uses: atlanhq/application-sdk/.github/workflows/build-and-publish-app.yaml@main
+    uses: atlanhq/application-sdk/.github/workflows/build-and-publish-app.yaml@vaibhavchopra/fnd-5576-publish-twingate
     with:
       ref: ${{ inputs.ref || github.ref }}
       publish: ${{ github.event_name == 'release' || inputs.publish == true }}
